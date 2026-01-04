@@ -35,13 +35,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        <Stack.Screen name="auth/sign-up" options={{ headerShown: true, title: 'Sign Up' }} />
-        <Stack.Screen name="auth/login" options={{ headerShown: true, title: 'Log In' }} />
-        <Stack.Screen name="auth/company-sign-up" options={{ headerShown: true, title: 'Company Sign Up' }} />
-        <Stack.Screen name="auth/company-login" options={{ headerShown: true, title: 'Company Log In' }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="auth/sign-up" />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/sign-up-success" />        <Stack.Screen name="auth/forgot-password" />        <Stack.Screen name="auth/company-sign-up" />
+        <Stack.Screen name="auth/company-login" />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>

@@ -1,57 +1,303 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
+import { useRouter, Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'expo-router';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import { Colors } from '@/constants/theme';
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  const handleSignUp = () => {
+    // For prototype: Accept any credentials and go to AI onboarding
+    router.push('/auth/sign-up-success');
+  };
+
+  const handleOAuthSignUp = (provider: string) => {
+    // For prototype: Simulate OAuth and go directly to AI onboarding
+    console.log(`OAuth sign up with ${provider}`);
+    router.push('/auth/sign-up-success');
+  };
 
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.muted }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       <View style={styles.content}>
-        <Text style={styles.title}>Job Seeker Sign Up</Text>
-        <Text style={styles.subtitle}>Create your account to start swiping through opportunities</Text>
-        
-        <View style={styles.form}>
-          <Text style={styles.placeholder}>Sign up form will go here</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
+          <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>
+            Join thousands finding their dream jobs.
+          </Text>
         </View>
 
-        <Button onPress={() => router.back()}>
-          Go Back
-        </Button>
+        <Card>
+          <CardContent style={styles.cardContent}>
+            {/* Card Header */}
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Create Account</Text>
+              <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
+                Get started with your dream career
+              </Text>
+            </View>
+
+            {/* OAuth Buttons */}
+            <View style={styles.oauthContainer}>
+              <Button
+                variant="outline"
+                onPress={() => handleOAuthSignUp('linkedin')}
+                style={styles.oauthButton}
+              >
+                <Ionicons name="logo-linkedin" size={16} color={colors.foreground} />
+                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>LinkedIn</Text>
+              </Button>
+              <Button
+                variant="outline"
+                onPress={() => handleOAuthSignUp('github')}
+                style={styles.oauthButton}
+              >
+                <Ionicons name="logo-github" size={16} color={colors.foreground} />
+                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>GitHub</Text>
+              </Button>
+            </View>
+
+            {/* Separator */}
+            <View style={styles.separatorContainer}>
+              <Separator />
+              <View style={[styles.separatorTextContainer, { backgroundColor: colors.card }]}>
+                <Text style={[styles.separatorText, { color: colors.mutedForeground }]}>
+                  Or continue with email
+                </Text>
+              </View>
+            </View>
+
+            {/* Full Name Field */}
+            <View style={styles.field}>
+              <Label>Full Name</Label>
+              <Input
+                placeholder="John Doe"
+                autoCapitalize="words"
+                value={fullName}
+                onChangeText={setFullName}
+              />
+            </View>
+
+            {/* Email Field */}
+            <View style={styles.field}>
+              <Label>Email</Label>
+              <Input
+                placeholder="m@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            {/* Password Field */}
+            <View style={styles.field}>
+              <Label>Password</Label>
+              <Input
+                placeholder="Min. 8 characters"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+
+            {/* Confirm Password Field */}
+            <View style={styles.field}>
+              <Label>Confirm Password</Label>
+              <Input
+                placeholder="Re-enter your password"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            </View>
+
+            {/* Terms Checkbox */}
+            <View style={styles.termsContainer}>
+              <Checkbox
+                checked={agreedToTerms}
+                onCheckedChange={setAgreedToTerms}
+              />
+              <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
+                I agree to the{' '}
+                <Text style={[styles.termsLink, { color: colors.primary }]}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text style={[styles.termsLink, { color: colors.primary }]}>Privacy Policy</Text>
+              </Text>
+            </View>
+
+            {/* Sign Up Button */}
+            <Button 
+              size="lg" 
+              onPress={handleSignUp} 
+              style={[styles.signUpButton, !agreedToTerms && { opacity: 0.5 }]}
+            >
+              Sign Up
+            </Button>
+
+            {/* Login Link */}
+            <View style={styles.loginContainer}>
+              <Text style={[styles.loginText, { color: colors.foreground }]}>
+                Already have an account?{' '}
+              </Text>
+              <Link href="/auth/login" asChild>
+                <TouchableOpacity>
+                  <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+
+            {/* Company Sign Up Link */}
+            <View style={[styles.companySignUpContainer, { borderTopColor: colors.border }]}>
+              <Link href="/auth/company-sign-up" asChild>
+                <TouchableOpacity>
+                  <Text style={[styles.companySignUpText, { color: colors.mutedForeground }]}>
+                    Register as a company instead →
+                  </Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </CardContent>
+        </Card>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
   },
   content: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  header: {
+    alignItems: 'center',
     marginBottom: 32,
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: '900',
+    marginBottom: 8,
+    letterSpacing: -1,
+  },
+  appSubtitle: {
+    fontSize: 14,
     textAlign: 'center',
   },
-  form: {
+  cardContent: {
+    gap: 0,
+    padding: 24,
+  },
+  cardHeader: {
     marginBottom: 24,
   },
-  placeholder: {
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  cardDescription: {
     fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    padding: 48,
+  },
+  oauthContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  oauthButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 44,
+  },
+  oauthButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  separatorContainer: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  separatorTextContainer: {
+    position: 'absolute',
+    top: -10,
+    left: '50%',
+    transform: [{ translateX: -80 }],
+    paddingHorizontal: 8,
+  },
+  separatorText: {
+    fontSize: 12,
+  },
+  field: {
+    marginBottom: 16,
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 16,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  termsLink: {
+    textDecorationLine: 'underline',
+  },
+  signUpButton: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  loginText: {
+    fontSize: 14,
+  },
+  loginLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  companySignUpContainer: {
+    paddingTop: 16,
+    marginTop: 16,
+    borderTopWidth: 1,
+    alignItems: 'center',
+  },
+  companySignUpText: {
+    fontSize: 14,
   },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, ViewStyle, TextStyle, useColorScheme } from 'react-native';
+import { TouchableOpacity, Text, ViewStyle, TextStyle, useColorScheme, StyleProp } from 'react-native';
 import { Colors, Radius } from '@/constants/theme';
 
 interface ButtonProps {
@@ -7,8 +7,9 @@ interface ButtonProps {
   onPress?: () => void;
   variant?: 'default' | 'outline';
   size?: 'default' | 'lg';
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
+  disabled?: boolean;
 }
 
 export function Button({ 
@@ -17,13 +18,15 @@ export function Button({
   variant = 'default', 
   size = 'default',
   style,
-  textStyle 
+  textStyle,
+  disabled = false
 }: ButtonProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <TouchableOpacity
+      disabled={disabled}
       style={[
         {
           backgroundColor: colors.primary,
