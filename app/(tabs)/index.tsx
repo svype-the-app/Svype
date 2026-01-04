@@ -342,6 +342,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
     marginBottom: 24,
+    height: 380,
   },
   swipeOverlay: {
     position: 'absolute',
