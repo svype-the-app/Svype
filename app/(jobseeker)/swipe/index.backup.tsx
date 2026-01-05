@@ -5,10 +5,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -16,20 +18,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
-const SWIPE_VELOCITY_THRESHOLD = 500; // px/s
 
 interface Job {
   id: string;
@@ -96,180 +87,98 @@ export default function SwipeScreen() {
   const [lastDiscarded, setLastDiscarded] = useState<Job | null>(null);
   const [showUndo, setShowUndo] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const jobsRef = useRef<Job[]>(jobs);
   
-  // Reanimated shared values
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const isDetailsOpen = useSharedValue(false);
+  // Refs to track current values for PanResponder (avoid stale closures)
+  const jobsRef = useRef(jobs);
+  const showDetailsRef = useRef(showDetails);
 
-  // Sync refs and shared values
-  useEffect(() => {
-    jobsRef.current = jobs;
-  }, [jobs]);
+  const position = useRef(new Animated.ValueXY()).current;
+  const rotate = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: ['-10deg', '0deg', '10deg'],
+    extrapolate: 'clamp',
+  });
 
-  useEffect(() => {
-    isDetailsOpen.value = showDetails;
-  }, [showDetails, isDetailsOpen]);
+  const swipeRightOpacity = position.x.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
-  // Handler functions to be called from worklet
-  const handleSwipeRight = useCallback(() => {
-    if (jobsRef.current.length > 0) {
-      const currentJob = jobsRef.current[0];
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const swipeLeftOpacity = position.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !showDetailsRef.current && jobsRef.current.length > 0,
+      onPanResponderMove: (_, gesture) => {
+        if (!showDetailsRef.current && jobsRef.current.length > 0) {
+          position.setValue({ x: gesture.dx, y: gesture.dy });
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (showDetailsRef.current || jobsRef.current.length === 0) return;
+        
+        if (gesture.dx > SWIPE_THRESHOLD) {
+          forceSwipe('right');
+        } else if (gesture.dx < -SWIPE_THRESHOLD) {
+          forceSwipe('left');
+        } else if (gesture.dy < -SWIPE_THRESHOLD) {
+          setShowDetails(true);
+          resetPosition();
+        } else {
+          resetPosition();
+        }
+      },
+    })
+  ).current;
+
+  const forceSwipe = (direction: 'left' | 'right') => {
+    const x = direction === 'right' ? SCREEN_WIDTH + 100 : -SCREEN_WIDTH - 100;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Animated.timing(position, {
+      toValue: { x, y: 0 },
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => onSwipeComplete(direction));
+  };
+
+  const onSwipeComplete = (direction: 'left' | 'right') => {
+    const currentJob = jobs[0]; // Always first card in the array
+    
+    if (direction === 'right') {
       setAppliedJob(currentJob);
       setShowAppliedDialog(true);
-      setJobs(prevJobs => prevJobs.slice(1));
-      
-      // Reset position after React updates
-      setTimeout(() => {
-        translateX.value = 0;
-        translateY.value = 0;
-      }, 0);
-    }
-  }, [translateX, translateY]);
-
-  const handleSwipeLeft = useCallback(() => {
-    if (jobsRef.current.length > 0) {
-      const currentJob = jobsRef.current[0];
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } else {
       setLastDiscarded(currentJob);
       setShowUndo(true);
-      
+      // Clear any existing timer
       if (undoTimerRef.current) {
         clearTimeout(undoTimerRef.current);
       }
+      // Set new timer
       undoTimerRef.current = setTimeout(() => {
         setShowUndo(false);
         setLastDiscarded(null);
         undoTimerRef.current = null;
       }, 5000);
-      
-      setJobs(prevJobs => prevJobs.slice(1));
-      
-      // Reset position after React updates
-      setTimeout(() => {
-        translateX.value = 0;
-        translateY.value = 0;
-      }, 0);
     }
-  }, [translateX, translateY]);
 
-  const handleOpenDetails = useCallback(() => {
-    setShowDetails(true);
-  }, []);
+    setJobs(jobs.slice(1)); // Remove first card
+    position.setValue({ x: 0, y: 0 });
+  };
 
-  // Create pan gesture using modern Gesture API
-  const panGesture = Gesture.Pan()
-    .enabled(!showDetails)
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-    })
-    .onEnd((event) => {
-      const absX = Math.abs(event.translationX);
-      const absY = Math.abs(event.translationY);
-      const velX = Math.abs(event.velocityX);
-      const velY = Math.abs(event.velocityY);
+  // Keep refs in sync with state
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
 
-      // Check for upward swipe to open details
-      if (event.translationY < -SWIPE_THRESHOLD && velY > velX) {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        runOnJS(handleOpenDetails)();
-      }
-      // Check for right swipe (apply)
-      else if (
-        (event.translationX > SWIPE_THRESHOLD || event.velocityX > SWIPE_VELOCITY_THRESHOLD) &&
-        absX > absY
-      ) {
-        translateX.value = withTiming(SCREEN_WIDTH + 100, { duration: 250 }, (finished) => {
-          if (finished) {
-            runOnJS(handleSwipeRight)();
-          }
-        });
-      }
-      // Check for left swipe (discard)
-      else if (
-        (event.translationX < -SWIPE_THRESHOLD || event.velocityX < -SWIPE_VELOCITY_THRESHOLD) &&
-        absX > absY
-      ) {
-        translateX.value = withTiming(-SCREEN_WIDTH - 100, { duration: 250 }, (finished) => {
-          if (finished) {
-            runOnJS(handleSwipeLeft)();
-          }
-        });
-      }
-      // Return to center
-      else {
-        translateX.value = withSpring(0, { damping: 20, stiffness: 90 });
-        translateY.value = withSpring(0, { damping: 20, stiffness: 90 });
-      }
-    });
-
-  // Animated styles for the card
-  const cardAnimatedStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-      [-10, 0, 10],
-      Extrapolate.CLAMP
-    );
-
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotate}deg` },
-      ],
-    };
-  });
-
-  // Animated styles for right overlay (apply)
-  const rightOverlayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [0, SWIPE_THRESHOLD],
-      [0, 1],
-      Extrapolate.CLAMP
-    );
-
-    return { opacity };
-  });
-
-  // Animated styles for left overlay (discard)
-  const leftOverlayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD, 0],
-      [1, 0],
-      Extrapolate.CLAMP
-    );
-
-    return { opacity };
-  });
-
-  // Animated styles for next card (stack effect)
-  const nextCardStyle = useAnimatedStyle(() => {
-    const scale = interpolate(
-      Math.abs(translateX.value),
-      [0, SWIPE_THRESHOLD],
-      [0.95, 1],
-      Extrapolate.CLAMP
-    );
-
-    const opacity = interpolate(
-      Math.abs(translateX.value),
-      [0, SWIPE_THRESHOLD],
-      [0.5, 1],
-      Extrapolate.CLAMP
-    );
-
-    return {
-      transform: [{ scale }],
-      opacity,
-    };
-  });
+  useEffect(() => {
+    showDetailsRef.current = showDetails;
+  }, [showDetails]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -280,31 +189,27 @@ export default function SwipeScreen() {
     };
   }, []);
 
+  const resetPosition = () => {
+    Animated.spring(position, {
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: false,
+    }).start();
+  };
+
   const handleApply = () => {
-    if (jobsRef.current.length > 0) {
-      translateX.value = withTiming(SCREEN_WIDTH + 100, { duration: 250 }, (finished) => {
-        if (finished) {
-          runOnJS(handleSwipeRight)();
-        }
-      });
-    }
+    forceSwipe('right');
     setShowDetails(false);
   };
 
   const handleDiscard = () => {
-    if (jobsRef.current.length > 0) {
-      translateX.value = withTiming(-SCREEN_WIDTH - 100, { duration: 250 }, (finished) => {
-        if (finished) {
-          runOnJS(handleSwipeLeft)();
-        }
-      });
-    }
+    forceSwipe('left');
     setShowDetails(false);
   };
 
   const handleUndo = () => {
     if (lastDiscarded) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Clear the timer when manually undoing
       if (undoTimerRef.current) {
         clearTimeout(undoTimerRef.current);
         undoTimerRef.current = null;
@@ -350,11 +255,10 @@ export default function SwipeScreen() {
     );
   }
 
-  const currentJob = jobs[0];
-  const nextJob = jobs.length > 1 ? jobs[1] : null;
+  const currentJob = jobs[0]; // Always show first card in array
 
   return (
-    <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Job Counter */}
       <View style={styles.counterContainer}>
         <View style={[styles.counterBadge, { backgroundColor: colors.muted }]}>
@@ -366,208 +270,157 @@ export default function SwipeScreen() {
 
       {/* Card Container */}
       <View style={styles.cardContainer}>
-        {/* Next Card (Stack Preview) */}
-        {nextJob && (
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              transform: [
+                { translateX: position.x },
+                { translateY: position.y },
+                { rotate },
+              ],
+            },
+          ]}
+          {...panResponder.panHandlers}
+        >
+          {/* Swipe Right Overlay */}
           <Animated.View
             style={[
-              styles.card,
-              styles.nextCard,
-              nextCardStyle,
+              styles.overlayRight,
+              { opacity: swipeRightOpacity, backgroundColor: '#10b981' + '33' },
             ]}
           >
-            <Card style={styles.jobCard}>
-              <CardContent style={styles.cardContent}>
-                <View style={styles.jobHeader}>
-                  <Text style={[styles.jobTitle, { color: colors.foreground }]}>
-                    {nextJob.title}
-                  </Text>
-                  <Text style={[styles.jobCompany, { color: colors.mutedForeground }]}>
-                    {nextJob.company}
+            <View style={[styles.overlayIcon, { backgroundColor: '#10b981' }]}>
+              <Ionicons name="checkmark" size={48} color="#fff" />
+            </View>
+          </Animated.View>
+
+          {/* Swipe Left Overlay */}
+          <Animated.View
+            style={[
+              styles.overlayLeft,
+              { opacity: swipeLeftOpacity, backgroundColor: '#ef4444' + '33' },
+            ]}
+          >
+            <View style={[styles.overlayIcon, { backgroundColor: '#ef4444' }]}>
+              <Ionicons name="close" size={48} color="#fff" />
+            </View>
+          </Animated.View>
+
+          <Card style={styles.jobCard}>
+            <CardContent style={styles.cardContent}>
+              {/* Swipe Hint */}
+              <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>
+                ↑ Details
+              </Text>
+
+              {/* Job Header */}
+              <View style={styles.jobHeader}>
+                <Text style={[styles.jobTitle, { color: colors.foreground }]}>
+                  {currentJob.title}
+                </Text>
+                <Text style={[styles.jobCompany, { color: colors.mutedForeground }]}>
+                  {currentJob.company}
+                </Text>
+              </View>
+
+              {/* Job Info */}
+              <View style={styles.jobInfo}>
+                <View style={styles.infoRow}>
+                  <Ionicons name="location" size={18} color={colors.mutedForeground} />
+                  <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
+                    {currentJob.location}
                   </Text>
                 </View>
-              </CardContent>
-            </Card>
-          </Animated.View>
-        )}
-
-        {/* Current Card */}
-        <GestureDetector gesture={panGesture}>
-          <Animated.View
-            style={[
-              styles.card,
-              cardAnimatedStyle,
-            ]}
-          >
-            {/* Swipe Right Overlay */}
-            <Animated.View
-              style={[
-                styles.overlayRight,
-                { backgroundColor: '#10b981' + '33' },
-                rightOverlayStyle,
-              ]}
-              pointerEvents="none"
-            >
-              <View style={[styles.overlayIcon, { backgroundColor: '#10b981' }]}>
-                <Ionicons name="checkmark" size={48} color="#fff" />
+                <View style={styles.infoRow}>
+                  <Ionicons name="briefcase" size={18} color={colors.mutedForeground} />
+                  <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
+                    {currentJob.type}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Ionicons name="cash" size={18} color={colors.mutedForeground} />
+                  <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
+                    {formatSalary(currentJob.salary_min, currentJob.salary_max)}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Ionicons name="calendar" size={18} color={colors.mutedForeground} />
+                  <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
+                    Posted {formatDate(currentJob.posted_at)}
+                  </Text>
+                </View>
               </View>
-            </Animated.View>
 
-            {/* Swipe Left Overlay */}
-            <Animated.View
-              style={[
-                styles.overlayLeft,
-                { backgroundColor: '#ef4444' + '33' },
-                leftOverlayStyle,
-              ]}
-              pointerEvents="none"
-            >
-              <View style={[styles.overlayIcon, { backgroundColor: '#ef4444' }]}>
-                <Ionicons name="close" size={48} color="#fff" />
-              </View>
-            </Animated.View>
-
-            <Card style={styles.jobCard}>
-              <CardContent style={styles.cardContent}>
-                <ScrollView 
-                  style={styles.scrollContent}
-                  showsVerticalScrollIndicator={false}
-                  bounces={false}
+              {/* Description */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                  About the role
+                </Text>
+                <Text
+                  style={[styles.description, { color: colors.mutedForeground }]}
+                  numberOfLines={6}
                 >
-                  {/* Swipe Hint */}
-                  <View style={styles.swipeHintContainer}>
-                    <Ionicons name="chevron-up" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>
-                      Swipe up for details
-                    </Text>
-                  </View>
+                  {currentJob.description}
+                </Text>
+              </View>
 
-                  {/* Job Header */}
-                  <View style={styles.jobHeader}>
-                    <Text style={[styles.jobTitle, { color: colors.foreground }]} numberOfLines={2}>
-                      {currentJob.title}
-                    </Text>
-                    <View style={styles.companyRow}>
-                      <Ionicons name="business" size={14} color={colors.primary} />
-                      <Text style={[styles.jobCompany, { color: colors.primary }]}>
-                        {currentJob.company}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Salary Highlight */}
-                  <View style={[styles.salaryBanner, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
-                    <Ionicons name="cash-outline" size={18} color={colors.primary} />
-                    <Text style={[styles.salaryText, { color: colors.primary }]}>
-                      {formatSalary(currentJob.salary_min, currentJob.salary_max)}
-                    </Text>
-                    <Text style={[styles.salaryLabel, { color: colors.primary }]}>
-                      per year
-                    </Text>
-                  </View>
-
-                  {/* Job Info Grid */}
-                  <View style={styles.jobInfoGrid}>
-                    <View style={styles.infoCard}>
-                      <Ionicons name="location-outline" size={18} color={colors.primary} />
-                      <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Location</Text>
-                      <Text style={[styles.infoValue, { color: colors.foreground }]} numberOfLines={1}>
-                        {currentJob.location}
-                      </Text>
-                    </View>
-                    <View style={styles.infoCard}>
-                      <Ionicons name="time-outline" size={18} color={colors.primary} />
-                      <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Type</Text>
-                      <Text style={[styles.infoValue, { color: colors.foreground }]} numberOfLines={1}>
-                        {currentJob.type}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Posted Date */}
-                  <View style={styles.postedRow}>
-                    <Ionicons name="calendar-outline" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.postedText, { color: colors.mutedForeground }]}>
-                      Posted {formatDate(currentJob.posted_at)}
-                    </Text>
-                  </View>
-
-                  {/* Description */}
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Ionicons name="document-text-outline" size={16} color={colors.foreground} />
-                      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                        About
-                      </Text>
-                    </View>
-                    <Text
-                      style={[styles.description, { color: colors.mutedForeground }]}
-                      numberOfLines={4}
+              {/* Requirements */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                  Key Requirements
+                </Text>
+                <View style={styles.requirementsContainer}>
+                  {currentJob.requirements.slice(0, 4).map((req, index) => (
+                    <View
+                      key={index}
+                      style={[styles.requirementBadge, {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                      }]}
                     >
-                      {currentJob.description}
-                    </Text>
-                  </View>
-
-                  {/* Requirements */}
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Ionicons name="checkmark-circle-outline" size={16} color={colors.foreground} />
-                      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                        Skills
+                      <Text style={[styles.requirementText, { color: colors.foreground }]}>
+                        {req}
                       </Text>
                     </View>
-                    <View style={styles.requirementsContainer}>
-                      {currentJob.requirements.slice(0, 5).map((req, index) => (
-                        <View
-                          key={index}
-                          style={[styles.requirementBadge, {
-                            backgroundColor: colors.primary + '10',
-                            borderColor: colors.primary + '30',
-                          }]}
-                        >
-                          <Text style={[styles.requirementText, { color: colors.primary }]}>
-                            {req}
-                          </Text>
-                        </View>
-                      ))}
-                      {currentJob.requirements.length > 5 && (
-                        <View style={[styles.requirementBadge, {
-                          backgroundColor: colors.muted,
-                          borderColor: colors.border,
-                        }]}>
-                          <Text style={[styles.requirementText, { color: colors.foreground }]}>
-                            +{currentJob.requirements.length - 5}
-                          </Text>
-                        </View>
-                      )}
+                  ))}
+                  {currentJob.requirements.length > 4 && (
+                    <View style={[styles.requirementBadge, {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    }]}>
+                      <Text style={[styles.requirementText, { color: colors.foreground }]}>
+                        +{currentJob.requirements.length - 4} more
+                      </Text>
                     </View>
-                  </View>
-                </ScrollView>
-
-                {/* Action Buttons */}
-                <View style={styles.actions}>
-                  <Pressable
-                    style={[styles.actionButton, { borderColor: '#ef4444' + '33' }]}
-                    onPress={handleDiscard}
-                  >
-                    <Ionicons name="close" size={24} color="#ef4444" />
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionButton, { borderColor: colors.border }]}
-                    onPress={() => setShowDetails(true)}
-                  >
-                    <Ionicons name="chevron-up" size={24} color={colors.foreground} />
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionButton, { backgroundColor: '#10b981', borderWidth: 0 }]}
-                    onPress={handleApply}
-                  >
-                    <Ionicons name="checkmark" size={24} color="#fff" />
-                  </Pressable>
+                  )}
                 </View>
-              </CardContent>
-            </Card>
-          </Animated.View>
-        </GestureDetector>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.actions}>
+                <Pressable
+                  style={[styles.actionButton, { borderColor: '#ef4444' + '33' }]}
+                  onPress={handleDiscard}
+                >
+                  <Ionicons name="close" size={24} color="#ef4444" />
+                </Pressable>
+                <Pressable
+                  style={[styles.actionButton, { borderColor: colors.border }]}
+                  onPress={() => setShowDetails(true)}
+                >
+                  <Ionicons name="chevron-up" size={24} color={colors.foreground} />
+                </Pressable>
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: '#10b981', borderWidth: 0 }]}
+                  onPress={handleApply}
+                >
+                  <Ionicons name="checkmark" size={24} color="#fff" />
+                </Pressable>
+              </View>
+            </CardContent>
+          </Card>
+        </Animated.View>
 
         {/* Swipe Hints */}
         <Text style={[styles.swipeInstructions, { color: colors.mutedForeground }]}>
@@ -788,7 +641,7 @@ export default function SwipeScreen() {
           </View>
         </View>
       </Modal>
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -832,9 +685,6 @@ const styles = StyleSheet.create({
     height: Math.min(SCREEN_HEIGHT * 0.72, 650),
     position: 'absolute',
   },
-  nextCard: {
-    zIndex: 0,
-  },
   overlayRight: {
     position: 'absolute',
     top: 0,
@@ -869,132 +719,30 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    padding: 16,
-  },
-  scrollContent: {
-    flex: 1,
-    marginBottom: 70,
-  },
-  swipeHintContainer: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 16,
+    padding: 20,
   },
   swipeHint: {
-    fontSize: 10,
-    fontWeight: '500',
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    fontSize: 11,
   },
   jobHeader: {
-    marginBottom: 12,
+    marginBottom: 20,
   },
   jobTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '700',
     marginBottom: 8,
-    lineHeight: 28,
-    letterSpacing: -0.5,
-  },
-  companyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    lineHeight: 32,
   },
   jobCompany: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  salaryBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  salaryText: {
     fontSize: 18,
-    fontWeight: '700',
-  },
-  salaryLabel: {
-    fontSize: 11,
     fontWeight: '500',
   },
-  jobInfoGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.03)',
-    padding: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    gap: 3,
-  },
-  infoLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  postedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 14,
-    justifyContent: 'center',
-  },
-  postedText: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  section: {
-    marginBottom: 14,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  description: {
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  requirementsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  requirementBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1.5,
-  },
-  requirementText: {
-    fontSize: 12,
-    fontWeight: '600',
+  jobInfo: {
+    gap: 12,
+    marginBottom: 20,
   },
   infoRow: {
     flexDirection: 'row',
@@ -1004,18 +752,42 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
   },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  requirementsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  requirementBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  requirementText: {
+    fontSize: 12,
+  },
   actions: {
     flexDirection: 'row',
     gap: 12,
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
+    marginTop: 'auto',
   },
   actionButton: {
     flex: 1,
-    height: 52,
-    borderRadius: 26,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',

@@ -38,7 +38,7 @@ export default function SignUpSuccessScreen() {
             {/* Start Onboarding Button */}
             <Button 
               size="lg" 
-              onPress={() => router.push('/modal')}
+              onPress={() => router.push('/(onboarding)/job-seeker-onboarding' as any)}
               style={styles.startButton}
             >
               Start AI Onboarding
@@ -47,7 +47,7 @@ export default function SignUpSuccessScreen() {
             {/* Skip Button */}
             <Button 
               variant="outline"
-              onPress={() => router.push('/modal')}
+              onPress={() => router.push('/(onboarding)/onboarding-choice' as any)}
               style={styles.skipButton}
             >
               <Text style={[styles.skipButtonText, { color: colors.mutedForeground }]}>

@@ -12,35 +12,53 @@ export default function JobSeekerLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].primary,
         headerShown: false,
+        tabBarStyle: {
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 60,
+        },
       }}>
       <Tabs.Screen
         name="swipe"
         options={{
           title: 'Swipe',
-          tabBarIcon: ({ color }) => <Ionicons name="heart" size={24} color={color} />,
+          href: '/swipe',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'heart' : 'heart-outline'} size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <Ionicons name="grid" size={24} color={color} />,
+          href: '/dashboard',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="chat"
         options={{
           title: 'AI Chat',
-          tabBarIcon: ({ color }) => <Ionicons name="chatbubbles" size={24} color={color} />,
+          href: '/chat',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          href: '/profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
+          ),
         }}
       />
+      {/* Hidden routes - accessible but not in tab bar */}
       <Tabs.Screen name="job" options={{ href: null }} />
       <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
