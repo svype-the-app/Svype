@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -59,7 +59,7 @@ export default function ForgotPasswordScreen() {
               {/* Back to Login Button */}
               <Button 
                 size="lg" 
-                onPress={() => router.push('/auth/login')}
+                onPress={() => router.push('/(auth)/login')}
                 style={styles.button}
               >
                 Back to Login
@@ -91,7 +91,7 @@ export default function ForgotPasswordScreen() {
           <CardContent style={styles.cardContent}>
             {/* Back Button */}
             <TouchableOpacity 
-              onPress={() => router.push('/auth/login')}
+              onPress={() => router.push('/(auth)/login')}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={20} color={colors.foreground} />

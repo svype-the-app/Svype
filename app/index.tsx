@@ -3,16 +3,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  PanResponder,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useColorScheme,
-  View,
+    Animated,
+    Dimensions,
+    PanResponder,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useColorScheme,
+    View,
 } from 'react-native';
 
 interface UserType {
@@ -28,7 +28,7 @@ interface UserType {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 100;
 
-export default function HomeScreen() {
+export default function WelcomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -41,15 +41,15 @@ export default function HomeScreen() {
     extrapolate: 'clamp',
   });
 
-  const userTypes: UserType[] = [
+  const userTypes: UserType[] = useMemo(() => [
     {
       id: 'job-seeker',
       type: 'job-seeker',
       icon: 'person',
       title: "I'm Looking for a Job",
       description: 'Swipe through opportunities, get AI career coaching, and land your dream role',
-      signUpPath: '/auth/sign-up',
-      loginPath: '/auth/login',
+      signUpPath: '/(auth)/sign-up',
+      loginPath: '/(auth)/login',
     },
     {
       id: 'company',
@@ -57,19 +57,19 @@ export default function HomeScreen() {
       icon: 'business',
       title: "I'm Hiring Talent",
       description: 'Post jobs, review applicants with swipe interface, and build your team',
-      signUpPath: '/auth/company-sign-up',
-      loginPath: '/auth/company-login',
+      signUpPath: '/(auth)/company-sign-up',
+      loginPath: '/(auth)/company-login',
     },
-  ];
+  ], []);
 
-  const resetPosition = () => {
+  const resetPosition = useCallback(() => {
     Animated.spring(pan, {
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
     }).start();
-  };
+  }, [pan]);
 
-  const animateCardSwitch = (direction: 'left' | 'right', callback: () => void) => {
+  const animateCardSwitch = useCallback((direction: 'left' | 'right', callback: () => void) => {
     const slideOutValue = direction === 'left' ? -SCREEN_WIDTH : SCREEN_WIDTH;
     const slideInValue = direction === 'left' ? SCREEN_WIDTH : -SCREEN_WIDTH;
 
@@ -103,7 +103,7 @@ export default function HomeScreen() {
         }),
       ]).start();
     });
-  };
+  }, [cardOpacity, pan]);
 
   const panResponder = useMemo(
     () =>
@@ -119,7 +119,7 @@ export default function HomeScreen() {
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx > SWIPE_THRESHOLD) {
             // Swipe right - go to login
-            router.push(userTypes[currentIndex].loginPath);
+            router.push(userTypes[currentIndex].loginPath as any);
             resetPosition();
           } else if (gestureState.dx < -SWIPE_THRESHOLD) {
             // Swipe left - animate out and switch to next card
@@ -132,7 +132,7 @@ export default function HomeScreen() {
           }
         },
       }),
-    [currentIndex, router, userTypes]
+    [currentIndex, router, userTypes, pan, animateCardSwitch, resetPosition]
   );
 
   const currentUserType = userTypes[currentIndex];
@@ -230,7 +230,7 @@ export default function HomeScreen() {
                 <View style={styles.buttonContainer}>
                   <Button
                     size="lg"
-                    onPress={() => router.push(currentUserType.signUpPath)}
+                    onPress={() => router.push(currentUserType.signUpPath as any)}
                     style={styles.getStartedButton}
                   >
                     Get Started →
@@ -238,7 +238,7 @@ export default function HomeScreen() {
                   <Button
                     variant="outline"
                     size="lg"
-                    onPress={() => router.push(currentUserType.loginPath)}
+                    onPress={() => router.push(currentUserType.loginPath as any)}
                   >
                     Log In
                   </Button>

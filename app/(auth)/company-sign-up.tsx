@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme, ActivityIndicator, Alert } from 'react-native';
-import { useRouter, Link } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Link, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function CompanySignUpScreen() {
   const router = useRouter();
@@ -195,14 +195,14 @@ export default function CompanySignUpScreen() {
                 <Text style={[styles.linkText, { color: colors.mutedForeground }]}>
                   Already have an account?{' '}
                 </Text>
-                <Link href="/auth/company-login" style={[styles.link, { color: colors.primary }]}>
+                <Link href="/(auth)/company-login" style={[styles.link, { color: colors.primary }]}>
                   Sign in
                 </Link>
               </View>
 
               {/* Job Seeker Link */}
               <View style={[styles.footer, { borderTopColor: colors.border }]}>
-                <Link href="/auth/sign-up" style={[styles.footerLink, { color: colors.mutedForeground }]}>
+                <Link href="/(auth)/sign-up" style={[styles.footerLink, { color: colors.mutedForeground }]}>
                   ← Register as a job seeker instead
                 </Link>
               </View>

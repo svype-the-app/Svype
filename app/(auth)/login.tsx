@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -10,25 +9,24 @@ import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
-export default function SignUpScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const handleSignUp = () => {
-    // For prototype: Accept any credentials and go to AI onboarding
-    router.push('/auth/sign-up-success');
+  const handleLogin = () => {
+    // For prototype: Accept any credentials and go directly to swipe page
+    // TODO: Navigate to swipe page once created
+    router.push('/modal');
   };
 
-  const handleOAuthSignUp = (provider: string) => {
-    // For prototype: Simulate OAuth and go directly to AI onboarding
-    console.log(`OAuth sign up with ${provider}`);
-    router.push('/auth/sign-up-success');
+  const handleOAuthLogin = (provider: string) => {
+    // For prototype: Simulate OAuth login
+    console.log(`OAuth login with ${provider}`);
+    // TODO: Navigate to swipe page once created
+    router.push('/modal');
   };
 
   return (
@@ -41,7 +39,7 @@ export default function SignUpScreen() {
         <View style={styles.header}>
           <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
           <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>
-            Join thousands finding their dream jobs.
+            Find your next career move, one swipe at a time.
           </Text>
         </View>
 
@@ -49,9 +47,9 @@ export default function SignUpScreen() {
           <CardContent style={styles.cardContent}>
             {/* Card Header */}
             <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Create Account</Text>
+              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Login</Text>
               <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
-                Get started with your dream career
+                Enter your email below to login to your account
               </Text>
             </View>
 
@@ -59,7 +57,7 @@ export default function SignUpScreen() {
             <View style={styles.oauthContainer}>
               <Button
                 variant="outline"
-                onPress={() => handleOAuthSignUp('linkedin')}
+                onPress={() => handleOAuthLogin('linkedin')}
                 style={styles.oauthButton}
               >
                 <Ionicons name="logo-linkedin" size={16} color={colors.foreground} />
@@ -67,7 +65,7 @@ export default function SignUpScreen() {
               </Button>
               <Button
                 variant="outline"
-                onPress={() => handleOAuthSignUp('github')}
+                onPress={() => handleOAuthLogin('github')}
                 style={styles.oauthButton}
               >
                 <Ionicons name="logo-github" size={16} color={colors.foreground} />
@@ -85,17 +83,6 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Full Name Field */}
-            <View style={styles.field}>
-              <Label>Full Name</Label>
-              <Input
-                placeholder="John Doe"
-                autoCapitalize="words"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-
             {/* Email Field */}
             <View style={styles.field}>
               <Label>Email</Label>
@@ -110,67 +97,45 @@ export default function SignUpScreen() {
 
             {/* Password Field */}
             <View style={styles.field}>
-              <Label>Password</Label>
+              <View style={styles.passwordHeader}>
+                <Label>Password</Label>
+                <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+                  <Text style={[styles.forgotPassword, { color: colors.primary }]}>
+                    Forgot password?
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <Input
-                placeholder="Min. 8 characters"
+                placeholder="Enter your password"
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
               />
             </View>
 
-            {/* Confirm Password Field */}
-            <View style={styles.field}>
-              <Label>Confirm Password</Label>
-              <Input
-                placeholder="Re-enter your password"
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
-            </View>
-
-            {/* Terms Checkbox */}
-            <View style={styles.termsContainer}>
-              <Checkbox
-                checked={agreedToTerms}
-                onCheckedChange={setAgreedToTerms}
-              />
-              <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
-                I agree to the{' '}
-                <Text style={[styles.termsLink, { color: colors.primary }]}>Terms of Service</Text>
-                {' '}and{' '}
-                <Text style={[styles.termsLink, { color: colors.primary }]}>Privacy Policy</Text>
-              </Text>
-            </View>
-
-            {/* Sign Up Button */}
-            <Button 
-              size="lg" 
-              onPress={handleSignUp} 
-              style={[styles.signUpButton, !agreedToTerms && { opacity: 0.5 }]}
-            >
-              Sign Up
+            {/* Login Button */}
+            <Button size="lg" onPress={handleLogin} style={styles.loginButton}>
+              Login
             </Button>
 
-            {/* Login Link */}
-            <View style={styles.loginContainer}>
-              <Text style={[styles.loginText, { color: colors.foreground }]}>
-                Already have an account?{' '}
+            {/* Sign Up Link */}
+            <View style={styles.signUpContainer}>
+              <Text style={[styles.signUpText, { color: colors.foreground }]}>
+                Don&apos;t have an account?{' '}
               </Text>
-              <Link href="/auth/login" asChild>
+              <Link href="/(auth)/sign-up" asChild>
                 <TouchableOpacity>
-                  <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
+                  <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign up</Text>
                 </TouchableOpacity>
               </Link>
             </View>
 
-            {/* Company Sign Up Link */}
-            <View style={[styles.companySignUpContainer, { borderTopColor: colors.border }]}>
-              <Link href="/auth/company-sign-up" asChild>
+            {/* Company Login Link */}
+            <View style={[styles.companyLoginContainer, { borderTopColor: colors.border }]}>
+              <Link href="/(auth)/company-login" asChild>
                 <TouchableOpacity>
-                  <Text style={[styles.companySignUpText, { color: colors.mutedForeground }]}>
-                    Register as a company instead →
+                  <Text style={[styles.companyLoginText, { color: colors.mutedForeground }]}>
+                    Are you a company? Login here →
                   </Text>
                 </TouchableOpacity>
               </Link>
@@ -257,47 +222,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   field: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  termsContainer: {
+  passwordHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  termsText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+  forgotPassword: {
+    fontSize: 12,
+    fontWeight: '600',
   },
-  termsLink: {
-    textDecorationLine: 'underline',
-  },
-  signUpButton: {
+  loginButton: {
     width: '100%',
     marginBottom: 16,
   },
-  loginContainer: {
+  signUpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  loginText: {
+  signUpText: {
     fontSize: 14,
   },
-  loginLink: {
+  signUpLink: {
     fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-  companySignUpContainer: {
+  companyLoginContainer: {
     paddingTop: 16,
     marginTop: 16,
     borderTopWidth: 1,
     alignItems: 'center',
   },
-  companySignUpText: {
+  companyLoginText: {
     fontSize: 14,
   },
 });

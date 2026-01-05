@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -9,24 +10,25 @@ import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const handleLogin = () => {
-    // For prototype: Accept any credentials and go directly to swipe page
-    // TODO: Navigate to swipe page once created
-    router.push('/modal');
+  const handleSignUp = () => {
+    // For prototype: Accept any credentials and go to AI onboarding
+    router.push('/(auth)/sign-up-success');
   };
 
-  const handleOAuthLogin = (provider: string) => {
-    // For prototype: Simulate OAuth login
-    console.log(`OAuth login with ${provider}`);
-    // TODO: Navigate to swipe page once created
-    router.push('/modal');
+  const handleOAuthSignUp = (provider: string) => {
+    // For prototype: Simulate OAuth and go directly to AI onboarding
+    console.log(`OAuth sign up with ${provider}`);
+    router.push('/(auth)/sign-up-success');
   };
 
   return (
@@ -39,7 +41,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
           <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>
-            Find your next career move, one swipe at a time.
+            Join thousands finding their dream jobs.
           </Text>
         </View>
 
@@ -47,9 +49,9 @@ export default function LoginScreen() {
           <CardContent style={styles.cardContent}>
             {/* Card Header */}
             <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Login</Text>
+              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Create Account</Text>
               <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
-                Enter your email below to login to your account
+                Get started with your dream career
               </Text>
             </View>
 
@@ -57,7 +59,7 @@ export default function LoginScreen() {
             <View style={styles.oauthContainer}>
               <Button
                 variant="outline"
-                onPress={() => handleOAuthLogin('linkedin')}
+                onPress={() => handleOAuthSignUp('linkedin')}
                 style={styles.oauthButton}
               >
                 <Ionicons name="logo-linkedin" size={16} color={colors.foreground} />
@@ -65,7 +67,7 @@ export default function LoginScreen() {
               </Button>
               <Button
                 variant="outline"
-                onPress={() => handleOAuthLogin('github')}
+                onPress={() => handleOAuthSignUp('github')}
                 style={styles.oauthButton}
               >
                 <Ionicons name="logo-github" size={16} color={colors.foreground} />
@@ -83,6 +85,17 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            {/* Full Name Field */}
+            <View style={styles.field}>
+              <Label>Full Name</Label>
+              <Input
+                placeholder="John Doe"
+                autoCapitalize="words"
+                value={fullName}
+                onChangeText={setFullName}
+              />
+            </View>
+
             {/* Email Field */}
             <View style={styles.field}>
               <Label>Email</Label>
@@ -97,45 +110,67 @@ export default function LoginScreen() {
 
             {/* Password Field */}
             <View style={styles.field}>
-              <View style={styles.passwordHeader}>
-                <Label>Password</Label>
-                <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-                  <Text style={[styles.forgotPassword, { color: colors.primary }]}>
-                    Forgot password?
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <Label>Password</Label>
               <Input
-                placeholder="Enter your password"
+                placeholder="Min. 8 characters"
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
               />
             </View>
 
-            {/* Login Button */}
-            <Button size="lg" onPress={handleLogin} style={styles.loginButton}>
-              Login
+            {/* Confirm Password Field */}
+            <View style={styles.field}>
+              <Label>Confirm Password</Label>
+              <Input
+                placeholder="Re-enter your password"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            </View>
+
+            {/* Terms Checkbox */}
+            <View style={styles.termsContainer}>
+              <Checkbox
+                checked={agreedToTerms}
+                onCheckedChange={setAgreedToTerms}
+              />
+              <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
+                I agree to the{' '}
+                <Text style={[styles.termsLink, { color: colors.primary }]}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text style={[styles.termsLink, { color: colors.primary }]}>Privacy Policy</Text>
+              </Text>
+            </View>
+
+            {/* Sign Up Button */}
+            <Button 
+              size="lg" 
+              onPress={handleSignUp} 
+              style={[styles.signUpButton, !agreedToTerms && { opacity: 0.5 }]}
+            >
+              Sign Up
             </Button>
 
-            {/* Sign Up Link */}
-            <View style={styles.signUpContainer}>
-              <Text style={[styles.signUpText, { color: colors.foreground }]}>
-                Don&apos;t have an account?{' '}
+            {/* Login Link */}
+            <View style={styles.loginContainer}>
+              <Text style={[styles.loginText, { color: colors.foreground }]}>
+                Already have an account?{' '}
               </Text>
-              <Link href="/auth/sign-up" asChild>
+              <Link href="/(auth)/login" asChild>
                 <TouchableOpacity>
-                  <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign up</Text>
+                  <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
                 </TouchableOpacity>
               </Link>
             </View>
 
-            {/* Company Login Link */}
-            <View style={[styles.companyLoginContainer, { borderTopColor: colors.border }]}>
-              <Link href="/auth/company-login" asChild>
+            {/* Company Sign Up Link */}
+            <View style={[styles.companySignUpContainer, { borderTopColor: colors.border }]}>
+              <Link href="/(auth)/company-sign-up" asChild>
                 <TouchableOpacity>
-                  <Text style={[styles.companyLoginText, { color: colors.mutedForeground }]}>
-                    Are you a company? Login here →
+                  <Text style={[styles.companySignUpText, { color: colors.mutedForeground }]}>
+                    Register as a company instead →
                   </Text>
                 </TouchableOpacity>
               </Link>
@@ -222,43 +257,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   field: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  passwordHeader: {
+  termsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 16,
   },
-  forgotPassword: {
-    fontSize: 12,
-    fontWeight: '600',
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
-  loginButton: {
+  termsLink: {
+    textDecorationLine: 'underline',
+  },
+  signUpButton: {
     width: '100%',
     marginBottom: 16,
   },
-  signUpContainer: {
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  signUpText: {
+  loginText: {
     fontSize: 14,
   },
-  signUpLink: {
+  loginLink: {
     fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-  companyLoginContainer: {
+  companySignUpContainer: {
     paddingTop: 16,
     marginTop: 16,
     borderTopWidth: 1,
     alignItems: 'center',
   },
-  companyLoginText: {
+  companySignUpText: {
     fontSize: 14,
   },
 });
