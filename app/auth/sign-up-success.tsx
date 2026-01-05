@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, useColorScheme } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function SignUpSuccessScreen() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function SignUpSuccessScreen() {
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.muted }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
