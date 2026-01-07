@@ -200,26 +200,6 @@ export default function WelcomeScreen() {
               </View>
             </Animated.View>
 
-            {/* Swipe Left Overlay (Blue Chevron) */}
-            <Animated.View
-              style={[
-                styles.swipeOverlay,
-                styles.swipeOverlayLeft,
-                {
-                  opacity: pan.x.interpolate({
-                    inputRange: [-100, -50, 0],
-                    outputRange: [1, 0.5, 0],
-                    extrapolate: 'clamp',
-                  }),
-                },
-              ]}
-              pointerEvents="none"
-            >
-              <View style={[styles.swipeIcon, styles.swipeIconLeft]}>
-                <Ionicons name="chevron-back" size={48} color="#fff" />
-              </View>
-            </Animated.View>
-
             <Card>
               <CardContent style={styles.cardContent}>
                 <View style={[styles.iconContainer, { backgroundColor: colors.muted }]}>
