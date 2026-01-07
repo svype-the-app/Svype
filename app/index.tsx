@@ -5,14 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    PanResponder,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Animated,
+  Dimensions,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 interface UserType {
@@ -197,26 +197,6 @@ export default function WelcomeScreen() {
             >
               <View style={[styles.swipeIcon, styles.swipeIconRight]}>
                 <Ionicons name="arrow-forward" size={48} color="#fff" />
-              </View>
-            </Animated.View>
-
-            {/* Swipe Left Overlay (Blue Chevron) */}
-            <Animated.View
-              style={[
-                styles.swipeOverlay,
-                styles.swipeOverlayLeft,
-                {
-                  opacity: pan.x.interpolate({
-                    inputRange: [-100, -50, 0],
-                    outputRange: [1, 0.5, 0],
-                    extrapolate: 'clamp',
-                  }),
-                },
-              ]}
-              pointerEvents="none"
-            >
-              <View style={[styles.swipeIcon, styles.swipeIconLeft]}>
-                <Ionicons name="chevron-back" size={48} color="#fff" />
               </View>
             </Animated.View>
 
