@@ -328,11 +328,6 @@ const styles = StyleSheet.create({
   swipeIcon: {
     padding: 16,
     borderRadius: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   swipeIconRight: {
     backgroundColor: '#22c55e',

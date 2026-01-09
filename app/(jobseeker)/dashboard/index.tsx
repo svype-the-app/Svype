@@ -1,25 +1,307 @@
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Application, getApplications, initializeMockData } from '@/lib/mock-data';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useColorScheme,
+    View,
+} from 'react-native';
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const router = useRouter();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
+
+  useEffect(() => {
+    initializeMockData();
+    loadApplications();
+  }, []);
+
+  const loadApplications = () => {
+    const apps = getApplications();
+    setApplications(apps);
+    setLoading(false);
+  };
+
+  const formatSalary = (min: number, max: number) => {
+    return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 14) return '1 week ago';
+    return date.toLocaleDateString();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'APPLIED':
+        return '#3b82f6';
+      case 'SHORTLISTED':
+        return '#a855f7';
+      case 'INTERVIEW':
+        return '#f59e0b';
+      case 'REJECTED':
+        return '#ef4444';
+      default:
+        return colors.muted;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'APPLIED':
+        return 'time-outline';
+      case 'SHORTLISTED':
+        return 'trending-up-outline';
+      case 'INTERVIEW':
+        return 'calendar-outline';
+      case 'REJECTED':
+        return 'close-circle-outline';
+      default:
+        return 'briefcase-outline';
+    }
+  };
+
+  const activeApps = applications.filter((app) => app.status === 'active');
+  const closedApps = applications.filter((app) => app.status === 'closed');
+
+  const filteredApplications =
+    activeTab === 'active'
+      ? activeApps
+      : activeTab === 'closed'
+      ? closedApps
+      : applications;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <Card>
-          <CardContent>
-            <Text style={[styles.title, { color: colors.cardForeground }]}>
-              Dashboard
+      <ScrollView style={styles.scrollView}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Text style={[styles.pageTitle, { color: colors.foreground }]}>Applications</Text>
+            <Button
+              variant="outline"
+              onPress={() => router.push('/(jobseeker)/swipe')}
+              style={styles.findJobsButton}
+            >
+              <Ionicons name="sparkles" size={16} color={colors.primary} />
+              <Text style={[styles.findJobsText, { color: colors.foreground }]}>Find Jobs</Text>
+            </Button>
+          </View>
+
+          {/* Stats Overview */}
+          {applications.length > 0 && (
+            <View style={styles.statsContainer}>
+              <View style={[styles.statCard, { backgroundColor: colors.primary + '20' }]}>
+                <Text style={[styles.statValue, { color: colors.primary }]}>
+                  {applications.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Total</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#22c55e20' }]}>
+                <Text style={[styles.statValue, { color: '#22c55e' }]}>{activeApps.length}</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Active</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#3b82f620' }]}>
+                <Text style={[styles.statValue, { color: '#3b82f6' }]}>{closedApps.length}</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Closed</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Quick Actions */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity
+              style={[styles.quickActionButton, { borderColor: colors.border }]}
+              onPress={() => router.push('/(jobseeker)/ai-tools/generate-cv')}
+            >
+              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+              <Text style={[styles.quickActionText, { color: colors.foreground }]}>
+                Generate CV
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickActionButton, { borderColor: colors.border }]}
+              onPress={() => router.push('/(jobseeker)/ai-tools/generate-cover-letter')}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+              <Text style={[styles.quickActionText, { color: colors.foreground }]}>
+                Cover Letter
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: colors.muted }]}>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'all' && [styles.activeTab, { backgroundColor: colors.background }],
+            ]}
+            onPress={() => setActiveTab('all')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.foreground },
+                activeTab === 'all' && styles.activeTabText,
+              ]}
+            >
+              All ({applications.length})
             </Text>
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
-              Applications overview and status tracking
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'active' && [styles.activeTab, { backgroundColor: colors.background }],
+            ]}
+            onPress={() => setActiveTab('active')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.foreground },
+                activeTab === 'active' && styles.activeTabText,
+              ]}
+            >
+              Active ({activeApps.length})
             </Text>
-          </CardContent>
-        </Card>
-      </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'closed' && [styles.activeTab, { backgroundColor: colors.background }],
+            ]}
+            onPress={() => setActiveTab('closed')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.foreground },
+                activeTab === 'closed' && styles.activeTabText,
+              ]}
+            >
+              Closed ({closedApps.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Applications List */}
+        <View style={styles.listContainer}>
+          {loading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+          ) : filteredApplications.length > 0 ? (
+            filteredApplications.map((app) => (
+              <TouchableOpacity
+                key={app.id}
+                onPress={() => router.push(`/(jobseeker)/dashboard/${app.id}` as any)}
+              >
+                <Card style={styles.applicationCard}>
+                  <CardContent style={styles.cardContent}>
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardHeaderLeft}>
+                        <Text style={[styles.jobTitle, { color: colors.cardForeground }]}>
+                          {app.job.title}
+                        </Text>
+                        <Text style={[styles.companyName, { color: colors.mutedForeground }]}>
+                          {app.job.company}
+                        </Text>
+                      </View>
+                      <Badge
+                        style={{
+                          backgroundColor: getStatusColor(app.applicationStatus) + '20',
+                        }}
+                        textStyle={{ color: getStatusColor(app.applicationStatus) }}
+                      >
+                        <Ionicons
+                          name={getStatusIcon(app.applicationStatus) as any}
+                          size={12}
+                          color={getStatusColor(app.applicationStatus)}
+                        />
+                        <Text>{app.applicationStatus}</Text>
+                      </Badge>
+                    </View>
+
+                    <Text
+                      style={[styles.jobDescription, { color: colors.mutedForeground }]}
+                      numberOfLines={2}
+                    >
+                      {app.job.description}
+                    </Text>
+
+                    <View style={styles.badgesRow}>
+                      <Badge variant="outline">
+                        <Ionicons name="briefcase-outline" size={12} color={colors.foreground} />
+                        <Text>{app.job.type}</Text>
+                      </Badge>
+                      <Badge variant="outline">
+                        <Ionicons name="cash-outline" size={12} color={colors.foreground} />
+                        <Text>{formatSalary(app.job.salary_min, app.job.salary_max)}</Text>
+                      </Badge>
+                    </View>
+
+                    <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
+                      <View style={styles.footerItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.mutedForeground}
+                        />
+                        <Text
+                          style={[styles.footerText, { color: colors.mutedForeground }]}
+                          numberOfLines={1}
+                        >
+                          {app.job.location}
+                        </Text>
+                      </View>
+                      <View style={styles.footerItem}>
+                        <Ionicons name="time-outline" size={14} color={colors.mutedForeground} />
+                        <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
+                          Applied {formatDate(app.applied_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  </CardContent>
+                </Card>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="briefcase-outline" size={64} color={colors.mutedForeground} />
+              <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>
+                No applications yet
+              </Text>
+              <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>
+                Start swiping to find your dream job
+              </Text>
+              <Button onPress={() => router.push('/(jobseeker)/swipe')} style={styles.emptyButton}>
+                Find Jobs
+              </Button>
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -27,17 +309,168 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
   },
-  content: {
+  scrollView: {
     flex: 1,
   },
-  title: {
+  header: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  pageTitle: {
     fontSize: 24,
     fontWeight: '700',
+  },
+  findJobsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+  },
+  findJobsText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickActionButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 4,
+    borderRadius: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  activeTab: {},
+  tabText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  activeTabText: {
+    fontWeight: '700',
+  },
+  listContainer: {
+    padding: 16,
+    paddingTop: 0,
+  },
+  loader: {
+    marginTop: 32,
+  },
+  applicationCard: {
+    marginBottom: 12,
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 8,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  companyName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  jobDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  footerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  footerText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 16,
     marginBottom: 8,
   },
-  description: {
-    fontSize: 16,
+  emptyStateText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyButton: {
+    minWidth: 120,
   },
 });
