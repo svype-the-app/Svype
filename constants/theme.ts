@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
 // Note: These are approximate conversions from the oklch values
 export const Colors = {
   light: {
-    background: '#f9fafb',
+    background: '#f8fdfb',
     foreground: '#1f2937',
     card: '#ffffff',
     cardForeground: '#1f2937',

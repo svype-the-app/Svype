@@ -1,6 +1,6 @@
+import { Colors, Radius } from '@/constants/theme';
 import React from 'react';
 import { View, ViewProps, useColorScheme } from 'react-native';
-import { Colors, Radius } from '@/constants/theme';
 
 interface CardProps extends ViewProps {
   children: React.ReactNode;
@@ -16,13 +16,8 @@ export function Card({ children, style, ...props }: CardProps) {
         {
           backgroundColor: colors.card,
           borderRadius: Radius.lg,
-          borderWidth: 2,
+          borderWidth: 1,
           borderColor: colors.border,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 8,
         },
         style,
       ]}
