@@ -142,10 +142,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-            <Ionicons name="briefcase" size={32} color={colors.primaryForeground} />
-          </View>
-          <Text style={[styles.title, { color: colors.foreground }]}>SVYPE</Text>
+          <Text style={[styles.title, { color: colors.primary }]}>SVYPE</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             AI-powered job hunting platform. Swipe your way to your dream career.
           </Text>
@@ -279,19 +276,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   title: {
     fontSize: 36,
