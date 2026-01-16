@@ -8,14 +8,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 export default function ProfileScreen() {
@@ -324,6 +324,7 @@ function MenuItem({ icon, label, onPress, colors, isLast }: MenuItemProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    marginTop: 40,
   },
   header: {
     flexDirection: 'row',
