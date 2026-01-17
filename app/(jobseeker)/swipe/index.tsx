@@ -246,7 +246,10 @@ export default function SwipeScreen() {
       Extrapolate.CLAMP
     );
 
-    return { opacity };
+    // Only show overlay when swiping left (negative translateX)
+    const displayOpacity = translateX.value < 0 ? opacity : 0;
+
+    return { opacity: displayOpacity };
   });
 
   // Animated styles for next card (stack effect)

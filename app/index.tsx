@@ -35,6 +35,7 @@ export default function WelcomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const pan = useRef(new Animated.ValueXY()).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
+  const panVelocity = useRef(new Animated.Value(0)).current;
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
     outputRange: ['-10deg', '0deg', '10deg'],
@@ -47,7 +48,7 @@ export default function WelcomeScreen() {
       type: 'job-seeker',
       icon: 'person',
       title: "I'm Looking for a Job",
-      description: 'Swipe through opportunities, get AI career coaching, and land your dream role',
+      description: 'Swipe through opportunities, get AI coaching, and land your dream role',
       signUpPath: '/(auth)/sign-up',
       loginPath: '/(auth)/login',
     },
@@ -113,9 +114,12 @@ export default function WelcomeScreen() {
           // Only activate if there's significant horizontal movement
           return Math.abs(gestureState.dx) > 5;
         },
-        onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-          useNativeDriver: false,
-        }),
+        onPanResponderMove: (_, gestureState) => {
+          pan.x.setValue(gestureState.dx);
+          pan.y.setValue(gestureState.dy);
+          // Track velocity for direction (positive = right, negative = left)
+          panVelocity.setValue(gestureState.vx);
+        },
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx > SWIPE_THRESHOLD) {
             // Swipe right - go to login
@@ -172,30 +176,33 @@ export default function WelcomeScreen() {
         <View style={styles.cardContainer}>
           <Animated.View
             style={{
-              transform: [{ translateX: pan.x }, { rotate }],
+              transform: [{ translateX: pan.x }, {rotateX: rotate}],
               opacity: cardOpacity,
             }}
             {...panResponder.panHandlers}
           >
-            {/* Swipe Right Overlay (Green Arrow) */}
+            {/* Swipe Right Overlay (Green) */}
             <Animated.View
               style={[
                 styles.swipeOverlay,
                 styles.swipeOverlayRight,
                 {
-                  opacity: pan.x.interpolate({
-                    inputRange: [0, 50, 100],
-                    outputRange: [0, 0.5, 1],
-                    extrapolate: 'clamp',
-                  }),
+                  opacity: Animated.multiply(
+                    pan.x.interpolate({
+                      inputRange: [0, 50, 100],
+                      outputRange: [0, 0.5, 1],
+                      extrapolate: 'clamp',
+                    }),
+                    panVelocity.interpolate({
+                      inputRange: [-1, 0],
+                      outputRange: [0, 1],
+                      extrapolate: 'clamp',
+                    })
+                  ),
                 },
               ]}
               pointerEvents="none"
-            >
-              <View style={[styles.swipeIcon, styles.swipeIconRight]}>
-                <Ionicons name="arrow-forward" size={48} color="#fff" />
-              </View>
-            </Animated.View>
+            />
 
             <Card>
               <CardContent style={styles.cardContent}>
