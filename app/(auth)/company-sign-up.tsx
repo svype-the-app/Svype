@@ -7,7 +7,8 @@ import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function CompanySignUpScreen() {
   const router = useRouter();
@@ -53,164 +54,140 @@ export default function CompanySignUpScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.scrollContent}
+      >
       <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
+          <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>
+            Hire top talent, simplified. Build your dream team.
+          </Text>
+        </View>
+
         <Card>
           <CardContent style={styles.cardContent}>
-            {/* Icon */}
-            <View style={[styles.iconContainer, { backgroundColor: colors.primary + '20' }]}>
-              <Ionicons name="briefcase" size={32} color="#10b981" />
+            {/* Card Header */}
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Register Company</Text>
+              <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
+                Post jobs and find talented candidates
+              </Text>
             </View>
 
-            {/* Title */}
-            <Text style={[styles.title, { color: colors.cardForeground }]}>
-              Register Your Company
-            </Text>
+            {/* Company Name */}
+            <View style={styles.field}>
+              <Label>Company Name</Label>
+              <Input
+                placeholder="TechCorp Inc."
+                autoCapitalize="words"
+                value={formData.companyName}
+                onChangeText={(value) => handleChange('companyName', value)}
+              />
+            </View>
+
+            {/* Email Field */}
+            <View style={styles.field}>
+              <Label>Company Email</Label>
+              <Input
+                placeholder="hr@company.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={formData.email}
+                onChangeText={(value) => handleChange('email', value)}
+              />
+            </View>
+
+            {/* Website */}
+            <View style={styles.field}>
+              <Label>Website</Label>
+              <Input
+                placeholder="https://company.com"
+                autoCapitalize="none"
+                value={formData.website}
+                onChangeText={(value) => handleChange('website', value)}
+              />
+            </View>
+
+            {/* Location */}
+            <View style={styles.field}>
+              <Label>Location</Label>
+              <Input
+                placeholder="London, UK"
+                value={formData.location}
+                onChangeText={(value) => handleChange('location', value)}
+              />
+            </View>
 
             {/* Description */}
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
-              Create an account to post jobs and find talented candidates
-            </Text>
+            <View style={styles.field}>
+              <Label>Company Description</Label>
+              <Textarea
+                placeholder="Tell candidates about your company..."
+                value={formData.description}
+                onChangeText={(value) => handleChange('description', value)}
+                rows={3}
+              />
+            </View>
 
-            {/* Form */}
-            <View style={styles.form}>
-              {/* Company Name */}
-              <View style={styles.field}>
-                <Label>Company Name</Label>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputIcon}>
-                    <Ionicons name="business" size={20} color={colors.mutedForeground} />
-                  </View>
-                  <Input
-                    placeholder="TechCorp Inc."
-                    value={formData.companyName}
-                    onChangeText={(value) => handleChange('companyName', value)}
-                    style={styles.inputWithIcon}
-                  />
+            {/* Password Field */}
+            <View style={styles.field}>
+              <Label>Password</Label>
+              <Input
+                placeholder="Min. 8 characters"
+                secureTextEntry
+                value={formData.password}
+                onChangeText={(value) => handleChange('password', value)}
+              />
+            </View>
+
+            {/* Submit Button */}
+            <Button 
+              size="lg" 
+              onPress={handleSubmit}
+              disabled={loading}
+              style={[styles.signUpButton, loading && { opacity: 0.5 }]}
+            >
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={[styles.buttonText, { color: '#fff' }]}>Creating account...</Text>
                 </View>
-              </View>
+              ) : (
+                'Create Account'
+              )}
+            </Button>
 
-              {/* Company Email */}
-              <View style={styles.field}>
-                <Label>Company Email</Label>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputIcon}>
-                    <Ionicons name="mail" size={20} color={colors.mutedForeground} />
-                  </View>
-                  <Input
-                    placeholder="hr@company.com"
-                    value={formData.email}
-                    onChangeText={(value) => handleChange('email', value)}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.inputWithIcon}
-                  />
-                </View>
-              </View>
+            {/* Login Link */}
+            <View style={styles.loginContainer}>
+              <Text style={[styles.loginText, { color: colors.foreground }]}>
+                Already have an account?{' '}
+              </Text>
+              <Link href="/(auth)/company-login" asChild>
+                <TouchableOpacity>
+                  <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
 
-              {/* Website */}
-              <View style={styles.field}>
-                <Label>Website</Label>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputIcon}>
-                    <Ionicons name="globe" size={20} color={colors.mutedForeground} />
-                  </View>
-                  <Input
-                    placeholder="https://company.com"
-                    value={formData.website}
-                    onChangeText={(value) => handleChange('website', value)}
-                    keyboardType="url"
-                    autoCapitalize="none"
-                    style={styles.inputWithIcon}
-                  />
-                </View>
-              </View>
-
-              {/* Location */}
-              <View style={styles.field}>
-                <Label>Location</Label>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputIcon}>
-                    <Ionicons name="location" size={20} color={colors.mutedForeground} />
-                  </View>
-                  <Input
-                    placeholder="London, UK"
-                    value={formData.location}
-                    onChangeText={(value) => handleChange('location', value)}
-                    style={styles.inputWithIcon}
-                  />
-                </View>
-              </View>
-
-              {/* Description */}
-              <View style={styles.field}>
-                <Label>Company Description</Label>
-                <Textarea
-                  placeholder="Tell candidates about your company..."
-                  value={formData.description}
-                  onChangeText={(value) => handleChange('description', value)}
-                  rows={3}
-                />
-              </View>
-
-              {/* Password */}
-              <View style={styles.field}>
-                <Label>Password</Label>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputIcon}>
-                    <Ionicons name="lock-closed" size={20} color={colors.mutedForeground} />
-                  </View>
-                  <Input
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChangeText={(value) => handleChange('password', value)}
-                    secureTextEntry
-                    style={styles.inputWithIcon}
-                  />
-                </View>
-              </View>
-
-              {/* Submit Button */}
-              <Button
-                size="lg"
-                onPress={handleSubmit}
-                disabled={loading}
-                style={styles.button}
-              >
-                {loading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#fff" />
-                    <Text style={[styles.buttonText, { color: '#fff' }]}>Creating account...</Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.buttonText, { color: '#fff' }]}>Create Company Account</Text>
-                )}
-              </Button>
-
-              {/* Sign In Link */}
-              <View style={styles.linkContainer}>
-                <Text style={[styles.linkText, { color: colors.mutedForeground }]}>
-                  Already have an account?{' '}
-                </Text>
-                <Link href="/(auth)/company-login" style={[styles.link, { color: colors.primary }]}>
-                  Sign in
-                </Link>
-              </View>
-
-              {/* Job Seeker Link */}
-              <View style={[styles.footer, { borderTopColor: colors.border }]}>
-                <Link href="/(auth)/sign-up" style={[styles.footerLink, { color: colors.mutedForeground }]}>
-                  ← Register as a job seeker instead
-                </Link>
-              </View>
+            {/* Job Seeker Link */}
+            <View style={[styles.jobSeekerContainer, { borderTopColor: colors.border }]}>
+              <Link href="/(auth)/sign-up" asChild>
+                <TouchableOpacity>
+                  <Text style={[styles.jobSeekerText, { color: colors.mutedForeground }]}>
+                    Register as a job seeker instead →
+                  </Text>
+                </TouchableOpacity>
+              </Link>
             </View>
           </CardContent>
         </Card>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -221,88 +198,79 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    maxWidth: 800,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  cardContent: {
     padding: 24,
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+  content: {
+    width: '100%',
+    maxWidth: 400,
     alignSelf: 'center',
-    marginBottom: 16,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: '900',
     marginBottom: 8,
+    letterSpacing: -1,
   },
-  description: {
+  appSubtitle: {
     fontSize: 14,
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  cardContent: {
+    gap: 0,
+    padding: 24,
+  },
+  cardHeader: {
     marginBottom: 24,
   },
-  form: {
-    gap: 16,
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  cardDescription: {
+    fontSize: 14,
   },
   field: {
+    marginBottom: 16,
     gap: 8,
   },
-  inputContainer: {
-    position: 'relative',
-  },
-  inputIcon: {
-    position: 'absolute',
-    left: 16,
-    top: 14,
-    zIndex: 1,
-  },
-  inputWithIcon: {
-    paddingLeft: 44,
-  },
-  button: {
+  signUpButton: {
     width: '100%',
-    marginTop: 8,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    marginTop: 24,
+    marginBottom: 16,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  linkContainer: {
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  linkText: {
+  loginText: {
     fontSize: 14,
   },
-  link: {
+  loginLink: {
     fontSize: 14,
     fontWeight: '600',
   },
-  footer: {
+  jobSeekerContainer: {
     paddingTop: 16,
     borderTopWidth: 1,
     alignItems: 'center',
   },
-  footerLink: {
+  jobSeekerText: {
     fontSize: 14,
   },
 });

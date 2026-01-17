@@ -8,6 +8,7 @@ import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function SignUpScreen() {
@@ -32,10 +33,11 @@ export default function SignUpScreen() {
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.scrollContent}
+      >
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -179,6 +181,7 @@ export default function SignUpScreen() {
         </Card>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
