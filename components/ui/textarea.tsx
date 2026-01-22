@@ -1,17 +1,19 @@
 import { TextInput, StyleSheet, useColorScheme, type TextInputProps } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { Radius } from '@/constants/theme';
+import { forwardRef } from 'react';
 
 interface TextareaProps extends TextInputProps {
   rows?: number;
 }
 
-export function Textarea({ rows = 4, style, ...props }: TextareaProps) {
+export const Textarea = forwardRef<TextInput, TextareaProps>(({ rows = 4, style, ...props }, ref) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <TextInput
+      ref={ref}
       multiline
       numberOfLines={rows}
       textAlignVertical="top"
@@ -29,7 +31,7 @@ export function Textarea({ rows = 4, style, ...props }: TextareaProps) {
       {...props}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   textarea: {

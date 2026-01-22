@@ -39,7 +39,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
           <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>
-            Find your next career move, one swipe at a time.
+            Find jobs or hire talent, one swipe at a time.
           </Text>
         </View>
 
@@ -123,20 +123,9 @@ export default function LoginScreen() {
               <Text style={[styles.signUpText, { color: colors.foreground }]}>
                 Don&apos;t have an account?{' '}
               </Text>
-              <Link href="/(auth)/sign-up" asChild>
+              <Link href="/sign-up" asChild>
                 <TouchableOpacity>
                   <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign up</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-
-            {/* Company Login Link */}
-            <View style={[styles.companyLoginContainer, { borderTopColor: colors.border }]}>
-              <Link href="/(auth)/company-login" asChild>
-                <TouchableOpacity>
-                  <Text style={[styles.companyLoginText, { color: colors.mutedForeground }]}>
-                    Are you a company? Login here →
-                  </Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -251,14 +240,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
-  },
-  companyLoginContainer: {
-    paddingTop: 16,
-    marginTop: 16,
-    borderTopWidth: 1,
-    alignItems: 'center',
-  },
-  companyLoginText: {
-    fontSize: 14,
   },
 });

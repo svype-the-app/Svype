@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { TextInput, TextInputProps, StyleSheet, useColorScheme } from 'react-native';
 import { Colors, Radius } from '@/constants/theme';
 
@@ -6,12 +6,13 @@ interface InputProps extends TextInputProps {
   // Additional props can be added here
 }
 
-export function Input({ style, ...props }: InputProps) {
+export const Input = forwardRef<TextInput, InputProps>(({ style, ...props }, ref) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <TextInput
+      ref={ref}
       style={[
         {
           height: 48,
@@ -29,4 +30,4 @@ export function Input({ style, ...props }: InputProps) {
       {...props}
     />
   );
-}
+});

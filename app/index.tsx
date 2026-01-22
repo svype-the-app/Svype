@@ -59,7 +59,7 @@ export default function WelcomeScreen() {
       title: "I'm Hiring Talent",
       description: 'Post jobs, review applicants with swipe interface, and build your team',
       signUpPath: '/(auth)/company-sign-up',
-      loginPath: '/(auth)/company-login',
+      loginPath: '/(auth)/login',
     },
   ], []);
 
@@ -122,8 +122,8 @@ export default function WelcomeScreen() {
         },
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx > SWIPE_THRESHOLD) {
-            // Swipe right - go to login
-            router.push(userTypes[currentIndex].loginPath as any);
+            // Swipe right - go to sign up
+            router.push(userTypes[currentIndex].signUpPath as any);
             resetPosition();
           } else if (gestureState.dx < -SWIPE_THRESHOLD) {
             // Swipe left - animate out and switch to next card
@@ -235,7 +235,7 @@ export default function WelcomeScreen() {
         {/* Instructions */}
         <View style={styles.instructions}>
           <Text style={[styles.instructionText, { color: colors.mutedForeground }]}>
-            Swipe right to login • Swipe left to switch
+            Swipe right to Register • Swipe left to switch
           </Text>
           <View style={styles.navigationButtons}>
             <TouchableOpacity
