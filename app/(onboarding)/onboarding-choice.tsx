@@ -32,7 +32,7 @@ export default function OnboardingChoiceScreen() {
   };
 
   const handleContinue = () => {
-    router.push('/(onboarding)/profile-preview' as any);
+    router.push('/(onboarding)/upload-cv' as any);
   };
 
   return (

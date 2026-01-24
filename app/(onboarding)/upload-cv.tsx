@@ -13,7 +13,7 @@ export default function UploadCVScreen() {
   const handleUpload = () => {
     // TODO: Implement file picker and upload logic
     console.log('Upload CV');
-    router.push('/(jobseeker)/swipe' as any);
+    router.push('/(onboarding)/profile-preview' as any);
   };
 
   return (
@@ -45,7 +45,7 @@ export default function UploadCVScreen() {
               Continue
             </Button>
 
-            <Button variant="outline" onPress={() => router.push('/(jobseeker)/swipe' as any)}>
+            <Button variant="outline" onPress={() => router.push('/(onboarding)/profile-preview' as any)}>
               Skip
             </Button>
           </CardContent>

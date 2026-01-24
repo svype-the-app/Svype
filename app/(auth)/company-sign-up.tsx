@@ -278,7 +278,7 @@ export default function CompanySignUpScreen() {
               <Text style={[styles.loginText, { color: colors.foreground }]}>
                 Already have an account?{' '}
               </Text>
-              <Link href="/(auth)/company-login" asChild>
+              <Link href="/(auth)/login" asChild>
                 <TouchableOpacity>
                   <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
                 </TouchableOpacity>
