@@ -8,15 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 interface Message {
@@ -270,13 +270,28 @@ export default function AIChatScreen() {
             rows={1}
             style={styles.textInput}
           />
-          <Button
+          <TouchableOpacity
             onPress={handleSend}
             disabled={!input.trim() || isTyping}
-            style={styles.sendButton}
+            style={[
+              styles.sendButton,
+              {
+                backgroundColor: colors.primary, // always vibrant
+                opacity: (!input.trim() || isTyping) ? 0.7 : 1,
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              },
+            ]}
           >
-            <Ionicons name="send" size={20} color={colors.primaryForeground} />
-          </Button>
+            <Ionicons
+              name="send"
+              size={20}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -322,6 +337,7 @@ function TypingDot({ delay, color }: { delay: number; color: string }) {
 
 const styles = StyleSheet.create({
   container: {
+    marginTop: 40,
     flex: 1,
   },
   header: {

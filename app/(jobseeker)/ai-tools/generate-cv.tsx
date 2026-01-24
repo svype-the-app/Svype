@@ -420,9 +420,11 @@ export default function GenerateCVScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    marginTop: 10,
     flex: 1,
   },
   header: {
+    marginTop: 40,
     paddingTop: 16,
     paddingBottom: 12,
     paddingHorizontal: 16,
