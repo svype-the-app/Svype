@@ -80,16 +80,7 @@ export default function CompanySignUpScreen() {
     // Simulate registration
     setTimeout(() => {
       setLoading(false);
-      Alert.alert(
-        'Company Registered!',
-        'Your company account has been created successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push('/(tabs)'), // Navigate to dashboard/home
-          },
-        ]
-      );
+      router.push('/(onboarding)/company-onboarding');
     }, 1500);
   };
 

@@ -28,6 +28,30 @@ export interface Profile {
   interests: string[];
 }
 
+export interface CompanyProfile {
+  id: string;
+  name: string;
+  email: string;
+  website: string;
+  location: string;
+  description: string;
+}
+
+export interface CompanyJob {
+  id: number;
+  title: string;
+  applicants: number;
+  status: 'active' | 'closed';
+  posted: string;
+}
+
+export interface CompanyStats {
+  activeJobs: number;
+  totalApplicants: number;
+  viewsThisWeek: number;
+  hiredThisMonth: number;
+}
+
 let mockApplications: Application[] = [];
 let mockProfile: Profile = {
   id: '1',
@@ -37,6 +61,29 @@ let mockProfile: Profile = {
   life_goals: 'Achieve a healthy work-life balance while building a successful career in tech. Travel to at least 3 new countries each year and maintain strong relationships with family and friends.',
   interests: ['React', 'TypeScript', 'UI/UX Design', 'Web Performance', 'Remote Work', 'Startups'],
 };
+
+let mockCompanyProfile: CompanyProfile = {
+  id: '1',
+  name: 'TechCorp Inc.',
+  email: 'hr@techcorp.com',
+  website: 'https://techcorp.com',
+  location: 'London, UK',
+  description: 'TechCorp is a leading software development company focused on innovative solutions.',
+};
+
+let mockCompanyStats: CompanyStats = {
+  activeJobs: 5,
+  totalApplicants: 142,
+  viewsThisWeek: 387,
+  hiredThisMonth: 8,
+};
+
+let mockCompanyJobs: CompanyJob[] = [
+  { id: 1, title: "Senior Frontend Engineer", applicants: 23, status: "active", posted: "2 days ago" },
+  { id: 2, title: "Product Designer", applicants: 18, status: "active", posted: "1 week ago" },
+  { id: 3, title: "Backend Developer", applicants: 31, status: "active", posted: "1 week ago" },
+  { id: 4, title: "Marketing Lead", applicants: 15, status: "closed", posted: "2 weeks ago" },
+];
 
 export function initializeMockData() {
   if (mockApplications.length > 0) return;
@@ -148,4 +195,24 @@ export function getProfile(): Profile {
 
 export function updateProfile(updates: Partial<Profile>) {
   mockProfile = { ...mockProfile, ...updates };
+}
+
+export function getCompanyProfile(): CompanyProfile {
+  return mockCompanyProfile;
+}
+
+export function updateCompanyProfile(updates: Partial<CompanyProfile>) {
+  mockCompanyProfile = { ...mockCompanyProfile, ...updates };
+}
+
+export function getCompanyStats(): CompanyStats {
+  return mockCompanyStats;
+}
+
+export function getCompanyJobs(): CompanyJob[] {
+  return mockCompanyJobs;
+}
+
+export function addCompanyJob(job: CompanyJob) {
+  mockCompanyJobs.push(job);
 }

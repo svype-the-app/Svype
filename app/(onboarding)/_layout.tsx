@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 export default function OnboardingLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, tabBarStyle: { display: 'none' } }}>
       <Stack.Screen 
         name="user-type-selection" 
         options={{ title: 'Select User Type' }}
