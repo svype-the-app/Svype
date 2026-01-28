@@ -8,6 +8,7 @@ export interface Job {
   salary_min: number;
   salary_max: number;
   requirements: string[];
+  posted_at: string;
 }
 
 export interface Application {
@@ -57,6 +58,7 @@ export function initializeMockData() {
         salary_min: 60000,
         salary_max: 80000,
         requirements: ['React', 'TypeScript', 'Next.js'],
+        posted_at: new Date(Date.now() - 86400000).toISOString(),
       },
     },
     {
@@ -74,6 +76,7 @@ export function initializeMockData() {
         salary_min: 50000,
         salary_max: 70000,
         requirements: ['Figma', 'UI/UX', 'Prototyping'],
+        posted_at: new Date(Date.now() - 172800000).toISOString(),
       },
     },
     {
@@ -91,6 +94,7 @@ export function initializeMockData() {
         salary_min: 55000,
         salary_max: 75000,
         requirements: ['Node.js', 'React', 'MongoDB'],
+        posted_at: new Date(Date.now() - 259200000).toISOString(),
       },
     },
     {
@@ -108,6 +112,7 @@ export function initializeMockData() {
         salary_min: 65000,
         salary_max: 85000,
         requirements: ['Python', 'Django', 'PostgreSQL'],
+        posted_at: new Date(Date.now() - 604800000).toISOString(),
       },
     },
     {
@@ -125,6 +130,7 @@ export function initializeMockData() {
         salary_min: 58000,
         salary_max: 78000,
         requirements: ['React Native', 'TypeScript', 'Mobile UI'],
+        posted_at: new Date(Date.now() - 432000000).toISOString(),
       },
     },
   ];
@@ -148,4 +154,81 @@ export function getProfile(): Profile {
 
 export function updateProfile(updates: Partial<Profile>) {
   mockProfile = { ...mockProfile, ...updates };
+}
+
+export function getAvailableJobs(): Job[] {
+  return [
+    {
+      id: 'job-1',
+      title: 'Senior Frontend Developer',
+      company: 'TechCorp Solutions',
+      location: 'London, UK',
+      description: 'We are looking for an experienced Frontend Developer to join our dynamic team...',
+      type: 'Full-time',
+      salary_min: 60000,
+      salary_max: 80000,
+      requirements: ['React', 'TypeScript', 'Next.js'],
+      posted_at: new Date(Date.now() - 86400000).toISOString(),
+    },
+    {
+      id: 'job-2',
+      title: 'Product Designer',
+      company: 'Creative Studio',
+      location: 'Manchester, UK',
+      description: 'Join our creative team to design innovative digital products...',
+      type: 'Full-time',
+      salary_min: 50000,
+      salary_max: 70000,
+      requirements: ['Figma', 'UI/UX', 'Prototyping'],
+      posted_at: new Date(Date.now() - 172800000).toISOString(),
+    },
+    {
+      id: 'job-3',
+      title: 'Full Stack Developer',
+      company: 'StartupHub',
+      location: 'Remote',
+      description: 'Build scalable web applications with modern technologies...',
+      type: 'Full-time',
+      salary_min: 55000,
+      salary_max: 75000,
+      requirements: ['Node.js', 'React', 'MongoDB'],
+      posted_at: new Date(Date.now() - 259200000).toISOString(),
+    },
+    {
+      id: 'job-4',
+      title: 'Backend Engineer',
+      company: 'DataFlow Inc',
+      location: 'Birmingham, UK',
+      description: 'Develop robust backend systems and APIs...',
+      type: 'Full-time',
+      salary_min: 65000,
+      salary_max: 85000,
+      requirements: ['Python', 'Django', 'PostgreSQL'],
+      posted_at: new Date(Date.now() - 604800000).toISOString(),
+    },
+    {
+      id: 'job-5',
+      title: 'Mobile Developer',
+      company: 'AppWorks',
+      location: 'Edinburgh, UK',
+      description: 'Create beautiful mobile experiences with React Native...',
+      type: 'Full-time',
+      salary_min: 58000,
+      salary_max: 78000,
+      requirements: ['React Native', 'TypeScript', 'Mobile UI'],
+      posted_at: new Date(Date.now() - 432000000).toISOString(),
+    },
+  ];
+}
+
+export function applyToJob(job: Job) {
+  const newApplication: Application = {
+    id: `app-${Date.now()}`,
+    job: job,
+    applied_at: new Date().toISOString(),
+    applicationStatus: 'APPLIED',
+    status: 'active',
+  };
+  mockApplications.push(newApplication);
+  return newApplication;
 }

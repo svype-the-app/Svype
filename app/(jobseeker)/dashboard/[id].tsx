@@ -8,12 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 export default function ApplicationDetailScreen() {
@@ -432,6 +432,7 @@ export default function ApplicationDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    marginTop: 40,
   },
   header: {
     borderBottomWidth: 1,

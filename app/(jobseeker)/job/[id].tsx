@@ -22,7 +22,7 @@ export default function JobDetailsScreen() {
     if (!id) return;
     
     const jobs = getAvailableJobs();
-    const foundJob = jobs.find(j => j.id === id);
+    const foundJob = jobs.find((j: Job) => j.id === id);
     if (foundJob) {
       setJob(foundJob);
     }
@@ -264,7 +264,7 @@ export default function JobDetailsScreen() {
                 Similar Opportunities
               </Text>
               <View style={styles.similarJobs}>
-                {getAvailableJobs().filter(j => j.id !== job.id).slice(0, 3).map((similarJob) => (
+                {getAvailableJobs().filter((j: Job) => j.id !== job.id).slice(0, 3).map((similarJob: Job) => (
                   <TouchableOpacity
                     key={similarJob.id}
                     onPress={() => router.push(`/(jobseeker)/job/${similarJob.id}`)}
