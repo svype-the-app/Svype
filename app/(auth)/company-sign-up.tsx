@@ -84,6 +84,11 @@ export default function CompanySignUpScreen() {
     }, 1500);
   };
 
+  // TODO: Temporary bypass - Click on "Terms of Service" text to skip form filling during development
+  const handleTermsClick = () => {
+    router.push('/(onboarding)/company-onboarding');
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
@@ -241,7 +246,12 @@ export default function CompanySignUpScreen() {
               />
               <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
                 I agree to the{' '}
-                <Text style={[styles.termsLink, { color: colors.primary }]}>Terms of Service</Text>
+                <Text 
+                  style={[styles.termsLink, { color: colors.primary }]}
+                  onPress={handleTermsClick}
+                >
+                  Terms of Service
+                </Text>
                 {' '}and{' '}
                 <Text style={[styles.termsLink, { color: colors.primary }]}>Privacy Policy</Text>
               </Text>

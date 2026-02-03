@@ -21,6 +21,7 @@ export default function CompanyDashboard() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? "light"]
   const [activeTab, setActiveTab] = useState("jobs")
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   
   const [companyName, setCompanyName] = useState("")
   const [stats, setStats] = useState<CompanyStats | null>(null)
@@ -51,6 +52,16 @@ useEffect(() => {
       default:
         return "#8b5cf6"
     }
+  }
+
+  const handleDeleteJob = (jobId: number) => {
+    setRecentJobs(recentJobs.filter(job => job.id !== jobId))
+    setOpenMenuId(null)
+  }
+
+  const handleEditJob = (jobId: number) => {
+    router.push(`posts/edit-job?id=${jobId}` as any)
+    setOpenMenuId(null)
   }
 
   return (
@@ -116,15 +127,44 @@ useEffect(() => {
                         </Text>
                       </View>
                     </View>
-                    <Badge
-                      style={{
-                        backgroundColor: getStatusColor(job.status) + "20",
-                      }}
-                      textStyle={{ color: getStatusColor(job.status) }}
-                    >
-                      <Text>{job.status.charAt(0).toUpperCase() + job.status.slice(1)}</Text>
-                    </Badge>
+                    <View style={styles.headerRight}>
+                      <Badge
+                        style={{
+                          backgroundColor: getStatusColor(job.status) + "20",
+                        }}
+                        textStyle={{ color: getStatusColor(job.status) }}
+                      >
+                        <Text>{job.status.charAt(0).toUpperCase() + job.status.slice(1)}</Text>
+                      </Badge>
+                      <TouchableOpacity
+                        style={styles.menuButton}
+                        onPress={() => setOpenMenuId(openMenuId === job.id ? null : job.id)}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={20} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
+
+                  {/* Dropdown Menu */}
+                  {openMenuId === job.id && (
+                    <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => handleEditJob(job.id)}
+                      >
+                        <Ionicons name="pencil" size={16} color={colors.primary} />
+                        <Text style={[styles.menuItemText, { color: colors.primary }]}>Edit Job</Text>
+                      </TouchableOpacity>
+                      <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
+                      <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => handleDeleteJob(job.id)}
+                      >
+                        <Ionicons name="trash" size={16} color="#ef4444" />
+                        <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Job</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   
                   {/* Action Buttons */}
                   <View style={styles.actionButtonsRow}>
@@ -135,7 +175,10 @@ useEffect(() => {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: colors.primary }]}
-                      onPress={() => router.push("applicants/review-applicants" as any)}
+                      onPress={() => router.push({
+                        pathname: "applicants/review-applicants" as any,
+                        params: { jobTitle: job.title }
+                      })}
                     >
                       <Text style={styles.actionButtonTextPrimary}>View Applicants</Text>
                     </TouchableOpacity>
@@ -257,6 +300,34 @@ const styles = StyleSheet.create({
   },
   cardHeaderLeft: {
     flex: 1,
+  },
+  headerRight: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  menuButton: {
+    padding: 4,
+  },
+  dropdownMenu: {
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  menuItemText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  menuDivider: {
+    height: 1,
   },
   jobTitle: {
     fontSize: 16,
