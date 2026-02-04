@@ -16,6 +16,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -93,19 +94,14 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Settings</Text>
-        </View>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Settings</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
@@ -308,7 +304,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -318,8 +314,11 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   headerContent: {
@@ -328,13 +327,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
   },
   scrollView: {
