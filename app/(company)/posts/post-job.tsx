@@ -257,9 +257,7 @@ export default function PostJobScreen() {
               {enablePreScreening && (
                 <View style={[styles.expandedSection, { borderLeftColor: colors.primary }]}>
                   <Button
-                    onPress={() =>
-                      Alert.alert('Quiz Questions', 'Add Quiz Questions feature coming soon')
-                    }
+                    onPress={() => router.push('posts/add-quiz-qs' as any)}
                     style={styles.subButton}
                   >
                     <Ionicons name="add" size={16} color="#fff" />

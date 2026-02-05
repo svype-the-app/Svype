@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   View,
   ScrollView,
@@ -6,6 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  Modal,
+  Dimensions,
+  Image,
+  Animated,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
@@ -14,7 +18,11 @@ import { Colors } from "@/constants/theme"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { getCompanyProfile, getCompanyStats, getCompanyJobs, CompanyJob, CompanyStats } from "@/lib/mock-data"
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window")
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.6
 
 export default function CompanyDashboard() {
   const router = useRouter()
@@ -22,6 +30,9 @@ export default function CompanyDashboard() {
   const colors = Colors[colorScheme ?? "light"]
   const [activeTab, setActiveTab] = useState("jobs")
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [drawerVisible, setDrawerVisible] = useState(false)
+  const [modalVisible, setModalVisible] = useState(false)
+  const drawerSlide = useRef(new Animated.Value(DRAWER_WIDTH)).current
   
   const [companyName, setCompanyName] = useState("")
   const [stats, setStats] = useState<CompanyStats | null>(null)
@@ -30,6 +41,25 @@ export default function CompanyDashboard() {
 useEffect(() => {
     loadCompanyData()
   }, [])
+
+  useEffect(() => {
+    if (drawerVisible) {
+      setModalVisible(true)
+      Animated.timing(drawerSlide, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start()
+    } else {
+      Animated.timing(drawerSlide, {
+        toValue: DRAWER_WIDTH,
+        duration: 300,
+        useNativeDriver: false,
+      }).start(() => {
+        setModalVisible(false)
+      })
+    }
+  }, [drawerVisible, drawerSlide])
 
   const loadCompanyData = () => {
     const company = getCompanyProfile()
@@ -64,6 +94,16 @@ useEffect(() => {
     setOpenMenuId(null)
   }
 
+  const handleMenuNavigation = (path: string) => {
+    setDrawerVisible(false)
+    router.push(path as any)
+  }
+
+  const handleLogout = () => {
+    setDrawerVisible(false)
+    router.push("/(auth)/login" as any)
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -76,9 +116,9 @@ useEffect(() => {
             </View>
             <TouchableOpacity 
               style={[styles.settingsButton, { borderColor: colors.border }]}
-              onPress={() => router.push("profile/settings" as any)}
+              onPress={() => setDrawerVisible(true)}
             >
-              <Ionicons name="settings-outline" size={20} color={colors.primary} />
+              <Ionicons name="menu" size={24} color={colors.foreground} />
             </TouchableOpacity>
           </View>
 
@@ -153,7 +193,7 @@ useEffect(() => {
                         onPress={() => handleEditJob(job.id)}
                       >
                         <Ionicons name="pencil" size={16} color={colors.primary} />
-                        <Text style={[styles.menuItemText, { color: colors.primary }]}>Edit Job</Text>
+                        <Text style={[styles.dropdownMenuItemText, { color: colors.primary }]}>Edit Job</Text>
                       </TouchableOpacity>
                       <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
                       <TouchableOpacity
@@ -161,7 +201,7 @@ useEffect(() => {
                         onPress={() => handleDeleteJob(job.id)}
                       >
                         <Ionicons name="trash" size={16} color="#ef4444" />
-                        <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Job</Text>
+                        <Text style={[styles.dropdownMenuItemText, { color: "#ef4444" }]}>Delete Job</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -189,6 +229,107 @@ useEffect(() => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Side Drawer Menu */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={() => setDrawerVisible(false)}
+      >
+        <View style={styles.drawerOverlay}>
+          {/* Overlay backdrop with synchronized opacity */}
+          <Animated.View
+            style={[
+              styles.drawerBackdrop,
+              {
+                opacity: drawerSlide.interpolate({
+                  inputRange: [0, DRAWER_WIDTH],
+                  outputRange: [0.5, 0],
+                }),
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => setDrawerVisible(false)}
+              activeOpacity={1}
+            />
+          </Animated.View>
+
+          {/* Drawer Menu */}
+          <Animated.View
+            style={[
+              styles.drawer,
+              {
+                backgroundColor: colors.background,
+                width: DRAWER_WIDTH,
+                transform: [{ translateX: drawerSlide }],
+              },
+            ]}
+          >
+            {/* Profile Section */}
+            <View style={[styles.drawerProfile, { borderBottomColor: colors.border }]}>
+              <Avatar style={styles.profileAvatar}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.avatarText}>
+                    {companyName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              </Avatar>
+              <Text style={[styles.companyNameDrawer, { color: colors.foreground }]}>
+                {companyName}
+              </Text>
+            </View>
+
+            {/* Menu Items */}
+            <View style={styles.drawerContent}>
+              <TouchableOpacity
+                onPress={() => handleMenuNavigation("profile/index")}
+                style={styles.menuItemDrawer}
+              >
+                <Ionicons name="person-outline" size={20} color={colors.foreground} />
+                <Text style={[styles.drawerMenuItemText, { color: colors.foreground }]}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleMenuNavigation("premium/upgrade")}
+                style={styles.menuItemDrawer}
+              >
+                <Ionicons name="star-outline" size={20} color={colors.primary} />
+                <Text style={[styles.drawerMenuItemText, { color: colors.primary, fontWeight: "600" }]}>
+                  Upgrade to Premium
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleMenuNavigation("profile/settings")}
+                style={styles.menuItemDrawer}
+              >
+                <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+                <Text style={[styles.drawerMenuItemText, { color: colors.foreground }]}>
+                  Settings
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Logout Button */}
+            <View style={[styles.drawerFooter, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={styles.logoutButton}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+                <Text style={[styles.logoutText, { color: "#ef4444" }]}>
+                  Logout
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -322,7 +463,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
   },
-  menuItemText: {
+  dropdownMenuItemText: {
     fontSize: 14,
     fontWeight: "500",
   },
@@ -390,4 +531,80 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  drawerOverlay: {
+    flex: 1,
+  },
+  drawerBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  drawer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: DRAWER_WIDTH,
+    paddingTop: 0,
+  },
+  drawerProfile: {
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  profileAvatar: {
+    width: 90,
+    height: 90,
+    marginBottom: 12,
+  },
+  avatarPlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  companyNameDrawer: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  drawerContent: {
+    flex: 1,
+    paddingTop: 12,
+  },
+  menuItemDrawer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  drawerMenuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  drawerFooter: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
 })
+
