@@ -322,6 +322,7 @@ export default function ReviewApplicantsScreen() {
 
         <TouchableOpacity
           style={[styles.aiButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary, borderWidth: 1.5 }]}
+          onPress={() => router.push('applicants/ai-shortlist' as any)}
         >
           <Ionicons name="sparkles" size={16} color={colors.primary} style={{ marginRight: 6 }} />
           <Text style={[styles.aiButtonText, { color: colors.primary }]}>AI</Text>
