@@ -200,6 +200,7 @@ export default function PersonalInfoScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    marginTop: 40,
     flex: 1,
   },
   header: {
