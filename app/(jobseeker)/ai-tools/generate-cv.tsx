@@ -420,9 +420,8 @@ export default function GenerateCVScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 10,
     flex: 1,
-     marginTop: 40,
+    marginTop: 40,
   },
   header: {
     marginTop: 40,

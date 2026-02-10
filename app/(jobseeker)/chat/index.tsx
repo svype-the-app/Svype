@@ -337,7 +337,6 @@ function TypingDot({ delay, color }: { delay: number; color: string }) {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 40,
     flex: 1,
     marginTop: 40,
   },
