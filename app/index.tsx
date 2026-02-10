@@ -146,7 +146,10 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.primary }]}>SVYPE</Text>
+          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+            <Ionicons name="briefcase" size={32} color="#fff" />
+          </View>
+          <Text style={[styles.title, { color: colors.foreground }]}>SVYPE</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             AI-powered job hunting platform. Swipe your way to your dream career.
           </Text>
@@ -176,33 +179,50 @@ export default function WelcomeScreen() {
         <View style={styles.cardContainer}>
           <Animated.View
             style={{
-              transform: [{ translateX: pan.x }, {rotateX: rotate}],
+              transform: [{ translateX: pan.x }, { rotate }],
               opacity: cardOpacity,
             }}
             {...panResponder.panHandlers}
           >
-            {/* Swipe Right Overlay (Green) */}
+            {/* Swipe Right Overlay (Green - Sign Up) */}
             <Animated.View
               style={[
                 styles.swipeOverlay,
                 styles.swipeOverlayRight,
                 {
-                  opacity: Animated.multiply(
-                    pan.x.interpolate({
-                      inputRange: [0, 50, 100],
-                      outputRange: [0, 0.5, 1],
-                      extrapolate: 'clamp',
-                    }),
-                    panVelocity.interpolate({
-                      inputRange: [-1, 0],
-                      outputRange: [0, 1],
-                      extrapolate: 'clamp',
-                    })
-                  ),
+                  opacity: pan.x.interpolate({
+                    inputRange: [0, 50, 100],
+                    outputRange: [0, 0.5, 1],
+                    extrapolate: 'clamp',
+                  }),
                 },
               ]}
               pointerEvents="none"
-            />
+            >
+              <View style={styles.swipeIconRight}>
+                <Ionicons name="arrow-forward" size={48} color="#fff" />
+              </View>
+            </Animated.View>
+
+            {/* Swipe Left Overlay (Blue - Next Card) */}
+            <Animated.View
+              style={[
+                styles.swipeOverlay,
+                styles.swipeOverlayLeft,
+                {
+                  opacity: pan.x.interpolate({
+                    inputRange: [-100, -50, 0],
+                    outputRange: [1, 0.5, 0],
+                    extrapolate: 'clamp',
+                  }),
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.swipeIconLeft}>
+                <Ionicons name="chevron-back" size={48} color="#fff" />
+              </View>
+            </Animated.View>
 
             <Card>
               <CardContent style={styles.cardContent}>
@@ -283,11 +303,23 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
+    gap: 12,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   title: {
     fontSize: 36,
     fontWeight: '800',
-    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -327,22 +359,32 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   swipeOverlayRight: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
   },
   swipeOverlayLeft: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-  },
-  swipeIcon: {
-    padding: 16,
-    borderRadius: 50,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
   },
   swipeIconRight: {
+    padding: 16,
+    borderRadius: 50,
     backgroundColor: '#22c55e',
     transform: [{ rotate: '12deg' }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   swipeIconLeft: {
+    padding: 16,
+    borderRadius: 50,
     backgroundColor: '#3b82f6',
     transform: [{ rotate: '-12deg' }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   cardContent: {
     alignItems: 'center',

@@ -1,26 +1,26 @@
-import { useState } from 'react'
-import {
-  View,
-  ScrollView,
-  Text,
-  StyleSheet,
-  useColorScheme,
-  TouchableOpacity,
-  Pressable,
-  Modal,
-  FlatList,
-  Alert,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
-import { Colors } from '@/constants/theme'
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Colors } from '@/constants/theme'
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
+import { useState } from 'react'
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship'
 

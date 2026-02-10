@@ -1,610 +1,587 @@
-import { useState, useEffect, useRef } from "react"
-import {
-  View,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  useColorScheme,
-  Modal,
-  Dimensions,
-  Image,
-  Animated,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons } from "@expo/vector-icons"
-import { useRouter } from "expo-router"
-import { Colors } from "@/constants/theme"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { getCompanyProfile, getCompanyStats, getCompanyJobs, CompanyJob, CompanyStats } from "@/lib/mock-data"
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window")
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.6
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const colors = Colors[colorScheme ?? "light"]
-  const [activeTab, setActiveTab] = useState("jobs")
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
-  const [drawerVisible, setDrawerVisible] = useState(false)
-  const [modalVisible, setModalVisible] = useState(false)
-  const drawerSlide = useRef(new Animated.Value(DRAWER_WIDTH)).current
-  
-  const [companyName, setCompanyName] = useState("")
-  const [stats, setStats] = useState<CompanyStats | null>(null)
-  const [recentJobs, setRecentJobs] = useState<CompanyJob[]>([])
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const [activeTab, setActiveTab] = useState<'jobs' | 'applicants'>('jobs');
 
-useEffect(() => {
-    loadCompanyData()
-  }, [])
+  const [stats] = useState({
+    activeJobs: 5,
+    totalApplicants: 142,
+    viewsThisWeek: 387,
+    hiredThisMonth: 8,
+  });
 
-  useEffect(() => {
-    if (drawerVisible) {
-      setModalVisible(true)
-      Animated.timing(drawerSlide, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: false,
-      }).start()
-    } else {
-      Animated.timing(drawerSlide, {
-        toValue: DRAWER_WIDTH,
-        duration: 300,
-        useNativeDriver: false,
-      }).start(() => {
-        setModalVisible(false)
-      })
-    }
-  }, [drawerVisible, drawerSlide])
+  const recentJobs = [
+    { id: 1, title: 'Senior Frontend Engineer', applicants: 23, status: 'active', posted: '2 days ago' },
+    { id: 2, title: 'Product Designer', applicants: 18, status: 'active', posted: '1 week ago' },
+    { id: 3, title: 'Backend Developer', applicants: 31, status: 'active', posted: '1 week ago' },
+    { id: 4, title: 'Marketing Lead', applicants: 15, status: 'closed', posted: '2 weeks ago' },
+  ];
 
-  const loadCompanyData = () => {
-    const company = getCompanyProfile()
-    const companyStats = getCompanyStats()
-    const jobs = getCompanyJobs()
-    
-    setCompanyName(company.name)
-    setStats(companyStats)
-    setRecentJobs(jobs)
-  }
+  const recentApplicants = [
+    { id: 1, name: 'Sarah Johnson', job: 'Senior Frontend Engineer', status: 'pending', applied: '2 hours ago' },
+    { id: 2, name: 'Michael Chen', job: 'Product Designer', status: 'pending', applied: '5 hours ago' },
+    { id: 3, name: 'Emma Wilson', job: 'Backend Developer', status: 'reviewing', applied: '1 day ago' },
+    { id: 4, name: 'James Brown', job: 'Senior Frontend Engineer', status: 'pending', applied: '1 day ago' },
+  ];
 
-  const getStatusColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case "active":
-        return colors.primary
-      case "closed":
-        return "#ef4444"
-      case "archived":
-        return "#6b7280"
+  const getStatusColor = (status: string) => {
+    return status === 'active' ? colors.primary : colors.mutedForeground;
+  };
+
+  const getApplicantStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return { bg: '#fef3c7', text: '#92400e' };
+      case 'reviewing':
+        return { bg: '#dbeafe', text: '#1e40af' };
       default:
-        return "#8b5cf6"
+        return { bg: colors.muted, text: colors.mutedForeground };
     }
-  }
-
-  const handleDeleteJob = (jobId: number) => {
-    setRecentJobs(recentJobs.filter(job => job.id !== jobId))
-    setOpenMenuId(null)
-  }
-
-  const handleEditJob = (jobId: number) => {
-    router.push(`posts/edit-job?id=${jobId}` as any)
-    setOpenMenuId(null)
-  }
-
-  const handleMenuNavigation = (path: string) => {
-    setDrawerVisible(false)
-    router.push(path as any)
-  }
-
-  const handleLogout = () => {
-    setDrawerVisible(false)
-    router.push("/(auth)/login" as any)
-  }
+  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={[styles.pageTitle, { color: colors.foreground }]}>{companyName}</Text>
-              <Text style={[styles.pageSubtitle, { color: colors.mutedForeground }]}>Company Dashboard</Text>
-            </View>
-            <TouchableOpacity 
-              style={[styles.settingsButton, { borderColor: colors.border }]}
-              onPress={() => setDrawerVisible(true)}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.companyName, { color: colors.foreground }]}>TechCorp Inc.</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>Company Dashboard</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <Button
+              variant="outline"
+              style={styles.postsButton}
+              onPress={() => router.push('/(company)/posts')}
             >
-              <Ionicons name="menu" size={24} color={colors.foreground} />
+              <Text style={styles.postsButtonText}>Posts</Text>
+            </Button>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(company)/profile/settings')}
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(auth)/login')}
+            >
+              <Ionicons name="log-out-outline" size={20} color={colors.foreground} />
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
 
-          {/* Stats Overview */}
-          {stats && (
-            <View style={styles.statsContainer}>
-              <StatCard icon="briefcase-outline" label="Active Jobs" value={stats.activeJobs} color={colors.primary} />
-              <StatCard icon="people-outline" label="Applicants" value={stats.totalApplicants} color="#3b82f6" />
-              <StatCard icon="eye-outline" label="Views" value={stats.viewsThisWeek} color="#a855f7" />
-            </View>
-          )}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          <Card style={[styles.statCard, { borderColor: colors.border, borderWidth: 2 }]}>
+            <CardContent style={styles.statCardContent}>
+              <View style={styles.statCardInner}>
+                <View style={[styles.statIcon, { backgroundColor: colors.primary + '1A' }]}>
+                  <Ionicons name="briefcase" size={24} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={[styles.statValue, { color: colors.foreground }]}>{stats.activeJobs}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Active Jobs</Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
 
-          {/* Post Job Button */}
+          <Card style={[styles.statCard, { borderColor: colors.border, borderWidth: 2 }]}>
+            <CardContent style={styles.statCardContent}>
+              <View style={styles.statCardInner}>
+                <View style={[styles.statIcon, { backgroundColor: '#3b82f61A' }]}>
+                  <Ionicons name="people" size={24} color="#3b82f6" />
+                </View>
+                <View>
+                  <Text style={[styles.statValue, { color: colors.foreground }]}>{stats.totalApplicants}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Applicants</Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+
+          <Card style={[styles.statCard, { borderColor: colors.border, borderWidth: 2 }]}>
+            <CardContent style={styles.statCardContent}>
+              <View style={styles.statCardInner}>
+                <View style={[styles.statIcon, { backgroundColor: '#a855f71A' }]}>
+                  <Ionicons name="eye" size={24} color="#a855f7" />
+                </View>
+                <View>
+                  <Text style={[styles.statValue, { color: colors.foreground }]}>{stats.viewsThisWeek}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Views</Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+
+          <Card style={[styles.statCard, { borderColor: colors.border, borderWidth: 2 }]}>
+            <CardContent style={styles.statCardContent}>
+              <View style={styles.statCardInner}>
+                <View style={[styles.statIcon, { backgroundColor: '#22c55e1A' }]}>
+                  <Ionicons name="trending-up" size={24} color="#22c55e" />
+                </View>
+                <View>
+                  <Text style={[styles.statValue, { color: colors.foreground }]}>{stats.hiredThisMonth}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Hired</Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
           <Button
-            size="lg"
-            onPress={() => router.push("posts/post-job" as any)}
-            style={styles.postJobButton}
+            style={styles.actionButton}
+            onPress={() => router.push('/(company)/posts/post-job')}
           >
-            <Ionicons name="add-circle" size={20} color="#fff" />
-            <Text style={styles.postJobButtonText}>Post New Job</Text>
+            <Ionicons name="add" size={20} color="#fff" style={styles.actionIcon} />
+            <Text style={styles.actionButtonText}>Post New Job</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={styles.actionButton}
+            onPress={() => router.push('/(company)/applicants/review-applicants')}
+          >
+            <Ionicons name="people-outline" size={20} color={colors.foreground} style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: colors.foreground }]}>Review Applicants</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: '#a855f7' }]}
+            onPress={() => router.push('/(company)/applicants/ai-shortlist')}
+          >
+            <Ionicons name="sparkles" size={20} color="#a855f7" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: '#a855f7' }]}>AI Shortlist</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: '#3b82f6' }]}
+            onPress={() => router.push('/(company)/applicants/interview-results/1')}
+          >
+            <Ionicons name="document-text-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>Interview Results</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={styles.actionButton}
+            onPress={() => router.push('/(company)/posts')}
+          >
+            <Ionicons name="create-outline" size={20} color={colors.foreground} style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: colors.foreground }]}>Create Post</Text>
           </Button>
         </View>
 
-        {/* Jobs Section */}
-        <View style={styles.jobsSection}>
-          <View style={styles.jobsHeader}>
-            <Text style={[styles.jobsTitle, { color: colors.foreground }]}>
-              Jobs ({recentJobs.length})
-            </Text>
+        {/* Tabs Section */}
+        <View style={styles.tabs}>
+          <View style={styles.tabsList}>
+            <TouchableOpacity
+              style={[
+                styles.tabTrigger,
+                activeTab === 'jobs' && { ...styles.tabTriggerActive, backgroundColor: colors.primary }
+              ]}
+              onPress={() => setActiveTab('jobs')}
+            >
+              <Text style={[
+                styles.tabTriggerText,
+                { color: activeTab === 'jobs' ? '#fff' : colors.foreground }
+              ]}>Job Postings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tabTrigger,
+                activeTab === 'applicants' && { ...styles.tabTriggerActive, backgroundColor: colors.primary }
+              ]}
+              onPress={() => setActiveTab('applicants')}
+            >
+              <Text style={[
+                styles.tabTriggerText,
+                { color: activeTab === 'applicants' ? '#fff' : colors.foreground }
+              ]}>Recent Applicants</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Content */}
-          <View style={styles.listContainer}>
-            {recentJobs.map((job) => (
-              <Card key={job.id} style={styles.jobCard}>
-                <CardContent style={styles.cardContent}>
-                  <View style={styles.jobCardHeader}>
-                    <View style={styles.cardHeaderLeft}>
-                      <Text style={[styles.jobTitle, { color: colors.cardForeground }]}>
-                        {job.title}
-                      </Text>
-                      <View style={styles.jobMetaRow}>
-                        <Ionicons name="people" size={14} color={colors.mutedForeground} />
-                        <Text style={[styles.jobMeta, { color: colors.mutedForeground }]}>
-                          {job.applicants} applicants • Posted {job.posted}
+          {activeTab === 'jobs' && (
+            <View style={styles.tabContent}>
+              {recentJobs.map((job) => (
+                <Card
+                  key={job.id}
+                  style={[styles.jobCard, { borderColor: colors.border, borderWidth: 2 }]}
+                >
+                  <CardContent style={styles.jobCardContent}>
+                    <View style={styles.jobCardMain}>
+                      <View style={styles.jobInfo}>
+                        <View style={styles.jobTitleRow}>
+                          <Text style={[styles.jobTitle, { color: colors.foreground }]} numberOfLines={1}>
+                            {job.title}
+                          </Text>
+                          <Badge
+                            variant={job.status === 'active' ? 'default' : 'secondary'}
+                            style={styles.jobStatusBadge}
+                          >
+                            <Text
+                              style={{
+                                ...styles.statusText,
+                                color: job.status === 'active' ? '#fff' : colors.mutedForeground,
+                              }}
+                            >
+                              {job.status}
+                            </Text>
+                          </Badge>
+                        </View>
+                        <View style={styles.jobMeta}>
+                          <View style={styles.jobMetaItem}>
+                            <Ionicons
+                              name="people-outline"
+                              size={14}
+                              color={colors.mutedForeground}
+                            />
+                            <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
+                              {job.applicants} applicants
+                            </Text>
+                          </View>
+                          <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
+                            Posted {job.posted}
+                          </Text>
+                        </View>
+                      </View>
+                      <Button
+                        variant="outline"
+                        style={styles.viewDetailsButton}
+                        onPress={() => router.push(`/(company)/posts/${job.id}`)}
+                      >
+                        <Text style={[styles.viewDetailsText, { color: colors.foreground }]}>
+                          View Details
+                        </Text>
+                      </Button>
+                    </View>
+                  </CardContent>
+                </Card>
+              ))}
+            </View>
+          )}
+
+          {activeTab === 'applicants' && (
+            <View style={styles.tabContent}>
+              {recentApplicants.map((applicant) => (
+                <Card
+                  key={applicant.id}
+                  style={[styles.applicantCard, { borderColor: colors.border, borderWidth: 2 }]}
+                >
+                  <CardContent style={styles.applicantCardContent}>
+                    <View style={styles.applicantCardMain}>
+                      <View style={styles.applicantInfo}>
+                        <View style={styles.applicantTitleRow}>
+                          <Text style={[styles.applicantName, { color: colors.foreground }]}>
+                            {applicant.name}
+                          </Text>
+                          <Badge
+                            variant="outline"
+                            style={{
+                              ...styles.applicantStatusBadge,
+                              backgroundColor: getApplicantStatusColor(applicant.status).bg,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                ...styles.applicantStatusText,
+                                color: getApplicantStatusColor(applicant.status).text,
+                              }}
+                            >
+                              {applicant.status}
+                            </Text>
+                          </Badge>
+                        </View>
+                        <Text style={[styles.applicantJob, { color: colors.mutedForeground }]} numberOfLines={1}>
+                          Applied for: {applicant.job}
+                        </Text>
+                        <Text style={[styles.applicantTime, { color: colors.mutedForeground }]}>
+                          {applicant.applied}
                         </Text>
                       </View>
+                      <Button
+                        style={styles.reviewButton}
+                        onPress={() =>
+                          router.push('/(company)/applicants/review-applicants')
+                        }
+                      >
+                        <Text style={styles.reviewButtonText}>Review</Text>
+                      </Button>
                     </View>
-                    <View style={styles.headerRight}>
-                      <Badge
-                        style={{
-                          backgroundColor: getStatusColor(job.status) + "20",
-                        }}
-                        textStyle={{ color: getStatusColor(job.status) }}
-                      >
-                        <Text>{job.status.charAt(0).toUpperCase() + job.status.slice(1)}</Text>
-                      </Badge>
-                      <TouchableOpacity
-                        style={styles.menuButton}
-                        onPress={() => setOpenMenuId(openMenuId === job.id ? null : job.id)}
-                      >
-                        <Ionicons name="ellipsis-vertical" size={20} color={colors.mutedForeground} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Dropdown Menu */}
-                  {openMenuId === job.id && (
-                    <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => handleEditJob(job.id)}
-                      >
-                        <Ionicons name="pencil" size={16} color={colors.primary} />
-                        <Text style={[styles.dropdownMenuItemText, { color: colors.primary }]}>Edit Job</Text>
-                      </TouchableOpacity>
-                      <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
-                      <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => handleDeleteJob(job.id)}
-                      >
-                        <Ionicons name="trash" size={16} color="#ef4444" />
-                        <Text style={[styles.dropdownMenuItemText, { color: "#ef4444" }]}>Delete Job</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  
-                  {/* Action Buttons */}
-                  <View style={styles.actionButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { borderColor: colors.primary, borderWidth: 1 }]}
-                    >
-                      <Text style={[styles.actionButtonText, { color: colors.primary }]}>View Details</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.primary }]}
-                      onPress={() => router.push({
-                        pathname: "applicants/review-applicants" as any,
-                        params: { jobTitle: job.title }
-                      })}
-                    >
-                      <Text style={styles.actionButtonTextPrimary}>View Applicants</Text>
-                    </TouchableOpacity>
-                  </View>
-                </CardContent>
-              </Card>
-            ))}
-          </View>
+                  </CardContent>
+                </Card>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
-
-      {/* Side Drawer Menu */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => setDrawerVisible(false)}
-      >
-        <View style={styles.drawerOverlay}>
-          {/* Overlay backdrop with synchronized opacity */}
-          <Animated.View
-            style={[
-              styles.drawerBackdrop,
-              {
-                opacity: drawerSlide.interpolate({
-                  inputRange: [0, DRAWER_WIDTH],
-                  outputRange: [0.5, 0],
-                }),
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              onPress={() => setDrawerVisible(false)}
-              activeOpacity={1}
-            />
-          </Animated.View>
-
-          {/* Drawer Menu */}
-          <Animated.View
-            style={[
-              styles.drawer,
-              {
-                backgroundColor: colors.background,
-                width: DRAWER_WIDTH,
-                transform: [{ translateX: drawerSlide }],
-              },
-            ]}
-          >
-            {/* Profile Section */}
-            <View style={[styles.drawerProfile, { borderBottomColor: colors.border }]}>
-              <Avatar style={styles.profileAvatar}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.avatarText}>
-                    {companyName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              </Avatar>
-              <Text style={[styles.companyNameDrawer, { color: colors.foreground }]}>
-                {companyName}
-              </Text>
-            </View>
-
-            {/* Menu Items */}
-            <View style={styles.drawerContent}>
-              <TouchableOpacity
-                onPress={() => handleMenuNavigation("profile/index")}
-                style={styles.menuItemDrawer}
-              >
-                <Ionicons name="person-outline" size={20} color={colors.foreground} />
-                <Text style={[styles.drawerMenuItemText, { color: colors.foreground }]}>
-                  Profile
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => handleMenuNavigation("premium/upgrade")}
-                style={styles.menuItemDrawer}
-              >
-                <Ionicons name="star-outline" size={20} color={colors.primary} />
-                <Text style={[styles.drawerMenuItemText, { color: colors.primary, fontWeight: "600" }]}>
-                  Upgrade to Premium
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => handleMenuNavigation("profile/settings")}
-                style={styles.menuItemDrawer}
-              >
-                <Ionicons name="settings-outline" size={20} color={colors.foreground} />
-                <Text style={[styles.drawerMenuItemText, { color: colors.foreground }]}>
-                  Settings
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Logout Button */}
-            <View style={[styles.drawerFooter, { borderTopColor: colors.border }]}>
-              <TouchableOpacity
-                onPress={handleLogout}
-                style={styles.logoutButton}
-              >
-                <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-                <Text style={[styles.logoutText, { color: "#ef4444" }]}>
-                  Logout
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
     </SafeAreaView>
-  )
+  );
 }
-
-const StatCard = ({ icon, label, value, color }: { icon: any; label: string; value: number; color: string }) => (
-  <View style={{ flex: 1 }}>
-    <View style={[styles.statCard, { backgroundColor: color + "20" }]}>
-      <Ionicons name={icon} size={20} color={color} style={{ marginBottom: 4 }} />
-      <Text style={[styles.statValue, { color: color }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: Colors.light.mutedForeground }]}>
-        {label}
-      </Text>
-    </View>
-  </View>
-)
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  companyName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  postsButton: {
+    paddingHorizontal: 16,
+    height: 60,
+    minWidth: 80,
+  },
+  postsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrollView: {
     flex: 1,
   },
-  header: {
+  scrollContent: {
     padding: 16,
-    paddingTop: 8,
+    gap: 16,
   },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  pageSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statsContainer: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 20,
-  },
-  statCard: {
-    padding: 12,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  statLabel: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  postJobButton: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    marginBottom: 24,
-  },
-  postJobButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  jobsSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  jobsHeader: {
-    marginBottom: 12,
-  },
-  jobsTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  listContainer: {
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  jobCard: {
-    marginBottom: 0,
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
   },
-  cardContent: {
+  statCardContent: {
     padding: 16,
   },
-  jobCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-    gap: 8,
+  statCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  cardHeaderLeft: {
-    flex: 1,
+  statIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerRight: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "flex-start",
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
-  menuButton: {
-    padding: 4,
-  },
-  dropdownMenu: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 12,
-    overflow: "hidden",
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  dropdownMenuItemText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  menuDivider: {
-    height: 1,
-  },
-  jobTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  jobMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  jobMeta: {
+  statLabel: {
     fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 0,
   },
-  appliedTime: {
-    fontSize: 11,
-  },
-  actionButtonsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: "center",
+    minWidth: '45%',
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    marginRight: 8,
   },
   actionButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  actionButtonTextPrimary: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
+  actionButtonTextOutline: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  viewButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  tabs: {
+    gap: 16,
+  },
+  tabsList: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  tabTrigger: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    borderWidth: 1,
-    alignItems: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  viewButtonText: {
+  tabTriggerActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabTriggerText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabContent: {
+    gap: 12,
+  },
+  jobCard: {
+    overflow: 'hidden',
+  },
+  jobCardContent: {
+    padding: 12,
+  },
+  jobCardMain: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  jobInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  jobTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  jobStatusBadge: {
+    alignSelf: 'flex-start',
+  },
+  statusText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  jobMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  jobMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  jobMetaText: {
+    fontSize: 12,
+  },
+  viewDetailsButton: {
+    alignSelf: 'flex-start',
+  },
+  viewDetailsText: {
+    fontSize: 12,
+  },
+  applicantCard: {
+    overflow: 'hidden',
+  },
+  applicantCardContent: {
+    padding: 12,
+  },
+  applicantCardMain: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  applicantInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  applicantTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  applicantName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  applicantStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  applicantStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  applicantJob: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  applicantTime: {
+    fontSize: 10,
   },
   reviewButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: "center",
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    height: 60,
   },
   reviewButtonText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
   },
-  drawerOverlay: {
-    flex: 1,
-  },
-  drawerBackdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-  },
-  drawer: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: DRAWER_WIDTH,
-    paddingTop: 0,
-  },
-  drawerProfile: {
-    alignItems: "center",
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  profileAvatar: {
-    width: 90,
-    height: 90,
-    marginBottom: 12,
-  },
-  avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  companyNameDrawer: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  drawerContent: {
-    flex: 1,
-    paddingTop: 12,
-  },
-  menuItemDrawer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  drawerMenuItemText: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  drawerFooter: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-  },
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-})
+});
 

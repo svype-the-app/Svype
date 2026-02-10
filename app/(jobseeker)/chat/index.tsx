@@ -8,15 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 
 interface Message {
@@ -323,6 +323,7 @@ function TypingDot({ delay, color }: { delay: number; color: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    marginTop: 40,
   },
   header: {
     paddingTop: 8,

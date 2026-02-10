@@ -1,25 +1,25 @@
-import { useState, useRef, useEffect } from 'react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Colors } from '@/constants/theme'
+import { Applicant, getApplicantsByJob } from '@/lib/mock-data'
+import { Ionicons } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useEffect, useRef, useState } from 'react'
 import {
-  View,
-  ScrollView,
-  Text,
-  StyleSheet,
-  useColorScheme,
-  Dimensions,
-  TouchableOpacity,
-  PanResponder,
   Animated,
+  Dimensions,
+  PanResponder,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
-import { useRouter, useLocalSearchParams } from 'expo-router'
-import { Colors } from '@/constants/theme'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { getApplicantsByJob, Applicant } from '@/lib/mock-data'
-import * as Haptics from 'expo-haptics'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 80
@@ -44,16 +44,21 @@ export default function ReviewApplicantsScreen() {
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate on significant horizontal movement
-        return Math.abs(gestureState.dx) > 5 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value,
+        });
       },
-      onPanResponderMove: (_, { dx }) => {
-        // Only horizontal movement
-        pan.x.setValue(dx)
-      },
-      onPanResponderRelease: (_, { dx }) => {
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x, dy: pan.y }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (_, { dx, dy }) => {
+        pan.flattenOffset();
+        
         if (dx > SWIPE_THRESHOLD) {
           // Right swipe - APPROVE
           handleApprove()
@@ -65,6 +70,7 @@ export default function ReviewApplicantsScreen() {
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: false,
+            friction: 5,
           }).start()
         }
       },
@@ -137,12 +143,23 @@ export default function ReviewApplicantsScreen() {
   }
 
   const currentApplicant = applicants[currentIndex]
+  
+  const rotate = pan.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: ['-10deg', '0deg', '10deg'],
+    extrapolate: 'clamp',
+  })
+
   const animatedCardStyle = {
     transform: [
-      {
-        translateX: pan.x,
-      },
+      { translateX: pan.x },
+      { rotate },
     ],
+    opacity: pan.x.interpolate({
+      inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+      outputRange: [0.5, 1, 0.5],
+      extrapolate: 'clamp',
+    }),
   }
 
   return (
@@ -262,78 +279,79 @@ export default function ReviewApplicantsScreen() {
 
                 {/* Swipe Hint */}
                 <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>
-                  ← Reject • Swipe • Approve →
+                  ← Swipe to Reject or Approve →
                 </Text>
               </ScrollView>
             </CardContent>
           </Card>
 
-          {/* Overlay Colors on Swipe */}
+          {/* Swipe Overlays - Approve (Right) */}
           <Animated.View
             style={[
+              styles.swipeOverlay,
               {
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 opacity: pan.x.interpolate({
-                  inputRange: [0, SCREEN_WIDTH * 0.3],
-                  outputRange: [0, 0.5],
+                  inputRange: [0, SWIPE_THRESHOLD],
+                  outputRange: [0, 1],
                   extrapolate: 'clamp',
                 }),
-                borderRadius: 16,
-                pointerEvents: 'none',
               },
             ]}
-          />
+            pointerEvents="none"
+          >
+            <View style={[styles.swipeIcon, { backgroundColor: '#10b981', transform: [{ rotate: '12deg' }] }]}>
+              <Ionicons name="checkmark" size={48} color="#fff" />
+            </View>
+          </Animated.View>
 
+          {/* Swipe Overlays - Reject (Left) */}
           <Animated.View
             style={[
+              styles.swipeOverlay,
               {
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
                 opacity: pan.x.interpolate({
-                  inputRange: [-SCREEN_WIDTH * 0.3, 0],
-                  outputRange: [0.5, 0],
+                  inputRange: [-SWIPE_THRESHOLD, 0],
+                  outputRange: [1, 0],
                   extrapolate: 'clamp',
                 }),
-                borderRadius: 16,
-                pointerEvents: 'none',
               },
             ]}
-          />
+            pointerEvents="none"
+          >
+            <View style={[styles.swipeIcon, { backgroundColor: '#ef4444', transform: [{ rotate: '-12deg' }] }]}>
+              <Ionicons name="close" size={48} color="#fff" />
+            </View>
+          </Animated.View>
         </Animated.View>
       </View>
 
       {/* Action Buttons at Bottom */}
-      <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border }]}>
+      <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
         <TouchableOpacity 
-          style={[styles.actionButton, { borderColor: '#ef4444', borderWidth: 2 }]} 
+          style={[styles.actionButton, styles.rejectButton]} 
           onPress={handleReject}
         >
-          <Ionicons name="close" size={24} color="#ef4444" />
+          <Ionicons name="close" size={28} color="#fff" />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.aiButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary, borderWidth: 1.5 }]}
-          onPress={() => router.push('applicants/ai-shortlist' as any)}
+          style={[styles.actionButton, styles.detailsButton, { borderColor: colors.border }]}
+          onPress={() => {
+            if (scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ y: 0, animated: true });
+            }
+          }}
         >
-          <Ionicons name="sparkles" size={16} color={colors.primary} style={{ marginRight: 6 }} />
-          <Text style={[styles.aiButtonText, { color: colors.primary }]}>AI</Text>
-          <Ionicons name="funnel" size={16} color={colors.primary} style={{ marginLeft: 6 }} />
+          <Ionicons name="document-text-outline" size={24} color={colors.foreground} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#10b981' }]}
+          style={[styles.actionButton, styles.approveButton]}
           onPress={handleApprove}
         >
-          <Ionicons name="checkmark" size={24} color="#fff" />
+          <Ionicons name="checkmark" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -454,31 +472,58 @@ const styles = StyleSheet.create({
 
   actionButtonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     borderTopWidth: 1,
-    gap: 12,
+    gap: 16,
   },
   actionButton: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  rejectButton: {
+    backgroundColor: '#ef4444',
+  },
+  approveButton: {
+    backgroundColor: '#10b981',
+  },
+  detailsButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  swipeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  aiButton: {
-    flex: 1.2,
-    height: 56,
-    borderRadius: 12,
+  swipeIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    flexDirection: 'row',
-  },
-  aiButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   emptyContainer: {
     flex: 1,

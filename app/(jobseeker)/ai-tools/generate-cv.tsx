@@ -421,6 +421,7 @@ export default function GenerateCVScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+     marginTop: 40,
   },
   header: {
     paddingTop: 16,
