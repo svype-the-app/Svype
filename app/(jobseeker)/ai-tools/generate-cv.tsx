@@ -2,39 +2,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { cvTemplates, mockJobOptions } from '@/lib/mock-ai-tools';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
-
-const cvTemplates = [
-  {
-    id: "modern",
-    name: "Modern Professional",
-    description: "Clean and contemporary design"
-  },
-  {
-    id: "classic",
-    name: "Classic Executive",
-    description: "Traditional and elegant"
-  },
-  {
-    id: "creative",
-    name: "Creative Designer",
-    description: "Bold and artistic"
-  },
-  {
-    id: "minimal",
-    name: "Minimal",
-    description: "Simple and focused"
-  }
-];
-
-const mockJobs = [
-  { id: "1", title: "Senior Frontend Engineer", company: "TechCorp Inc." },
-  { id: "2", title: "Full Stack Developer", company: "StartupXYZ" },
-  { id: "3", title: "React Developer", company: "Digital Agency" }
-];
 
 export default function GenerateCVScreen() {
   const router = useRouter();
@@ -78,7 +50,7 @@ export default function GenerateCVScreen() {
     }
   };
 
-  const selectedJobData = mockJobs.find(j => j.id === selectedJob);
+  const selectedJobData = mockJobOptions.find(j => j.id === selectedJob);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -241,7 +213,7 @@ export default function GenerateCVScreen() {
                           General CV (no specific job)
                         </Text>
                       </TouchableOpacity>
-                      {mockJobs.map((job) => (
+                      {mockJobOptions.map((job) => (
                         <TouchableOpacity
                           key={job.id}
                           style={[styles.jobOption, selectedJob === job.id && { backgroundColor: colors.primary + '10' }]}

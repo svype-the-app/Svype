@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { mockProfilePreviewData } from '@/lib/mock-onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,48 +12,8 @@ export default function ProfilePreviewScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  // Mock profile data (would come from AI chat + imports)
-  const profileData = {
-    name: "John Doe",
-    headline: "Senior Full-Stack Developer",
-    email: "john.doe@example.com",
-    phone: "+44 7700 900123",
-    location: "London, UK",
-    summary: "Experienced full-stack developer with 5+ years building scalable web applications. Passionate about React, Node.js, and cloud technologies. Looking for remote opportunities in innovative tech companies.",
-    skills: [
-      "React", "TypeScript", "Node.js", "Next.js", "Python",
-      "AWS", "Docker", "PostgreSQL", "MongoDB", "REST APIs"
-    ],
-    experience: [
-      {
-        title: "Senior Developer",
-        company: "Tech Corp",
-        location: "London, UK",
-        period: "2021 - Present",
-        description: "Leading development of customer-facing web applications"
-      },
-      {
-        title: "Full-Stack Developer",
-        company: "StartupXYZ",
-        location: "Remote",
-        period: "2019 - 2021",
-        description: "Built and maintained multiple microservices and frontend applications"
-      }
-    ],
-    education: [
-      {
-        degree: "BSc Computer Science",
-        institution: "University of London",
-        period: "2015 - 2019"
-      }
-    ],
-    preferences: {
-      jobType: ["Full-time", "Remote"],
-      salaryMin: "£50,000",
-      salaryMax: "£80,000",
-      location: "London or Remote"
-    }
-  };
+  // Profile data from mock
+  const profileData = mockProfilePreviewData;
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('');

@@ -3,38 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Colors } from '@/constants/theme';
+import { mockJobOptions, toneOptions } from '@/lib/mock-ai-tools';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Clipboard, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
-
-const toneOptions = [
-  { value: "professional", label: "Professional", description: "Formal and business-like" },
-  { value: "enthusiastic", label: "Enthusiastic", description: "Passionate and energetic" },
-  { value: "confident", label: "Confident", description: "Strong and assertive" },
-  { value: "creative", label: "Creative", description: "Unique and innovative" }
-];
-
-const mockJobs = [
-  { 
-    id: "1", 
-    title: "Senior Frontend Engineer", 
-    company: "TechCorp Inc.",
-    description: "Looking for an experienced React developer..."
-  },
-  { 
-    id: "2", 
-    title: "Full Stack Developer", 
-    company: "StartupXYZ",
-    description: "Join our fast-growing startup..."
-  },
-  { 
-    id: "3", 
-    title: "React Developer", 
-    company: "Digital Agency",
-    description: "Creative agency seeking talented developer..."
-  }
-];
 
 export default function GenerateCoverLetterScreen() {
   const router = useRouter();
@@ -53,14 +26,14 @@ export default function GenerateCoverLetterScreen() {
     // Simulate AI generation
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    const selectedJobData = mockJobs.find(j => j.id === selectedJob);
+    const selectedJobData = mockJobOptions.find(j => j.id === selectedJob);
     const letter = `Dear Hiring Manager,
 
 I am writing to express my strong interest in the ${selectedJobData?.title} position at ${selectedJobData?.company}. With over 5 years of experience in full-stack development and a proven track record of delivering high-quality web applications, I am confident that I would be a valuable addition to your team.
 
 Throughout my career, I have developed expertise in React, TypeScript, Node.js, and modern cloud technologies. At my current role at Tech Corp, I have led the development of several customer-facing applications that serve millions of users, resulting in a 40% increase in user engagement and a 25% improvement in application performance.
 
-What particularly excites me about this opportunity at ${selectedJobData?.company} is ${selectedJobData?.description.toLowerCase()} I am passionate about creating exceptional user experiences and believe my technical skills combined with my collaborative approach would make me an ideal fit for your team.
+What particularly excites me about this opportunity at ${selectedJobData?.company} is ${selectedJobData?.description?.toLowerCase() || 'the innovative work being done'} I am passionate about creating exceptional user experiences and believe my technical skills combined with my collaborative approach would make me an ideal fit for your team.
 
 ${additionalNotes ? `\n${additionalNotes}\n\n` : ''}I would welcome the opportunity to discuss how my experience and skills align with your needs. Thank you for considering my application.
 
@@ -92,7 +65,7 @@ John Doe`;
     }
   };
 
-  const selectedJobData = mockJobs.find(j => j.id === selectedJob);
+  const selectedJobData = mockJobOptions.find(j => j.id === selectedJob);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -150,7 +123,7 @@ John Doe`;
                   { color: selectedJob ? colors.cardForeground : colors.mutedForeground }
                 ]}>
                   {selectedJob 
-                    ? mockJobs.find(j => j.id === selectedJob)?.title
+                    ? mockJobOptions.find(j => j.id === selectedJob)?.title
                     : "Select a job to generate cover letter"
                   }
                 </Text>
@@ -163,7 +136,7 @@ John Doe`;
 
               {showJobPicker && (
                 <View style={[styles.jobPicker, { backgroundColor: colors.muted + '40', borderColor: colors.border }]}>
-                  {mockJobs.map((job) => (
+                  {mockJobOptions.map((job) => (
                     <TouchableOpacity
                       key={job.id}
                       style={[styles.jobOption, selectedJob === job.id && { backgroundColor: colors.primary + '10' }]}

@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { assessmentQuestions, AssessmentQuestion, Skill, skills } from '@/lib/mock-ai-tools';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -15,22 +16,7 @@ import {
     View,
 } from 'react-native';
 
-interface Question {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-}
-
-interface Skill {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  questions: number;
-  duration: string;
-}
+type Question = AssessmentQuestion;
 
 const ProgressBar = ({ value, height = 8 }: { value: number; height?: number }) => {
   const colorScheme = useColorScheme();
@@ -70,129 +56,7 @@ export default function SkillsAssessmentScreen() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [assessmentComplete, setAssessmentComplete] = useState(false);
 
-  const skills: Skill[] = [
-    {
-      id: 'react',
-      name: 'React',
-      icon: '⚛️',
-      description: 'Test your knowledge of React fundamentals',
-      questions: 10,
-      duration: '15 min',
-    },
-    {
-      id: 'typescript',
-      name: 'TypeScript',
-      icon: '📘',
-      description: 'Assess your TypeScript skills',
-      questions: 10,
-      duration: '15 min',
-    },
-    {
-      id: 'nodejs',
-      name: 'Node.js',
-      icon: '🟢',
-      description: 'Evaluate your backend knowledge',
-      questions: 10,
-      duration: '15 min',
-    },
-    {
-      id: 'javascript',
-      name: 'JavaScript',
-      icon: '🟨',
-      description: 'Test core JavaScript concepts',
-      questions: 10,
-      duration: '15 min',
-    },
-  ];
-
-  const assessments: Record<string, Question[]> = {
-    react: [
-      {
-        id: '1',
-        question: 'What is the purpose of useEffect hook in React?',
-        options: [
-          'To manage component state',
-          'To perform side effects in function components',
-          'To create context',
-          'To optimize performance',
-        ],
-        correctAnswer: 1,
-        explanation:
-          'useEffect is used to perform side effects in function components, such as data fetching, subscriptions, or manually changing the DOM.',
-      },
-      {
-        id: '2',
-        question: 'Which method is used to update state in a class component?',
-        options: ['updateState()', 'setState()', 'changeState()', 'modifyState()'],
-        correctAnswer: 1,
-        explanation: 'setState() is the method used to update state in React class components.',
-      },
-      {
-        id: '3',
-        question: 'What is JSX?',
-        options: [
-          'A programming language',
-          'A syntax extension for JavaScript',
-          'A CSS framework',
-          'A testing library',
-        ],
-        correctAnswer: 1,
-        explanation:
-          'JSX is a syntax extension for JavaScript that allows you to write HTML-like code in your JavaScript files.',
-      },
-    ],
-    typescript: [
-      {
-        id: '1',
-        question: 'What is TypeScript?',
-        options: [
-          'A JavaScript runtime',
-          'A superset of JavaScript with static typing',
-          'A CSS preprocessor',
-          'A testing framework',
-        ],
-        correctAnswer: 1,
-        explanation:
-          'TypeScript is a superset of JavaScript that adds static typing and other features to help catch errors during development.',
-      },
-      {
-        id: '2',
-        question: 'Which keyword is used to define an interface in TypeScript?',
-        options: ['class', 'type', 'interface', 'define'],
-        correctAnswer: 2,
-        explanation:
-          "The 'interface' keyword is used to define an interface in TypeScript, which describes the shape of an object.",
-      },
-    ],
-    nodejs: [
-      {
-        id: '1',
-        question: 'What is Node.js primarily used for?',
-        options: [
-          'Frontend development',
-          'Server-side JavaScript execution',
-          'Mobile app development',
-          'Database management',
-        ],
-        correctAnswer: 1,
-        explanation: 'Node.js is a JavaScript runtime built on Chrome\'s V8 engine for server-side execution.',
-      },
-    ],
-    javascript: [
-      {
-        id: '1',
-        question: 'What does "const" keyword do in JavaScript?',
-        options: [
-          'Creates a variable that can be reassigned',
-          'Creates a constant reference',
-          'Creates a global variable',
-          'Creates a function',
-        ],
-        correctAnswer: 1,
-        explanation: 'The const keyword creates a constant reference that cannot be reassigned.',
-      },
-    ],
-  };
+  const assessments = assessmentQuestions;
 
   const currentAssessment = selectedSkill ? assessments[selectedSkill] || [] : [];
   const currentQuestion = currentAssessment[currentQuestionIndex];

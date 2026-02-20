@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Colors } from '@/constants/theme';
+import { mockPreferredJobTypes, mockPreferredLocations, mockUserPreferences } from '@/lib/mock-profile';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -23,23 +24,9 @@ export default function PreferencesScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const [preferences, setPreferences] = useState({
-    remote: true,
-    hybrid: true,
-    onsite: false,
-    fullTime: true,
-    partTime: false,
-    contract: false,
-    salaryMin: 40,
-    salaryMax: 100,
-  });
-
-  const [locations, setLocations] = useState(['London', 'Manchester', 'Remote']);
-  const [jobTypes, setJobTypes] = useState([
-    'Software Engineer',
-    'Frontend Developer',
-    'Full Stack Developer',
-  ]);
+  const [preferences, setPreferences] = useState(mockUserPreferences);
+  const [locations, setLocations] = useState(mockPreferredLocations);
+  const [jobTypes, setJobTypes] = useState(mockPreferredJobTypes);
 
   const handleSave = () => {
     Alert.alert('Preferences Saved', 'Your job preferences have been updated successfully.');

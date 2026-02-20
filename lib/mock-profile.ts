@@ -52,3 +52,64 @@ export function getCompanyProfile(): CompanyProfile {
 export function updateCompanyProfile(updates: Partial<CompanyProfile>) {
   mockCompanyProfile = { ...mockCompanyProfile, ...updates };
 }
+
+// User Preferences
+export interface UserPreferences {
+  remote: boolean;
+  hybrid: boolean;
+  onsite: boolean;
+  fullTime: boolean;
+  partTime: boolean;
+  contract: boolean;
+  salaryMin: number;
+  salaryMax: number;
+}
+
+export const mockUserPreferences: UserPreferences = {
+  remote: true,
+  hybrid: true,
+  onsite: false,
+  fullTime: true,
+  partTime: false,
+  contract: false,
+  salaryMin: 40,
+  salaryMax: 100,
+};
+
+export const mockPreferredLocations: string[] = ['London', 'Manchester', 'Remote'];
+
+export const mockPreferredJobTypes: string[] = [
+  'Software Engineer',
+  'Frontend Developer',
+  'Full Stack Developer',
+];
+
+// Resume & Portfolio
+export interface ResumeFile {
+  id: string;
+  name: string;
+  size: string;
+  uploadedAt: string;
+}
+
+export interface PortfolioLink {
+  id: string;
+  platform: string;
+  url: string;
+  icon: string;
+}
+
+export const mockResumes: ResumeFile[] = [
+  {
+    id: '1',
+    name: 'John_Doe_Resume_2024.pdf',
+    size: '245 KB',
+    uploadedAt: '2024-01-15',
+  },
+];
+
+export const mockPortfolioLinks: PortfolioLink[] = [
+  { id: '1', platform: 'GitHub', url: 'github.com/johndoe', icon: 'logo-github' },
+  { id: '2', platform: 'LinkedIn', url: 'linkedin.com/in/johndoe', icon: 'logo-linkedin' },
+  { id: '3', platform: 'Portfolio', url: 'johndoe.dev', icon: 'globe-outline' },
+];

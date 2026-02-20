@@ -1,79 +1,16 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { mockNotifications, Notification } from '@/lib/mock-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
-interface Notification {
-  id: string;
-  type: "application" | "interview" | "status" | "tip" | "message";
-  title: string;
-  description: string;
-  time: string;
-  read: boolean;
-  actionUrl?: string;
-}
-
 export default function NotificationsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "status",
-      title: "Application Status Update",
-      description: "Your application for Senior Frontend Engineer at TechCorp has been shortlisted!",
-      time: "2 hours ago",
-      read: false,
-      actionUrl: "/(jobseeker)/dashboard"
-    },
-    {
-      id: "2",
-      type: "interview",
-      title: "Interview Scheduled",
-      description: "Interview for Product Designer at Design Studio scheduled for Jan 5, 2:00 PM",
-      time: "5 hours ago",
-      read: false,
-      actionUrl: "/(jobseeker)/dashboard"
-    },
-    {
-      id: "3",
-      type: "tip",
-      title: "Career Tip",
-      description: "Update your profile with your latest projects to attract more opportunities",
-      time: "1 day ago",
-      read: true,
-      actionUrl: "/(jobseeker)/profile"
-    },
-    {
-      id: "4",
-      type: "application",
-      title: "New Job Match",
-      description: "3 new jobs matching your preferences are available",
-      time: "1 day ago",
-      read: true,
-      actionUrl: "/(jobseeker)/swipe"
-    },
-    {
-      id: "5",
-      type: "message",
-      title: "Message from TechCorp",
-      description: "The hiring manager would like to know more about your React experience",
-      time: "2 days ago",
-      read: true,
-      actionUrl: "/(jobseeker)/chat"
-    },
-    {
-      id: "6",
-      type: "status",
-      title: "Application Submitted",
-      description: "Your application for Backend Developer at DataSystems has been received",
-      time: "3 days ago",
-      read: true
-    }
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Colors } from '@/constants/theme';
+import { mockPortfolioLinks, mockResumes, PortfolioLink, ResumeFile } from '@/lib/mock-profile';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -17,39 +18,15 @@ import {
     View,
 } from 'react-native';
 
-interface ResumeFile {
-  id: string;
-  name: string;
-  size: string;
-  uploadedAt: string;
-}
-
-interface PortfolioLink {
-  id: string;
-  platform: string;
-  url: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
-
 export default function ResumeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   
-  const [resumes, setResumes] = useState<ResumeFile[]>([
-    {
-      id: '1',
-      name: 'John_Doe_Resume_2024.pdf',
-      size: '245 KB',
-      uploadedAt: '2024-01-15',
-    },
-  ]);
-
-  const [portfolioLinks, setPortfolioLinks] = useState<PortfolioLink[]>([
-    { id: '1', platform: 'GitHub', url: 'github.com/johndoe', icon: 'logo-github' },
-    { id: '2', platform: 'LinkedIn', url: 'linkedin.com/in/johndoe', icon: 'logo-linkedin' },
-    { id: '3', platform: 'Portfolio', url: 'johndoe.dev', icon: 'globe-outline' },
-  ]);
+  const [resumes, setResumes] = useState<ResumeFile[]>(mockResumes);
+  const [portfolioLinks, setPortfolioLinks] = useState<PortfolioLink[]>(
+    mockPortfolioLinks.map(link => ({ ...link, icon: link.icon as keyof typeof Ionicons.glyphMap }))
+  );
 
   const [newLink, setNewLink] = useState({ platform: '', url: '' });
   const [showAddLink, setShowAddLink] = useState(false);

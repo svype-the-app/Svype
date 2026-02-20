@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/theme';
+import { mockCompanyPosts } from '@/lib/mock-company';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -16,38 +17,7 @@ export default function CompanyPostsScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', content: '', type: 'update' });
 
-  const posts = [
-    {
-      id: 1,
-      type: 'blog',
-      title: "Why We're Building the Future of Work",
-      content: "At TechCorp, we believe in empowering teams with cutting-edge technology...",
-      likes: 234,
-      comments: 45,
-      views: 1523,
-      publishedAt: '2 days ago',
-    },
-    {
-      id: 2,
-      type: 'update',
-      title: "We're Hiring! Join Our Growing Team",
-      content: "Exciting news! We're expanding our engineering team and looking for talented developers...",
-      likes: 189,
-      comments: 28,
-      views: 892,
-      publishedAt: '1 week ago',
-    },
-    {
-      id: 3,
-      type: 'blog',
-      title: 'Our Journey to Remote-First Culture',
-      content: 'How we transformed into a fully remote company and the lessons we learned along the way...',
-      likes: 412,
-      comments: 67,
-      views: 2341,
-      publishedAt: '2 weeks ago',
-    },
-  ];
+  const posts = mockCompanyPosts;
 
   const handleCreatePost = () => {
     Alert.alert('Post Published!', 'Your post is now visible to candidates and followers.');

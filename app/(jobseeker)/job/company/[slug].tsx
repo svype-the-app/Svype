@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { mockCompanyData, mockCompanyJobs, mockCompanyReviews } from '@/lib/mock-company';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -15,50 +16,17 @@ export default function CompanyProfileScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const [activeTab, setActiveTab] = useState<'about' | 'jobs' | 'culture' | 'reviews'>('about');
 
-  // Mock company data
+  // Get company data with dynamic name based on slug
   const company = {
+    ...mockCompanyData,
     name: typeof slug === 'string' 
       ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
       : 'Company Name',
     slug: slug,
-    description: "Leading technology company focused on innovation and creating exceptional user experiences. We build products that millions of people use every day.",
-    industry: "Technology",
-    size: "100-500 employees",
-    founded: "2015",
-    location: "London, UK",
-    website: "www.company.com",
-    rating: 4.5,
-    reviews: 127,
-    culture: ["Remote-friendly", "Work-life balance", "Learning & Development", "Diverse & Inclusive"],
-    benefits: ["Health Insurance", "Pension Scheme", "Flexible Hours", "Remote Work", "Learning Budget", "Stock Options"],
-    openJobs: 12,
-    followers: 3429
   };
 
-  const jobs = [
-    { id: "1", title: "Senior Frontend Engineer", location: "London, UK", type: "Full-time", posted: "2 days ago" },
-    { id: "2", title: "Product Designer", location: "Remote", type: "Full-time", posted: "5 days ago" },
-    { id: "3", title: "Backend Developer", location: "London, UK", type: "Full-time", posted: "1 week ago" },
-  ];
-
-  const reviews = [
-    {
-      id: "1",
-      author: "Current Employee - Software Engineer",
-      rating: 5,
-      date: "2 months ago",
-      title: "Great place to grow",
-      content: "Excellent work environment with supportive colleagues and interesting projects. Good work-life balance and learning opportunities."
-    },
-    {
-      id: "2",
-      author: "Former Employee - Product Manager",
-      rating: 4,
-      date: "4 months ago",
-      title: "Solid company culture",
-      content: "Enjoyed my time here. Good benefits and the team is very collaborative. Room for improvement in some processes."
-    }
-  ];
+  const jobs = mockCompanyJobs;
+  const reviews = mockCompanyReviews;
 
   const renderStars = (rating: number, size: number = 16) => {
     return (

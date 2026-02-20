@@ -116,3 +116,56 @@ export function getAvailableJobs(): Job[] {
     },
   ];
 }
+
+// Swipe Jobs for Job Seeker
+export interface SwipeJob {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  type: string;
+  salary_min: number;
+  salary_max: number;
+  posted_at: string;
+  description: string;
+  requirements: string[];
+}
+
+export const mockSwipeJobs: SwipeJob[] = [
+  {
+    id: '1',
+    title: 'Senior Full-Stack Developer',
+    company: 'Tech Corp',
+    location: 'London, UK',
+    type: 'Full-time • Remote',
+    salary_min: 60000,
+    salary_max: 80000,
+    posted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    description: 'We are looking for an experienced full-stack developer to join our growing team. You will be responsible for developing and maintaining our web applications using modern technologies.',
+    requirements: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', '5+ years experience'],
+  },
+  {
+    id: '2',
+    title: 'Frontend Developer',
+    company: 'StartupXYZ',
+    location: 'Manchester, UK',
+    type: 'Full-time • Hybrid',
+    salary_min: 45000,
+    salary_max: 60000,
+    posted_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    description: 'Join our innovative startup as a frontend developer. Work on cutting-edge projects and help shape our product.',
+    requirements: ['React', 'CSS', 'JavaScript', 'Git', '3+ years experience'],
+  },
+  {
+    id: '3',
+    title: 'Backend Engineer',
+    company: 'Cloud Services Ltd',
+    location: 'Remote',
+    type: 'Full-time • Remote',
+    salary_min: 55000,
+    salary_max: 75000,
+    posted_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    description: 'Build scalable backend systems for our cloud platform. Work with microservices and modern cloud technologies.',
+    requirements: ['Python', 'AWS', 'Docker', 'Kubernetes', '4+ years experience'],
+  },
+];

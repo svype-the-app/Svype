@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { onboardingSteps, OnboardingStep } from '@/lib/mock-onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -11,40 +12,7 @@ interface Message {
   content: string;
 }
 
-interface Step {
-  question: string;
-  placeholder: string;
-  options?: string[];
-}
-
-const onboardingSteps: Step[] = [
-  {
-    question: "Great to meet you! What kind of role are you looking for?",
-    placeholder: "e.g., Software Developer, Product Manager...",
-  },
-  {
-    question: "What are your key skills or areas of expertise?",
-    placeholder: "e.g., React, Python, Project Management...",
-  },
-  {
-    question: "How many years of experience do you have?",
-    placeholder: "e.g., 3 years, Entry level...",
-    options: ["Entry level (0-2 years)", "Mid-level (3-5 years)", "Senior (5+ years)", "Lead/Management"]
-  },
-  {
-    question: "What's your preferred work setup?",
-    placeholder: "Select your preference",
-    options: ["Remote", "Hybrid", "On-site", "Flexible"]
-  },
-  {
-    question: "What's your expected salary range?",
-    placeholder: "e.g., £40k - £60k",
-  },
-  {
-    question: "Which locations are you interested in?",
-    placeholder: "e.g., London, Manchester, Remote",
-  },
-];
+type Step = OnboardingStep;
 
 export default function JobSeekerOnboardingScreen() {
   const router = useRouter();

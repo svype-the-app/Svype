@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { mockSwipeJobs, SwipeJob } from '@/lib/mock-jobs';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -31,65 +32,14 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
 const SWIPE_VELOCITY_THRESHOLD = 500; // px/s
 
-interface Job {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  type: string;
-  salary_min: number;
-  salary_max: number;
-  posted_at: string;
-  description: string;
-  requirements: string[];
-}
-
-// Mock data
-const mockJobs: Job[] = [
-  {
-    id: '1',
-    title: 'Senior Full-Stack Developer',
-    company: 'Tech Corp',
-    location: 'London, UK',
-    type: 'Full-time • Remote',
-    salary_min: 60000,
-    salary_max: 80000,
-    posted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    description: 'We are looking for an experienced full-stack developer to join our growing team. You will be responsible for developing and maintaining our web applications using modern technologies.',
-    requirements: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', '5+ years experience'],
-  },
-  {
-    id: '2',
-    title: 'Frontend Developer',
-    company: 'StartupXYZ',
-    location: 'Manchester, UK',
-    type: 'Full-time • Hybrid',
-    salary_min: 45000,
-    salary_max: 60000,
-    posted_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    description: 'Join our innovative startup as a frontend developer. Work on cutting-edge projects and help shape our product.',
-    requirements: ['React', 'CSS', 'JavaScript', 'Git', '3+ years experience'],
-  },
-  {
-    id: '3',
-    title: 'Backend Engineer',
-    company: 'Cloud Services Ltd',
-    location: 'Remote',
-    type: 'Full-time • Remote',
-    salary_min: 55000,
-    salary_max: 75000,
-    posted_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    description: 'Build scalable backend systems for our cloud platform. Work with microservices and modern cloud technologies.',
-    requirements: ['Python', 'AWS', 'Docker', 'Kubernetes', '4+ years experience'],
-  },
-];
+type Job = SwipeJob;
 
 export default function SwipeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>(mockSwipeJobs);
   const [showDetails, setShowDetails] = useState(false);
   const [showAppliedDialog, setShowAppliedDialog] = useState(false);
   const [appliedJob, setAppliedJob] = useState<Job | null>(null);
@@ -342,7 +292,7 @@ export default function SwipeScreen() {
           <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>
             You&apos;ve reviewed all available jobs. Check back later for new opportunities!
           </Text>
-          <Button onPress={() => setJobs(mockJobs)}>
+          <Button onPress={() => setJobs(mockSwipeJobs)}>
             Reload Jobs
           </Button>
         </View>

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { mockDashboardStats, mockRecentApplicants, mockRecentJobs } from '@/lib/mock-company';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -15,26 +16,9 @@ export default function CompanyDashboard() {
   const colors = Colors[colorScheme ?? 'light'];
   const [activeTab, setActiveTab] = useState<'jobs' | 'applicants'>('jobs');
 
-  const [stats] = useState({
-    activeJobs: 5,
-    totalApplicants: 142,
-    viewsThisWeek: 387,
-    hiredThisMonth: 8,
-  });
-
-  const recentJobs = [
-    { id: 1, title: 'Senior Frontend Engineer', applicants: 23, status: 'active', posted: '2 days ago' },
-    { id: 2, title: 'Product Designer', applicants: 18, status: 'active', posted: '1 week ago' },
-    { id: 3, title: 'Backend Developer', applicants: 31, status: 'active', posted: '1 week ago' },
-    { id: 4, title: 'Marketing Lead', applicants: 15, status: 'closed', posted: '2 weeks ago' },
-  ];
-
-  const recentApplicants = [
-    { id: 1, name: 'Sarah Johnson', job: 'Senior Frontend Engineer', status: 'pending', applied: '2 hours ago' },
-    { id: 2, name: 'Michael Chen', job: 'Product Designer', status: 'pending', applied: '5 hours ago' },
-    { id: 3, name: 'Emma Wilson', job: 'Backend Developer', status: 'reviewing', applied: '1 day ago' },
-    { id: 4, name: 'James Brown', job: 'Senior Frontend Engineer', status: 'pending', applied: '1 day ago' },
-  ];
+  const stats = mockDashboardStats;
+  const recentJobs = mockRecentJobs;
+  const recentApplicants = mockRecentApplicants;
 
   const getStatusColor = (status: string) => {
     return status === 'active' ? colors.primary : colors.mutedForeground;

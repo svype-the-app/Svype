@@ -2,6 +2,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import {
+    behavioralQuestions,
+    BehavioralQuestion,
+    interviewResources,
+    InterviewResource,
+    interviewTips,
+    InterviewTip,
+    interviewTopics,
+    InterviewTopic,
+} from '@/lib/mock-ai-tools';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -15,35 +25,9 @@ import {
   View,
 } from 'react-native';
 
-interface Topic {
-  id: string;
-  title: string;
-  icon: string;
-  description: string;
-  questions: number;
-  duration: string;
-}
-
-interface Resource {
-  id: string;
-  type: 'article' | 'video';
-  title: string;
-  description: string;
-  readTime: string;
-  popular: boolean;
-}
-
-interface BehavioralQuestion {
-  question: string;
-  tips: string[];
-  example: string;
-}
-
-interface Tip {
-  title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
+type Topic = InterviewTopic;
+type Resource = InterviewResource;
+type Tip = InterviewTip;
 
 export default function InterviewPrepScreen() {
   const router = useRouter();
@@ -51,144 +35,9 @@ export default function InterviewPrepScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const [activeTab, setActiveTab] = useState<'questions' | 'resources' | 'tips'>('questions');
 
-  const topics: Topic[] = [
-    {
-      id: 'behavioral',
-      title: 'Behavioral Questions',
-      icon: '💬',
-      description: 'Common behavioral interview questions and how to answer them',
-      questions: 15,
-      duration: '30 min',
-    },
-    {
-      id: 'technical',
-      title: 'Technical Questions',
-      icon: '💻',
-      description: 'Technical questions for software engineering roles',
-      questions: 20,
-      duration: '45 min',
-    },
-    {
-      id: 'system-design',
-      title: 'System Design',
-      icon: '🏗️',
-      description: 'Learn how to approach system design interviews',
-      questions: 10,
-      duration: '60 min',
-    },
-    {
-      id: 'culture-fit',
-      title: 'Culture Fit',
-      icon: '🤝',
-      description: 'Questions about company culture and values',
-      questions: 12,
-      duration: '20 min',
-    },
-  ];
-
-  const resources: Resource[] = [
-    {
-      id: '1',
-      type: 'article',
-      title: 'The STAR Method for Behavioral Interviews',
-      description: 'Learn how to structure your answers using Situation, Task, Action, Result',
-      readTime: '5 min read',
-      popular: true,
-    },
-    {
-      id: '2',
-      type: 'video',
-      title: 'Mock Interview: Senior Frontend Engineer',
-      description: 'Watch a full mock interview and learn from expert feedback',
-      readTime: '45 min watch',
-      popular: true,
-    },
-    {
-      id: '3',
-      type: 'article',
-      title: '10 Questions You Should Ask Interviewers',
-      description: 'Impress employers with thoughtful questions about the role',
-      readTime: '4 min read',
-      popular: false,
-    },
-    {
-      id: '4',
-      type: 'video',
-      title: 'Handling Salary Negotiations',
-      description: 'Tips for discussing compensation confidently',
-      readTime: '20 min watch',
-      popular: true,
-    },
-  ];
-
-  const behavioralQuestions: BehavioralQuestion[] = [
-    {
-      question: 'Tell me about yourself',
-      tips: [
-        'Keep it professional and relevant to the role',
-        'Structure: Present → Past → Future',
-        'Highlight key achievements and skills',
-        'Keep it under 2 minutes',
-      ],
-      example:
-        'I\'m currently a frontend engineer with 5 years of experience building scalable web applications. In my previous role at TechCorp, I led a team of 4 developers and increased page load speed by 40%. I\'m now looking for opportunities to expand my leadership skills while continuing to work with modern technologies like React and Next.js.',
-    },
-    {
-      question: 'What are your greatest strengths?',
-      tips: [
-        'Choose 2-3 strengths relevant to the job',
-        'Provide specific examples',
-        'Show how your strengths benefit the team',
-        'Be genuine and confident',
-      ],
-      example:
-        'One of my greatest strengths is problem-solving. For example, when our application faced performance issues affecting thousands of users, I analyzed the codebase, identified bottlenecks, and implemented optimizations that improved load times by 60%. I also excel at collaboration—I believe the best solutions come from diverse perspectives.',
-    },
-    {
-      question: 'Describe a challenging situation and how you overcame it',
-      tips: [
-        'Use the STAR method',
-        'Choose a relevant professional example',
-        'Focus on your actions and decisions',
-        'End with the positive outcome',
-      ],
-      example:
-        'In my last project, we had a tight deadline and discovered a critical security vulnerability two days before launch (Situation). As the lead developer, I needed to fix it without delaying the launch (Task). I quickly assembled a small team, we worked through the weekend implementing a patch and comprehensive tests (Action). We launched on time with zero security issues and received praise from the client (Result).',
-    },
-  ];
-
-  const tips: Tip[] = [
-    {
-      title: 'Research the Company',
-      description: 'Understand their products, values, and recent news. Show genuine interest.',
-      icon: 'navigate',
-    },
-    {
-      title: 'Prepare Your Stories',
-      description: 'Have 5-7 STAR stories ready that showcase different skills and situations.',
-      icon: 'book',
-    },
-    {
-      title: 'Practice Out Loud',
-      description: 'Rehearse your answers verbally, not just in your head. Record yourself if possible.',
-      icon: 'chatbubbles',
-    },
-    {
-      title: 'Ask Smart Questions',
-      description: 'Prepare 3-5 thoughtful questions about the role, team, and company.',
-      icon: 'bulb',
-    },
-    {
-      title: 'Plan Your Logistics',
-      description: 'Test your tech setup for video calls. Arrive 10 minutes early for in-person interviews.',
-      icon: 'time',
-    },
-    {
-      title: 'Follow Up',
-      description: 'Send a thank-you email within 24 hours. Reiterate your interest and key points.',
-      icon: 'checkmark-circle',
-    },
-  ];
+  const topics = interviewTopics;
+  const resources = interviewResources;
+  const tips = interviewTips;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
