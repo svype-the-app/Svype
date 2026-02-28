@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View, ActivityIndicator } from 'react-native';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Create refs for each input field
   const fullNameRef = useRef<TextInput>(null);
@@ -44,7 +46,7 @@ export default function SignUpScreen() {
     }, 100);
   };
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     // Validate all fields are filled
     if (!fullName || !email || !password || !confirmPassword) {
       Alert.alert('Missing Fields', 'Please fill in all required fields');
@@ -57,14 +59,56 @@ export default function SignUpScreen() {
       return;
     }
 
+    // Check password length
+    if (password.length < 8) {
+      Alert.alert('Weak Password', 'Password must be at least 8 characters');
+      return;
+    }
+
     // Check if terms are agreed
     if (!agreedToTerms) {
       Alert.alert('Terms Required', 'Please agree to the Terms of Service to continue');
       return;
     }
 
-    // For prototype: Accept any credentials and go to AI onboarding
-    router.push('/(auth)/sign-up-success');
+    setIsLoading(true);
+    
+    try {
+      // Call the API to register the user
+      await authApi.register({
+        email,
+        username: fullName.replace(/\s+/g, '_').toLowerCase(), // Convert name to username
+        password,
+        password_confirm: confirmPassword,
+        user_type: 'jobseeker', // Default to jobseeker
+      });
+      
+      // Success - navigate to success screen
+      router.push('/(auth)/sign-up-success');
+    } catch (error: any) {
+      // Handle API errors
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (error.errors) {
+        // Format validation errors
+        const errors = error.errors;
+        if (errors.email) {
+          errorMessage = errors.email[0];
+        } else if (errors.username) {
+          errorMessage = errors.username[0];
+        } else if (errors.password) {
+          errorMessage = errors.password[0];
+        } else if (errors.non_field_errors) {
+          errorMessage = errors.non_field_errors[0];
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Registration Failed', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleOAuthSignUp = (provider: string) => {
@@ -103,36 +147,6 @@ export default function SignUpScreen() {
               <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
                 Get started with your dream career
               </Text>
-            </View>
-
-            {/* OAuth Buttons */}
-            <View style={styles.oauthContainer}>
-              <Button
-                variant="outline"
-                onPress={() => handleOAuthSignUp('linkedin')}
-                style={styles.oauthButton}
-              >
-                <Ionicons name="logo-linkedin" size={16} color={colors.foreground} />
-                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>LinkedIn</Text>
-              </Button>
-              <Button
-                variant="outline"
-                onPress={() => handleOAuthSignUp('github')}
-                style={styles.oauthButton}
-              >
-                <Ionicons name="logo-github" size={16} color={colors.foreground} />
-                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>GitHub</Text>
-              </Button>
-            </View>
-
-            {/* Separator */}
-            <View style={styles.separatorContainer}>
-              <Separator />
-              <View style={[styles.separatorTextContainer, { backgroundColor: colors.card }]}>
-                <Text style={[styles.separatorText, { color: colors.mutedForeground }]}>
-                  Or continue with email
-                </Text>
-              </View>
             </View>
 
             {/* Full Name Field */}
@@ -218,10 +232,14 @@ export default function SignUpScreen() {
             <Button 
               size="lg" 
               onPress={handleSignUp}
-              disabled={!agreedToTerms}
-              style={[styles.signUpButton, !agreedToTerms && { opacity: 0.5 }]}
+              disabled={!agreedToTerms || isLoading}
+              style={[styles.signUpButton, (!agreedToTerms || isLoading) && { opacity: 0.5 }]}
             >
-              Sign Up
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                'Sign Up'
+              )}
             </Button>
 
             {/* Login Link */}

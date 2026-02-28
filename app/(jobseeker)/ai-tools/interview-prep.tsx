@@ -276,7 +276,7 @@ export default function InterviewPrepScreen() {
                   <CardContent style={styles.tipCardContent}>
                     <View style={styles.tipCardHeader}>
                       <View style={[styles.tipIconContainer, { backgroundColor: colors.primary + '20' }]}>
-                        <Ionicons name={tip.icon} size={20} color={colors.primary} />
+                        <Ionicons name={tip.icon as keyof typeof Ionicons.glyphMap} size={20} color={colors.primary} />
                       </View>
                       <View style={styles.tipCardText}>
                         <Text style={[styles.tipCardTitle, { color: colors.foreground }]}>

@@ -131,7 +131,7 @@ export default function SkillsAssessmentScreen() {
           <Card style={[styles.heroCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
             <CardContent style={styles.heroCardContent}>
               <View style={[styles.heroIcon, { backgroundColor: colors.primary + '30' }]}>
-                <Ionicons name="target" size={28} color={colors.primary} />
+                <Ionicons name="analytics-outline" size={28} color={colors.primary} />
               </View>
               <View style={styles.heroText}>
                 <Text style={[styles.heroTitle, { color: colors.foreground }]}>
