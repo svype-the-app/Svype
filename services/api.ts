@@ -16,6 +16,8 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  first_name: string;
+  last_name: string;
   user_type: 'jobseeker' | 'company';
   avatar?: string;
   created_at: string;
@@ -129,6 +131,7 @@ export const authApi = {
     password: string;
     password_confirm: string;
     user_type: 'jobseeker' | 'company';
+    full_name: string;
   }): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/register/', data);
     

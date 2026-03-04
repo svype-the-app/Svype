@@ -2,13 +2,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function SignUpSuccessScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { firstName } = useLocalSearchParams<{ firstName: string }>();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -27,7 +28,7 @@ export default function SignUpSuccessScreen() {
 
             {/* Title */}
             <Text style={[styles.title, { color: colors.cardForeground }]}>
-              Welcome to SVYPE!
+              Welcome to SVYPE{firstName ? `, ${firstName}` : ''}!
             </Text>
 
             {/* Description */}

@@ -75,16 +75,20 @@ export default function SignUpScreen() {
     
     try {
       // Call the API to register the user
-      await authApi.register({
+      const response = await authApi.register({
         email,
         username: fullName.replace(/\s+/g, '_').toLowerCase(), // Convert name to username
         password,
         password_confirm: confirmPassword,
         user_type: 'jobseeker', // Default to jobseeker
+        full_name: fullName, // Send full name to be split into first/last name
       });
       
-      // Success - navigate to success screen
-      router.push('/(auth)/sign-up-success');
+      // Success - navigate to success screen with user data
+      router.push({
+        pathname: '/(auth)/sign-up-success',
+        params: { firstName: response.user.first_name }
+      });
     } catch (error: any) {
       // Handle API errors
       let errorMessage = 'Registration failed. Please try again.';
