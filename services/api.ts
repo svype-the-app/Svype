@@ -11,6 +11,18 @@ const API_BASE_URL = __DEV__
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
 
+// User state types - matches backend USER_STATE_CHOICES
+// Simplified states:
+// - 'new': Early onboarding (sign-up-success, import data, upload CV)
+// - 'profile_preview': User is at profile preview screen
+// - 'active': User completed onboarding, ready to swipe
+export type UserState = 
+  | 'new'
+  | 'profile_preview'
+  | 'active'
+  | 'suspended'
+  | 'deactivated';
+
 // Types
 export interface User {
   id: number;
@@ -19,6 +31,7 @@ export interface User {
   first_name: string;
   last_name: string;
   user_type: 'jobseeker' | 'company';
+  user_state: UserState;
   avatar?: string;
   created_at: string;
 }
@@ -208,7 +221,49 @@ export const authApi = {
     const token = await this.getStoredToken();
     return !!token;
   },
+
+  async updateState(state: UserState): Promise<{ user: User; message: string }> {
+    return apiClient.post('/auth/update-state/', { state });
+  },
 };
+
+// =============================================================================
+// Helper function to get route based on user state
+// =============================================================================
+export function getRouteForUserState(user: User): string {
+  const { user_type, user_state } = user;
+  
+  // Simplified state-based routing:
+  // 'new' → sign-up-success (early onboarding: success → import → upload)
+  // 'profile_preview' → profile preview screen
+  // 'active' → swipe screen (completed onboarding)
+  
+  switch (user_state) {
+    case 'new':
+      // Early onboarding - start at sign-up-success
+      return '/(auth)/sign-up-success';
+    
+    case 'profile_preview':
+      // User is at profile preview stage
+      return '/(onboarding)/profile-preview';
+    
+    case 'active':
+      // User completed onboarding - go to swipe
+      return user_type === 'company'
+        ? '/(company)/dashboard'
+        : '/(jobseeker)/swipe';
+    
+    case 'suspended':
+    case 'deactivated':
+      return '/(auth)/login';
+    
+    default:
+      // Default to swipe for jobseeker, dashboard for company
+      return user_type === 'company'
+        ? '/(company)/dashboard'
+        : '/(jobseeker)/swipe';
+  }
+}
 
 // =============================================================================
 // JOBS API

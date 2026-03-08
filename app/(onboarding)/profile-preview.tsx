@@ -3,17 +3,38 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { mockProfilePreviewData } from '@/lib/mock-onboarding';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ProfilePreviewScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [userName, setUserName] = useState('');
 
-  // Profile data from mock
-  const profileData = mockProfilePreviewData;
+  // Fetch user's name from API on mount
+  useEffect(() => {
+    const fetchUserName = async () => {
+      try {
+        const user = await authApi.getMe();
+        const fullName = `${user.first_name} ${user.last_name}`.trim();
+        setUserName(fullName || 'User');
+      } catch (error) {
+        console.log('Could not fetch user name, using default');
+        setUserName(mockProfilePreviewData.name);
+      }
+    };
+    fetchUserName();
+  }, []);
+
+  // Profile data from mock, but override name with real user name
+  const profileData = {
+    ...mockProfilePreviewData,
+    name: userName || mockProfilePreviewData.name,
+  };
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('');
@@ -274,7 +295,15 @@ export default function ProfilePreviewScreen() {
           </View>
         </Button>
         <Button
-          onPress={() => router.push('/(jobseeker)/swipe' as any)}
+          onPress={async () => {
+            // Update user state to 'active' when they start swiping
+            try {
+              await authApi.updateState('active');
+            } catch (error) {
+              console.log('Could not update state, continuing anyway');
+            }
+            router.push('/(jobseeker)/swipe' as any);
+          }}
           style={styles.actionButton}
         >
           <View style={styles.buttonContent}>

@@ -22,6 +22,8 @@ export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Create refs for each input field
   const fullNameRef = useRef<TextInput>(null);
@@ -191,31 +193,57 @@ export default function SignUpScreen() {
             {/* Password Field */}
             <View style={styles.field}>
               <Label>Password</Label>
-              <Input
-                ref={passwordRef}
-                placeholder="Min. 8 characters"
-                secureTextEntry
-                returnKeyType="next"
-                value={password}
-                onChangeText={setPassword}
-                onSubmitEditing={() => {
-                  confirmPasswordRef.current?.focus();
-                  scrollToField(confirmPasswordRef);
-                }}
-              />
+              <View style={styles.passwordInputContainer}>
+                <Input
+                  ref={passwordRef}
+                  placeholder="Min. 8 characters"
+                  secureTextEntry={!showPassword}
+                  returnKeyType="next"
+                  value={password}
+                  onChangeText={setPassword}
+                  onSubmitEditing={() => {
+                    confirmPasswordRef.current?.focus();
+                    scrollToField(confirmPasswordRef);
+                  }}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons 
+                    name={showPassword ? 'eye-off' : 'eye'} 
+                    size={22} 
+                    color={colors.mutedForeground} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Confirm Password Field */}
             <View style={styles.field}>
               <Label>Confirm Password</Label>
-              <Input
-                ref={confirmPasswordRef}
-                placeholder="Re-enter your password"
-                secureTextEntry
-                returnKeyType="done"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
+              <View style={styles.passwordInputContainer}>
+                <Input
+                  ref={confirmPasswordRef}
+                  placeholder="Re-enter your password"
+                  secureTextEntry={!showConfirmPassword}
+                  returnKeyType="done"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons 
+                    name={showConfirmPassword ? 'eye-off' : 'eye'} 
+                    size={22} 
+                    color={colors.mutedForeground} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Terms Checkbox */}
@@ -353,6 +381,20 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: 16,
+  },
+  passwordInputContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   termsContainer: {
     flexDirection: 'row',

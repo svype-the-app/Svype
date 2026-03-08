@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
@@ -10,9 +11,28 @@ export default function UploadCVScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     // TODO: Implement file picker and upload logic
     console.log('Upload CV');
+    
+    // Update user state to 'profile_preview' when proceeding
+    try {
+      await authApi.updateState('profile_preview');
+    } catch (error) {
+      console.log('Could not update state, continuing anyway');
+    }
+    
+    router.push('/(onboarding)/profile-preview' as any);
+  };
+
+  const handleSkip = async () => {
+    // Update user state to 'profile_preview' even when skipping
+    try {
+      await authApi.updateState('profile_preview');
+    } catch (error) {
+      console.log('Could not update state, continuing anyway');
+    }
+    
     router.push('/(onboarding)/profile-preview' as any);
   };
 
@@ -45,7 +65,7 @@ export default function UploadCVScreen() {
               Continue
             </Button>
 
-            <Button variant="outline" onPress={() => router.push('/(onboarding)/profile-preview' as any)}>
+            <Button variant="outline" onPress={handleSkip}>
               Skip
             </Button>
           </CardContent>

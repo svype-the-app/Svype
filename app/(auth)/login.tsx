@@ -4,10 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Colors } from '@/constants/theme';
+import { authApi, getRouteForUserState } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -15,18 +16,45 @@ export default function LoginScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    // For prototype: Accept any credentials and go directly to swipe page
-    // TODO: Navigate to swipe page once created
-    router.push('/modal');
+  const handleLogin = async () => {
+    // Validate fields
+    if (!email || !password) {
+      Alert.alert('Missing Fields', 'Please enter your email and password');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Call login API
+      const response = await authApi.login(email, password);
+      
+      // Get the appropriate route based on user's state
+      const route = getRouteForUserState(response.user);
+      router.replace(route as any);
+    } catch (error: any) {
+      // Handle errors
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.error) {
+        errorMessage = error.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleOAuthLogin = (provider: string) => {
     // For prototype: Simulate OAuth login
     console.log(`OAuth login with ${provider}`);
-    // TODO: Navigate to swipe page once created
-    router.push('/modal');
+    Alert.alert('Coming Soon', `${provider} login will be available soon!`);
   };
 
   return (
@@ -105,17 +133,35 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <Input
-                placeholder="Enter your password"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
+              <View style={styles.passwordInputContainer}>
+                <Input
+                  placeholder="Enter your password"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isLoading}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons 
+                    name={showPassword ? 'eye-off' : 'eye'} 
+                    size={22} 
+                    color={colors.mutedForeground} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Login Button */}
-            <Button size="lg" onPress={handleLogin} style={styles.loginButton}>
-              Login
+            <Button size="lg" onPress={handleLogin} style={styles.loginButton} disabled={isLoading}>
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                'Login'
+              )}
             </Button>
 
             {/* Sign Up Link */}
@@ -218,6 +264,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  passwordInputContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   forgotPassword: {
     fontSize: 12,
