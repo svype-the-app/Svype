@@ -34,6 +34,53 @@ export interface User {
   user_state: UserState;
   avatar?: string;
   created_at: string;
+  profile?: JobSeekerProfile;
+}
+
+export interface ProfileCompletion {
+  percentage: number;
+  filled: {
+    name: boolean;
+    email: boolean;
+    bio: boolean;
+    location: boolean;
+    experience: boolean;
+    skills: boolean;
+    education: boolean;
+    preferences: boolean;
+    resume: boolean;
+  };
+  weights: {
+    name: number;
+    email: number;
+    bio: number;
+    location: number;
+    experience: number;
+    skills: number;
+    education: number;
+    preferences: number;
+    resume: number;
+  };
+}
+
+export interface JobSeekerProfile {
+  id: number;
+  full_name: string;
+  bio: string;
+  location: string;
+  experience: string;
+  career_goals: string;
+  life_goals: string;
+  skills: string[];
+  interests: string[];
+  preferred_locations: string[];
+  preferred_job_types: string[];
+  salary_min: number | null;
+  salary_max: number | null;
+  remote_preference: boolean;
+  hybrid_preference: boolean;
+  onsite_preference: boolean;
+  completion?: ProfileCompletion;
 }
 
 export interface AuthResponse {
