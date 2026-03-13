@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
-import { Application, getApplications, initializeMockData } from '@/lib/mock-data';
+import { Application, applicationsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -25,14 +25,22 @@ export default function DashboardScreen() {
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
 
   useEffect(() => {
-    initializeMockData();
     loadApplications();
   }, []);
 
-  const loadApplications = () => {
-    const apps = getApplications();
-    setApplications(apps);
-    setLoading(false);
+  const ACTIVE_STATUSES = ['applied', 'shortlisted', 'interview', 'offered'];
+  const CLOSED_STATUSES = ['rejected', 'withdrawn'];
+
+  const loadApplications = async () => {
+    try {
+      const apps = await applicationsApi.getApplications();
+      setApplications(apps);
+    } catch (error) {
+      console.log('Failed to load applications:', error);
+      setApplications([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatSalary = (min: number, max: number) => {
@@ -53,14 +61,17 @@ export default function DashboardScreen() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'APPLIED':
+    switch (status.toLowerCase()) {
+      case 'applied':
         return '#3b82f6';
-      case 'SHORTLISTED':
+      case 'shortlisted':
         return '#a855f7';
-      case 'INTERVIEW':
+      case 'interview':
         return '#f59e0b';
-      case 'REJECTED':
+      case 'offered':
+        return '#22c55e';
+      case 'rejected':
+      case 'withdrawn':
         return '#ef4444';
       default:
         return colors.muted;
@@ -68,22 +79,25 @@ export default function DashboardScreen() {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'APPLIED':
+    switch (status.toLowerCase()) {
+      case 'applied':
         return 'time-outline';
-      case 'SHORTLISTED':
+      case 'shortlisted':
         return 'trending-up-outline';
-      case 'INTERVIEW':
+      case 'interview':
         return 'calendar-outline';
-      case 'REJECTED':
+      case 'offered':
+        return 'checkmark-circle-outline';
+      case 'rejected':
+      case 'withdrawn':
         return 'close-circle-outline';
       default:
         return 'briefcase-outline';
     }
   };
 
-  const activeApps = applications.filter((app) => app.status === 'active');
-  const closedApps = applications.filter((app) => app.status === 'closed');
+  const activeApps = applications.filter((app) => ACTIVE_STATUSES.includes(app.status.toLowerCase()));
+  const closedApps = applications.filter((app) => CLOSED_STATUSES.includes(app.status.toLowerCase()));
 
   const filteredApplications =
     activeTab === 'active'
@@ -225,21 +239,21 @@ export default function DashboardScreen() {
                           {app.job.title}
                         </Text>
                         <Text style={[styles.companyName, { color: colors.mutedForeground }]}>
-                          {app.job.company}
+                          {app.job.company_name}
                         </Text>
                       </View>
                       <Badge
                         style={{
-                          backgroundColor: getStatusColor(app.applicationStatus) + '20',
+                          backgroundColor: getStatusColor(app.status) + '20',
                         }}
-                        textStyle={{ color: getStatusColor(app.applicationStatus) }}
+                        textStyle={{ color: getStatusColor(app.status) }}
                       >
                         <Ionicons
-                          name={getStatusIcon(app.applicationStatus) as any}
+                          name={getStatusIcon(app.status) as any}
                           size={12}
-                          color={getStatusColor(app.applicationStatus)}
+                          color={getStatusColor(app.status)}
                         />
-                        <Text>{app.applicationStatus}</Text>
+                        <Text>{app.status.toUpperCase()}</Text>
                       </Badge>
                     </View>
 
@@ -247,18 +261,20 @@ export default function DashboardScreen() {
                       style={[styles.jobDescription, { color: colors.mutedForeground }]}
                       numberOfLines={2}
                     >
-                      {app.job.description}
+                      {app.job.description || 'No description available'}
                     </Text>
 
                     <View style={styles.badgesRow}>
                       <Badge variant="outline">
                         <Ionicons name="briefcase-outline" size={12} color={colors.foreground} />
-                        <Text>{app.job.type}</Text>
+                        <Text>{app.job.job_type}</Text>
                       </Badge>
-                      <Badge variant="outline">
-                        <Ionicons name="cash-outline" size={12} color={colors.foreground} />
-                        <Text>{formatSalary(app.job.salary_min, app.job.salary_max)}</Text>
-                      </Badge>
+                      {typeof app.job.salary_min === 'number' && typeof app.job.salary_max === 'number' && (
+                        <Badge variant="outline">
+                          <Ionicons name="cash-outline" size={12} color={colors.foreground} />
+                          <Text>{formatSalary(app.job.salary_min, app.job.salary_max)}</Text>
+                        </Badge>
+                      )}
                     </View>
 
                     <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>

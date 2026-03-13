@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { getApplications, initializeMockData } from '@/lib/mock-data';
-import { authApi, ProfileCompletion } from '@/services/api';
+import { applicationsApi, authApi, ProfileCompletion } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -39,47 +39,57 @@ export default function ProfileScreen() {
   const [applicationCount, setApplicationCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch real user data from API
-        const user = await authApi.getMe();
-        const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
-        const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
-        
-        setProfile({
-          fullName,
-          email: user.email,
-          initials,
-          careerGoals: user.profile?.career_goals || '',
-          lifeGoals: user.profile?.life_goals || '',
-          interests: user.profile?.interests || [],
-          completion: user.profile?.completion || null,
-        });
-        
-        // Get application count from mock data for now
-        initializeMockData();
-        const apps = getApplications();
-        setApplicationCount(apps.length);
-      } catch (error) {
-        console.log('Could not fetch user profile:', error);
-        // Fallback to minimal data
-        setProfile({
-          fullName: 'User',
-          email: '',
-          initials: 'U',
-          careerGoals: '',
-          lifeGoals: '',
-          interests: [],
-          completion: null,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [user, apps] = await Promise.all([
+        authApi.getMe(),
+        applicationsApi.getApplications(),
+      ]);
+
+      const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
+      const initials = fullName
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase() || 'U';
+
+      setProfile({
+        fullName,
+        email: user.email,
+        initials,
+        careerGoals: user.profile?.career_goals || '',
+        lifeGoals: user.profile?.life_goals || '',
+        interests: user.profile?.interests || [],
+        completion: user.profile?.completion || null,
+      });
+
+      setApplicationCount(apps.length);
+    } catch (error) {
+      console.log('Could not fetch user profile:', error);
+      setProfile({
+        fullName: 'User',
+        email: '',
+        initials: 'U',
+        careerGoals: '',
+        lifeGoals: '',
+        interests: [],
+        completion: null,
+      });
+      setApplicationCount(0);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const getCompletionColor = (percentage: number) => {
     if (percentage >= 80) return '#10b981';
