@@ -2,9 +2,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { getApplications, getProfile, initializeMockData, Profile } from '@/lib/mock-data';
+import { getApplications, initializeMockData } from '@/lib/mock-data';
+import { authApi, ProfileCompletion } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -18,22 +21,71 @@ import {
   View,
 } from 'react-native';
 
+interface UserProfile {
+  fullName: string;
+  email: string;
+  initials: string;
+  careerGoals: string;
+  lifeGoals: string;
+  interests: string[];
+  completion: ProfileCompletion | null;
+}
+
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applicationCount, setApplicationCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initializeMockData();
-    const userProfile = getProfile();
-    const apps = getApplications();
-    setProfile(userProfile);
-    setApplicationCount(apps.length);
-    setLoading(false);
+    const fetchData = async () => {
+      try {
+        // Fetch real user data from API
+        const user = await authApi.getMe();
+        const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
+        const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
+        
+        setProfile({
+          fullName,
+          email: user.email,
+          initials,
+          careerGoals: user.profile?.career_goals || '',
+          lifeGoals: user.profile?.life_goals || '',
+          interests: user.profile?.interests || [],
+          completion: user.profile?.completion || null,
+        });
+        
+        // Get application count from mock data for now
+        initializeMockData();
+        const apps = getApplications();
+        setApplicationCount(apps.length);
+      } catch (error) {
+        console.log('Could not fetch user profile:', error);
+        // Fallback to minimal data
+        setProfile({
+          fullName: 'User',
+          email: '',
+          initials: 'U',
+          careerGoals: '',
+          lifeGoals: '',
+          interests: [],
+          completion: null,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
   }, []);
+
+  const getCompletionColor = (percentage: number) => {
+    if (percentage >= 80) return '#10b981';
+    if (percentage >= 50) return '#f59e0b';
+    return '#ef4444';
+  };
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -41,7 +93,13 @@ export default function ProfileScreen() {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          try {
+            await AsyncStorage.removeItem('auth_token');
+            await AsyncStorage.removeItem('user_data');
+          } catch (e) {
+            console.log('Error clearing auth data');
+          }
           router.push('/(auth)/login');
         },
       },
@@ -63,6 +121,8 @@ export default function ProfileScreen() {
       </View>
     );
   }
+
+  const completionPercentage = profile?.completion?.percentage || 15;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -87,15 +147,15 @@ export default function ProfileScreen() {
           >
             <AvatarFallback>
               <Text style={[styles.avatarText, { color: colors.primaryForeground }]}>
-                {profile?.full_name?.charAt(0) || 'U'}
+                {profile?.initials || 'U'}
               </Text>
             </AvatarFallback>
           </Avatar>
-          <Text style={[styles.profileName, { color: colors.foreground }]}>{profile?.full_name}</Text>
+          <Text style={[styles.profileName, { color: colors.foreground }]}>{profile?.fullName}</Text>
           <View style={styles.emailContainer}>
             <Ionicons name="mail-outline" size={16} color={colors.mutedForeground} />
             <Text style={[styles.email, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {profile?.email}
+              {profile?.email || 'No email'}
             </Text>
           </View>
           <Badge
@@ -109,6 +169,29 @@ export default function ProfileScreen() {
             <Text>AI Career Matched</Text>
           </Badge>
         </View>
+
+        {/* Profile Completion Card */}
+        <Card style={styles.completionCard}>
+          <CardContent style={styles.completionContent}>
+            <View style={styles.completionHeader}>
+              <View style={styles.completionTitleRow}>
+                <Ionicons name="stats-chart" size={20} color={colors.primary} />
+                <Text style={[styles.completionTitle, { color: colors.foreground }]}>
+                  Profile Completion
+                </Text>
+              </View>
+              <Text style={[styles.completionPercentage, { color: getCompletionColor(completionPercentage) }]}>
+                {completionPercentage}%
+              </Text>
+            </View>
+            <Progress value={completionPercentage} style={styles.progressBar} />
+            <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
+              {completionPercentage >= 80 
+                ? 'Great! Your profile is well optimized.' 
+                : 'Complete your profile to get better job matches.'}
+            </Text>
+          </CardContent>
+        </Card>
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
@@ -129,7 +212,7 @@ export default function ProfileScreen() {
                 <Ionicons name="ribbon" size={24} color="#3b82f6" />
               </View>
               <Text style={[styles.statValue, { color: '#3b82f6' }]}>
-                {profile?.interests.length || 0}
+                {profile?.interests?.length || 0}
               </Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Interests</Text>
             </CardContent>
@@ -141,7 +224,7 @@ export default function ProfileScreen() {
           <ProfileSection
             icon={<Ionicons name="flag" size={20} color={colors.primary} />}
             title="Career Goals"
-            content={profile?.career_goals}
+            content={profile?.careerGoals}
             colors={colors}
           />
           <View>
@@ -154,11 +237,17 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 <View style={styles.interestsContainer}>
-                  {profile?.interests.map((interest) => (
-                    <Badge key={interest} variant="secondary">
-                      <Text>{interest}</Text>
-                    </Badge>
-                  ))}
+                  {profile?.interests && profile.interests.length > 0 ? (
+                    profile.interests.map((interest) => (
+                      <Badge key={interest} variant="secondary">
+                        <Text>{interest}</Text>
+                      </Badge>
+                    ))
+                  ) : (
+                    <Text style={[styles.sectionText, { color: colors.mutedForeground }]}>
+                      No interests added yet.
+                    </Text>
+                  )}
                 </View>
               </CardContent>
             </Card>
@@ -166,7 +255,7 @@ export default function ProfileScreen() {
           <ProfileSection
             icon={<Ionicons name="heart" size={20} color="#f43f5e" />}
             title="Life Aspirations"
-            content={profile?.life_goals}
+            content={profile?.lifeGoals}
             colors={colors}
           />
         </View>
@@ -372,6 +461,37 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
+  },
+  completionCard: {
+    marginBottom: 0,
+  },
+  completionContent: {
+    padding: 16,
+  },
+  completionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  completionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  completionPercentage: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  progressBar: {
+    marginBottom: 8,
+  },
+  completionHint: {
+    fontSize: 12,
   },
   statsContainer: {
     flexDirection: 'row',
