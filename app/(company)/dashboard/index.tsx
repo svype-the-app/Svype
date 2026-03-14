@@ -4,10 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { mockDashboardStats, mockRecentApplicants, mockRecentJobs } from '@/lib/mock-company';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
@@ -35,6 +36,24 @@ export default function CompanyDashboard() {
     }
   };
 
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await authApi.logout();
+          } catch (error) {
+            console.log('Error during logout');
+          }
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
@@ -60,7 +79,7 @@ export default function CompanyDashboard() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => router.push('/(auth)/login')}
+              onPress={handleSignOut}
             >
               <Ionicons name="log-out-outline" size={20} color={colors.foreground} />
             </TouchableOpacity>

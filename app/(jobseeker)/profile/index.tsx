@@ -6,7 +6,6 @@ import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { applicationsApi, authApi, ProfileCompletion } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -105,12 +104,11 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await AsyncStorage.removeItem('auth_token');
-            await AsyncStorage.removeItem('user_data');
+            await authApi.logout();
           } catch (e) {
-            console.log('Error clearing auth data');
+            console.log('Error during logout');
           }
-          router.push('/(auth)/login');
+          router.replace('/(auth)/login');
         },
       },
     ]);
