@@ -92,20 +92,31 @@ export default function SignUpScreen() {
         params: { firstName: response.user.first_name }
       });
     } catch (error: any) {
-      // Handle API errors
+      // Handle API errors - show the real error message for debugging
       let errorMessage = 'Registration failed. Please try again.';
       
-      if (error.errors) {
+      console.log('Registration error (full):', JSON.stringify(error));
+
+      if (error.message === 'Unable to connect to server. Please check your internet connection.') {
+        errorMessage = 'Cannot reach server. Make sure your phone and PC are on the same WiFi network.';
+      } else if (error.errors) {
         // Format validation errors
         const errors = error.errors;
         if (errors.email) {
-          errorMessage = errors.email[0];
+          errorMessage = `Email: ${Array.isArray(errors.email) ? errors.email[0] : errors.email}`;
         } else if (errors.username) {
-          errorMessage = errors.username[0];
+          errorMessage = `Username: ${Array.isArray(errors.username) ? errors.username[0] : errors.username}`;
         } else if (errors.password) {
-          errorMessage = errors.password[0];
+          errorMessage = `Password: ${Array.isArray(errors.password) ? errors.password[0] : errors.password}`;
         } else if (errors.non_field_errors) {
-          errorMessage = errors.non_field_errors[0];
+          errorMessage = Array.isArray(errors.non_field_errors) ? errors.non_field_errors[0] : errors.non_field_errors;
+        } else {
+          // Show first error found regardless of field
+          const firstKey = Object.keys(errors)[0];
+          if (firstKey) {
+            const val = errors[firstKey];
+            errorMessage = `${firstKey}: ${Array.isArray(val) ? val[0] : val}`;
+          }
         }
       } else if (error.message) {
         errorMessage = error.message;

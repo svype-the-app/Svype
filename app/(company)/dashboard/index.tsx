@@ -48,7 +48,7 @@ export default function CompanyDashboard() {
           } catch (error) {
             console.log('Error during logout');
           }
-          router.replace('/(auth)/login');
+          router.replace('/');
         },
       },
     ]);

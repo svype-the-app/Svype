@@ -108,7 +108,7 @@ export default function ProfileScreen() {
           } catch (e) {
             console.log('Error during logout');
           }
-          router.replace('/(auth)/login');
+          router.replace('/');
         },
       },
     ]);

@@ -193,6 +193,12 @@ export const authApi = {
     user_type: 'jobseeker' | 'company';
     full_name: string;
   }): Promise<AuthResponse> {
+    // Clear any stale token first — sending an invalid token causes Django to reject the request
+    // even on AllowAny endpoints
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_KEY);
+    apiClient.setToken(null);
+
     const response = await apiClient.post<AuthResponse>('/auth/register/', data);
     
     // Save token and user (gracefully handle storage errors)
@@ -209,6 +215,11 @@ export const authApi = {
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
+    // Clear any stale token first — sending an invalid token causes Django to reject the request
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_KEY);
+    apiClient.setToken(null);
+
     const response = await apiClient.post<AuthResponse>('/auth/login/', {
       email,
       password,

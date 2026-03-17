@@ -13,7 +13,7 @@ export default function JobSeekerLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].primary,
         headerShown: false,
         tabBarStyle: {
-          paddingBottom: 8,
+          paddingBottom: 10,
           paddingTop: 8,
           height: 60,
         },

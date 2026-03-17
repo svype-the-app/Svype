@@ -63,20 +63,13 @@ export default function ProfilePreviewScreen() {
         });
       } catch (error) {
         console.log('Could not fetch profile:', error);
-        // Set minimal data on error
-        setProfileData({
-          name: 'User',
-          email: '',
-          headline: '',
-          location: '',
-          bio: '',
-          skills: [],
-          experience: '',
-          education: '',
-          preferences: { jobTypes: [], salaryMin: null, salaryMax: null, location: '' },
-          hasResume: false,
-          completion: null,
-        });
+        try {
+          await authApi.logout();
+        } catch {
+          // ignore
+        }
+        router.replace('/');
+        return;
       } finally {
         setIsLoading(false);
       }
@@ -101,7 +94,7 @@ export default function ProfilePreviewScreen() {
     } catch (error) {
       console.log('Could not update state, continuing anyway');
     }
-    router.push('/(jobseeker)/swipe' as any);
+    router.replace('/(jobseeker)/swipe' as any);
   };
 
   if (isLoading) {

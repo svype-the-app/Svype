@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -71,10 +72,14 @@ export default function SettingsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             Alert.alert('Account Deletion', 'Your account deletion request has been submitted.');
-            // Navigate to login after account deletion
-            router.push('/(auth)/login');
+            try {
+              await authApi.logout();
+            } catch (error) {
+              console.log('Error during logout');
+            }
+            router.replace('/');
           },
         },
       ]
