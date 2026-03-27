@@ -5,10 +5,12 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Colors } from '@/constants/theme'
+import { jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -34,6 +36,7 @@ export default function PostJobScreen() {
   const [enablePreScreening, setEnablePreScreening] = useState(false)
   const [enableAIInterview, setEnableAIInterview] = useState(false)
   const [showSectionHint, setShowSectionHint] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [employmentTypeModal, setEmploymentTypeModal] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -57,7 +60,24 @@ export default function PostJobScreen() {
     setRequirements(requirements.filter((_, i) => i !== index))
   }
 
-  const handleSubmit = () => {
+  const mapEmploymentTypeToApi = (
+    type: EmploymentType
+  ): 'full-time' | 'part-time' | 'contract' | 'internship' => {
+    switch (type) {
+      case 'Full-time':
+        return 'full-time'
+      case 'Part-time':
+        return 'part-time'
+      case 'Contract':
+        return 'contract'
+      case 'Internship':
+        return 'internship'
+      default:
+        return 'full-time'
+    }
+  }
+
+  const handleSubmit = async () => {
     if (
       !formData.title ||
       !formData.location ||
@@ -69,12 +89,47 @@ export default function PostJobScreen() {
       return
     }
 
-    Alert.alert('Success', 'Job posted successfully!', [
-      {
-        text: 'OK',
-        onPress: () => router.push('/(company)/dashboard' as any),
-      },
-    ])
+    const salaryMin = Number(formData.salaryMin)
+    const salaryMax = Number(formData.salaryMax)
+
+    if (Number.isNaN(salaryMin) || Number.isNaN(salaryMax)) {
+      Alert.alert('Invalid Salary', 'Please enter valid salary numbers')
+      return
+    }
+
+    if (salaryMin > salaryMax) {
+      Alert.alert('Invalid Salary Range', 'Minimum salary cannot be greater than maximum salary')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      await jobsApi.createJob({
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        location: formData.location.trim(),
+        job_type: mapEmploymentTypeToApi(formData.type),
+        salary_min: salaryMin,
+        salary_max: salaryMax,
+        requirements: requirements.filter(Boolean),
+        has_questions: enablePreScreening,
+        is_remote: /remote/i.test(formData.location),
+        status: 'active',
+      })
+
+      Alert.alert('Success', 'Job posted successfully!', [
+        {
+          text: 'OK',
+          onPress: () => router.push('/(company)/dashboard' as any),
+        },
+      ])
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Could not post the job. Please try again.'
+      Alert.alert('Post Failed', errorMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -341,9 +396,17 @@ export default function PostJobScreen() {
             </Button>
             <Button
               onPress={handleSubmit}
+              disabled={isSubmitting}
               style={[styles.submitButton, { backgroundColor: colors.primary }]}
             >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Post Job</Text>
+              {isSubmitting ? (
+                <View style={styles.submitLoadingRow}>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>Posting...</Text>
+                </View>
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Post Job</Text>
+              )}
             </Button>
           </View>
         </View>
@@ -591,6 +654,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  submitLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContainer: {
     flex: 1,

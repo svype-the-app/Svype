@@ -46,6 +46,7 @@ export default function CompanyProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<CompanyProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -115,18 +116,24 @@ export default function CompanyProfileScreen() {
   );
 
   const handleSignOut = () => {
+    if (isSigningOut) return;
+
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out',
         style: 'destructive',
         onPress: async () => {
+          setIsSigningOut(true);
           try {
             await authApi.logout();
           } catch (error) {
-            console.log('Error during logout');
+            console.log('Error during logout', error);
+            Alert.alert('Sign Out', 'Could not reach server, but local session was cleared.');
+          } finally {
+            setIsSigningOut(false);
           }
-          router.replace('/');
+          router.replace('/(auth)/login');
         },
       },
     ]);
@@ -322,7 +329,7 @@ export default function CompanyProfileScreen() {
               />
               <MenuItem
                 icon={<Ionicons name="log-out-outline" size={20} color={colors.destructive} />}
-                label="Sign Out"
+                label={isSigningOut ? 'Signing Out...' : 'Sign Out'}
                 onPress={handleSignOut}
                 colors={colors}
                 isLast

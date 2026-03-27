@@ -434,6 +434,7 @@ export interface Job {
   description: string;
   requirements: string[];
   status: string;
+  has_questions?: boolean;
   applicants_count?: number;
   views_count?: number;
   posted_at: string;
@@ -450,6 +451,21 @@ export const jobsApi = {
 
   async getJob(id: number): Promise<Job> {
     return apiClient.get<Job>(`/jobs/${id}/`);
+  },
+
+  async createJob(data: {
+    title: string;
+    description: string;
+    location: string;
+    job_type: 'full-time' | 'part-time' | 'contract' | 'internship';
+    is_remote?: boolean;
+    salary_min?: number;
+    salary_max?: number;
+    requirements?: string[];
+    has_questions?: boolean;
+    status?: 'active' | 'closed' | 'draft';
+  }): Promise<Job> {
+    return apiClient.post<Job>('/jobs/', data);
   },
 
   async getSwipeJobs(): Promise<Job[]> {
