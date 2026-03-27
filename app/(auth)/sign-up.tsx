@@ -79,7 +79,7 @@ export default function SignUpScreen() {
       // Call the API to register the user
       const response = await authApi.register({
         email,
-        username: fullName.replace(/\s+/g, '_').toLowerCase(), // Convert name to username
+        username: email,
         password,
         password_confirm: confirmPassword,
         user_type: 'jobseeker', // Default to jobseeker
