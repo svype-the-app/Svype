@@ -3,8 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Colors } from '@/constants/theme';
+import { authApi, getRouteForUserState } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -21,9 +21,6 @@ export default function CompanySignUpScreen() {
   // Create refs for each input field
   const companyNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
-  const websiteRef = useRef<TextInput>(null);
-  const locationRef = useRef<TextInput>(null);
-  const descriptionRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -33,9 +30,6 @@ export default function CompanySignUpScreen() {
     email: '',
     password: '',
     confirmPassword: '',
-    website: '',
-    location: '',
-    description: '',
   });
 
   const handleChange = (field: keyof typeof formData, value: string) => {
@@ -60,13 +54,18 @@ export default function CompanySignUpScreen() {
 
   const handleSubmit = async () => {
     // Basic validation
-    if (!formData.companyName || !formData.email || !formData.password || !formData.confirmPassword || !formData.location || !formData.description) {
+    if (!formData.companyName || !formData.email || !formData.password || !formData.confirmPassword) {
       Alert.alert('Missing Fields', 'Please fill in all required fields');
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
       Alert.alert('Password Mismatch', 'Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      Alert.alert('Password Too Short', 'Password must be at least 8 characters');
       return;
     }
 
@@ -77,16 +76,36 @@ export default function CompanySignUpScreen() {
 
     setLoading(true);
 
-    // Simulate registration
-    setTimeout(() => {
+    try {
+      const response = await authApi.registerCompany({
+        email: formData.email,
+        password: formData.password,
+        password_confirm: formData.confirmPassword,
+        company_name: formData.companyName,
+      });
+
+      // Get the appropriate route based on user's state
+      const route = getRouteForUserState(response.user);
+      router.replace(route as any);
+    } catch (error: any) {
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (error.error) {
+        errorMessage = error.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Registration Failed', errorMessage);
+    } finally {
       setLoading(false);
-      router.push('/(onboarding)/company-onboarding');
-    }, 1500);
+    }
   };
 
   // TODO: Temporary bypass - Click on "Terms of Service" text to skip form filling during development
   const handleTermsClick = () => {
-    router.push('/(onboarding)/company-onboarding');
+    // No longer available - must go through proper registration
+    Alert.alert('Notice', 'Please complete the registration form to continue');
   };
 
   return (
@@ -149,58 +168,6 @@ export default function CompanySignUpScreen() {
                 returnKeyType="next"
                 value={formData.email}
                 onChangeText={(value) => handleChange('email', value)}
-                onSubmitEditing={() => {
-                  websiteRef.current?.focus();
-                  scrollToField(websiteRef);
-                }}
-              />
-            </View>
-
-            {/* Website */}
-            <View style={styles.field}>
-              <Label>Website</Label>
-              <Input
-                ref={websiteRef}
-                placeholder="https://company.com"
-                autoCapitalize="none"
-                returnKeyType="next"
-                value={formData.website}
-                onChangeText={(value) => handleChange('website', value)}
-                onSubmitEditing={() => {
-                  locationRef.current?.focus();
-                  scrollToField(locationRef);
-                }}
-              />
-            </View>
-
-            {/* Location */}
-            <View style={styles.field}>
-              <Label>Location</Label>
-              <Input
-                ref={locationRef}
-                placeholder="London, UK"
-                returnKeyType="next"
-                value={formData.location}
-                onChangeText={(value) => handleChange('location', value)}
-                onSubmitEditing={() => {
-                  descriptionRef.current?.focus();
-                  scrollToField(descriptionRef);
-                }}
-              />
-            </View>
-
-            {/* Description */}
-            <View style={styles.field}>
-              <Label>Company Description</Label>
-              <Textarea
-                ref={descriptionRef}
-                placeholder="Tell candidates about your company..."
-                value={formData.description}
-                onChangeText={(value) => handleChange('description', value.replace(/\n/g, ''))}
-                rows={2}
-                returnKeyType="next"
-                blurOnSubmit={false}
-                multiline={false}
                 onSubmitEditing={() => {
                   passwordRef.current?.focus();
                   scrollToField(passwordRef);

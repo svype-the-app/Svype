@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,7 @@ interface CompanyProfileData {
   jobsCount: number;
   culture: string[];
   benefits: string[];
+  completionPercentage: number;
 }
 
 export default function CompanyProfileScreen() {
@@ -75,6 +77,7 @@ export default function CompanyProfileScreen() {
         jobsCount: Number(company?.jobs_count || 0),
         culture: company?.culture || [],
         benefits: company?.benefits || [],
+        completionPercentage: Number(company?.completion?.percentage || 40),
       });
     } catch (error) {
       console.log('Could not fetch company profile:', error);
@@ -94,6 +97,7 @@ export default function CompanyProfileScreen() {
         jobsCount: 0,
         culture: [],
         benefits: [],
+        completionPercentage: 40,
       });
     } finally {
       setLoading(false);
@@ -190,6 +194,26 @@ export default function CompanyProfileScreen() {
             <Text>Employer Account</Text>
           </Badge>
         </View>
+
+        <Card style={styles.completionCard}>
+          <CardContent style={styles.completionContent}>
+            <View style={styles.completionHeader}>
+              <View style={styles.completionTitleRow}>
+                <Ionicons name="stats-chart" size={20} color={colors.primary} />
+                <Text style={[styles.completionTitle, { color: colors.foreground }]}>Account Completion</Text>
+              </View>
+              <Text style={[styles.completionPercentage, { color: colors.primary }]}>
+                {profile?.completionPercentage ?? 40}%
+              </Text>
+            </View>
+            <Progress value={profile?.completionPercentage ?? 40} style={styles.progressBar} />
+            <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
+              {(profile?.completionPercentage ?? 40) >= 80
+                ? 'Great! Your company profile is well optimized.'
+                : 'Complete your company details to attract better candidates.'}
+            </Text>
+          </CardContent>
+        </Card>
 
         <View style={styles.statsContainer}>
           <Card style={[styles.statCard, { backgroundColor: colors.primary + '10' }]}>
@@ -406,6 +430,37 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
+  },
+  completionCard: {
+    marginBottom: 0,
+  },
+  completionContent: {
+    padding: 16,
+  },
+  completionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  completionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  completionPercentage: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  progressBar: {
+    marginBottom: 8,
+  },
+  completionHint: {
+    fontSize: 12,
   },
   statsContainer: {
     flexDirection: 'row',

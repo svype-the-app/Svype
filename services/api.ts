@@ -38,6 +38,7 @@ export interface User {
   avatar?: string;
   created_at: string;
   profile?: JobSeekerProfile;
+  company?: CompanyProfile;
 }
 
 export interface ProfileCompletion {
@@ -84,6 +85,43 @@ export interface JobSeekerProfile {
   hybrid_preference: boolean;
   onsite_preference: boolean;
   completion?: ProfileCompletion;
+}
+
+export interface CompanyCompletion {
+  percentage: number;
+  filled: {
+    name: boolean;
+    email: boolean;
+    location: boolean;
+    website: boolean;
+    description: boolean;
+  };
+  weights: {
+    name: number;
+    email: number;
+    location: number;
+    website: number;
+    description: number;
+  };
+}
+
+export interface CompanyProfile {
+  id: number;
+  name: string;
+  email: string;
+  website: string;
+  location: string;
+  description: string;
+  industry: string;
+  size: string;
+  founded: string;
+  rating: string;
+  reviews_count: number;
+  followers_count: number;
+  jobs_count: number;
+  culture: string[];
+  benefits: string[];
+  completion?: CompanyCompletion;
 }
 
 export interface AuthResponse {
@@ -230,6 +268,36 @@ export const authApi = {
     return response;
   },
 
+  async registerCompany(data: {
+    email: string;
+    password: string;
+    password_confirm: string;
+    company_name: string;
+    website?: string;
+    location?: string;
+    description?: string;
+  }): Promise<AuthResponse> {
+    // Clear any stale token first — sending an invalid token causes Django to reject the request
+    // even on AllowAny endpoints
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_KEY);
+    apiClient.setToken(null);
+
+    const response = await apiClient.post<AuthResponse>('/auth/register/company/', data);
+    
+    // Save token and user (gracefully handle storage errors)
+    try {
+      await AsyncStorage.setItem(TOKEN_KEY, response.token);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.user));
+    } catch (storageError) {
+      console.warn('Failed to save auth data to storage:', storageError);
+      // Continue anyway - user is registered
+    }
+    apiClient.setToken(response.token);
+    
+    return response;
+  },
+
   async login(email: string, password: string): Promise<AuthResponse> {
     // Clear any stale token first — sending an invalid token causes Django to reject the request
     await AsyncStorage.removeItem(TOKEN_KEY);
@@ -298,6 +366,16 @@ export const authApi = {
 
   async updateState(state: UserState): Promise<{ user: User; message: string }> {
     return apiClient.post('/auth/update-state/', { state });
+  },
+};
+
+export const companyApi = {
+  async getMyCompany(): Promise<CompanyProfile> {
+    return apiClient.get<CompanyProfile>('/companies/me/');
+  },
+
+  async updateMyCompany(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
+    return apiClient.patch<CompanyProfile>('/companies/me/', data);
   },
 };
 

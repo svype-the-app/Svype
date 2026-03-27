@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function SignUpSuccessScreen() {
@@ -10,6 +12,20 @@ export default function SignUpSuccessScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { firstName } = useLocalSearchParams<{ firstName: string }>();
+  const [onboardingRoute, setOnboardingRoute] = useState('/(onboarding)/job-seeker-onboarding');
+  const [isCompanyUser, setIsCompanyUser] = useState(false);
+
+  useEffect(() => {
+    const resolveRoute = async () => {
+      const storedUser = await authApi.getStoredUser();
+      if (storedUser?.user_type === 'company') {
+        setIsCompanyUser(true);
+        setOnboardingRoute('/(onboarding)/company-onboarding');
+      }
+    };
+
+    resolveRoute();
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -39,10 +55,10 @@ export default function SignUpSuccessScreen() {
             {/* Start Onboarding Button */}
             <Button 
               size="lg" 
-              onPress={() => router.push('/(onboarding)/job-seeker-onboarding' as any)}
+              onPress={() => router.push(onboardingRoute as any)}
               style={styles.startButton}
             >
-              Start AI Onboarding
+              {isCompanyUser ? 'Start Onboarding' : 'Start AI Onboarding'}
             </Button>
 
             {/* Skip Button */}
