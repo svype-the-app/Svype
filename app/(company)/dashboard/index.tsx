@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { mockDashboardStats, mockRecentJobs } from '@/lib/mock-company';
+import { authApi, jobsApi, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
@@ -15,8 +15,55 @@ export default function CompanyDashboard() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const stats = mockDashboardStats;
-  const recentJobs = mockRecentJobs;
+  const [companyName, setCompanyName] = useState('Company');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [me, myJobs] = await Promise.all([
+          authApi.getMe(),
+          jobsApi.getMyJobs(),
+        ]);
+
+        setCompanyName(me.company?.name || 'Company');
+        setJobs(myJobs);
+      } catch (error) {
+        console.error('Failed to load company dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const stats = useMemo(() => {
+    const activeJobs = jobs.filter((job) => job.status === 'active').length;
+    const totalApplicants = jobs.reduce(
+      (sum, job) => sum + (job.applicants_count ?? 0),
+      0
+    );
+
+    return {
+      activeJobs,
+      totalApplicants,
+      viewsThisWeek: 0,
+      hiredThisMonth: 0,
+    };
+  }, [jobs]);
+
+  const formatPostedDate = (postedAt: string) => {
+    const posted = new Date(postedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - posted.getTime();
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return '1 day ago';
+    return `${diffDays} days ago`;
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -24,7 +71,7 @@ export default function CompanyDashboard() {
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Text style={[styles.companyName, { color: colors.foreground }]}>TechCorp Inc.</Text>
+            <Text style={[styles.companyName, { color: colors.foreground }]}>{companyName}</Text>
             <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>Company Dashboard</Text>
           </View>
         </View>
@@ -114,7 +161,17 @@ export default function CompanyDashboard() {
         <View style={styles.jobsSection}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Job Postings</Text>
           <View style={styles.tabContent}>
-            {recentJobs.map((job) => (
+            {loading ? (
+              <View style={styles.centeredState}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>Loading jobs...</Text>
+              </View>
+            ) : jobs.length === 0 ? (
+              <View style={styles.centeredState}>
+                <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>No job postings yet</Text>
+                <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>Create your first job post to see it here.</Text>
+              </View>
+            ) : jobs.map((job) => (
               <Card
                 key={job.id}
                 style={[styles.jobCard, { borderColor: colors.border, borderWidth: 2 }]}
@@ -148,11 +205,11 @@ export default function CompanyDashboard() {
                             color={colors.mutedForeground}
                           />
                           <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
-                            {job.applicants} applicants
+                            {job.applicants_count ?? 0} applicants
                           </Text>
                         </View>
                         <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}> 
-                          Posted {job.posted}
+                          Posted {formatPostedDate(job.posted_at)}
                         </Text>
                       </View>
                     </View>
@@ -328,6 +385,20 @@ const styles = StyleSheet.create({
   },
   viewDetailsText: {
     fontSize: 12,
+  },
+  centeredState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyStateText: {
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
 

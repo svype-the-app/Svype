@@ -434,12 +434,18 @@ export interface Job {
   description: string;
   requirements: string[];
   status: string;
+  applicants_count?: number;
+  views_count?: number;
   posted_at: string;
 }
 
 export const jobsApi = {
   async getJobs(): Promise<Job[]> {
     return apiClient.get<Job[]>('/jobs/');
+  },
+
+  async getMyJobs(): Promise<Job[]> {
+    return apiClient.get<Job[]>('/jobs/my_jobs/');
   },
 
   async getJob(id: number): Promise<Job> {
