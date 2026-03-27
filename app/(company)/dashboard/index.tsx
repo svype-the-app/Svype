@@ -5,13 +5,15 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authApi, jobsApi, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
   const router = useRouter();
+  const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -19,25 +21,40 @@ export default function CompanyDashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [me, myJobs] = await Promise.all([
-          authApi.getMe(),
-          jobsApi.getMyJobs(),
-        ]);
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [me, myJobs] = await Promise.all([
+        authApi.getMe(),
+        jobsApi.getMyJobs(),
+      ]);
 
-        setCompanyName(me.company?.name || 'Company');
-        setJobs(myJobs);
-      } catch (error) {
-        console.error('Failed to load company dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+      setCompanyName(me.company?.name || 'Company');
+      setJobs(myJobs);
+    } catch (error) {
+      console.error('Failed to load company dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboardData();
+    }, [fetchDashboardData])
+  );
+
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener('tabPress', () => {
+      fetchDashboardData();
+    });
+
+    return unsubscribe;
+  }, [navigation, fetchDashboardData]);
 
   const stats = useMemo(() => {
     const activeJobs = jobs.filter((job) => job.status === 'active').length;

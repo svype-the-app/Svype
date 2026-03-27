@@ -105,6 +105,16 @@ export default function PostJobScreen() {
     setIsSubmitting(true)
 
     try {
+      const hasQuizQuestions = false
+      const hasQuestions = enablePreScreening && hasQuizQuestions
+
+      if (enablePreScreening && !hasQuestions) {
+        Alert.alert(
+          'Pre-Screening Not Added',
+          'No quiz questions were added. Job will be posted with pre-screening disabled.'
+        )
+      }
+
       await jobsApi.createJob({
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -113,7 +123,7 @@ export default function PostJobScreen() {
         salary_min: salaryMin,
         salary_max: salaryMax,
         requirements: requirements.filter(Boolean),
-        has_questions: enablePreScreening,
+        has_questions: hasQuestions,
         is_remote: /remote/i.test(formData.location),
         status: 'active',
       })
