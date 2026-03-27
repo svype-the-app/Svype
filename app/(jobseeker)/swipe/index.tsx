@@ -34,7 +34,7 @@ const SWIPE_VELOCITY_THRESHOLD = 500; // px/s
 
 type Job = SwipeJob;
 
-export default function SwipeScreen() {
+function LegacySwipeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -741,6 +741,8 @@ export default function SwipeScreen() {
     </GestureHandlerRootView>
   );
 }
+
+export { default } from './company-style'
 
 const styles = StyleSheet.create({
   container: {

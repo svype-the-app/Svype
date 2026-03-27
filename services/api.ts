@@ -3,9 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ⚠️ IMPORTANT: Replace with your computer's IP address
 // Find it by running 'ipconfig' in terminal and look for IPv4 Address
 // Both your phone and PC must be on the SAME WiFi network
+// You can also set EXPO_PUBLIC_API_BASE_URL in your env for easier switching
 const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.159.66:8000/api'  // ← CHANGE THIS to your PC's IP
+  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.227.66:8000/api')
   : 'https://your-production-url.com/api';
+
+const REQUEST_TIMEOUT_MS = 10000;
 
 // Token storage keys
 const TOKEN_KEY = 'auth_token';
@@ -109,6 +112,8 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -123,9 +128,13 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      clearTimeout(timeoutId);
+
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : {};
 
       if (!response.ok) {
         throw {
@@ -137,9 +146,16 @@ class ApiClient {
 
       return data;
     } catch (error: any) {
-      if (error.message === 'Network request failed') {
-        throw { message: 'Unable to connect to server. Please check your internet connection.' };
+      clearTimeout(timeoutId);
+
+      if (error?.name === 'AbortError') {
+        throw { message: `Server timeout after ${REQUEST_TIMEOUT_MS / 1000}s. Check backend connectivity at ${API_BASE_URL}.` };
       }
+
+      if (error?.message === 'Network request failed') {
+        throw { message: `Unable to connect to backend (${API_BASE_URL}). Check backend server and IP address.` };
+      }
+
       throw error;
     }
   }

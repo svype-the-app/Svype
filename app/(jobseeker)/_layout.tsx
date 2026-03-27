@@ -52,7 +52,7 @@ export default function JobSeekerLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          href: '/profile',
+          href: '/(jobseeker)/profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
