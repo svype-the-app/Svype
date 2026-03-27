@@ -1,43 +1,5 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Colors } from '@/constants/theme';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Redirect } from 'expo-router';
 
-export default function ApplicantsScreen() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <Card>
-          <CardContent>
-            <Text style={[styles.title, { color: colors.cardForeground }]}>
-              Applicants
-            </Text>
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
-              Review and manage applicants
-            </Text>
-          </CardContent>
-        </Card>
-      </View>
-    </View>
-  );
+export default function ApplicantsIndexRedirect() {
+  return <Redirect href="/(company)/applicants/review-applicants" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  content: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 16,
-  },
-});

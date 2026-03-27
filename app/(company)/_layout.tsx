@@ -41,7 +41,7 @@ export default function CompanyLayout() {
       <Tabs.Screen
         name="posts"
         options={{
-          title: 'Post Job',
+          title: 'Post',
           href: '/(company)/posts/post-job',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'briefcase' : 'briefcase-outline'} size={24} color={color} />

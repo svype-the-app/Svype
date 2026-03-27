@@ -33,6 +33,7 @@ export default function PostJobScreen() {
   const [newRequirement, setNewRequirement] = useState('')
   const [enablePreScreening, setEnablePreScreening] = useState(false)
   const [enableAIInterview, setEnableAIInterview] = useState(false)
+  const [showSectionHint, setShowSectionHint] = useState(true)
   const [employmentTypeModal, setEmploymentTypeModal] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -86,6 +87,16 @@ export default function PostJobScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Post a New Job</Text>
         <View style={{ width: 28 }} />
       </View>
+
+      {showSectionHint && (
+        <View style={[styles.sectionHint, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.sectionHintText, { color: colors.primary }]}>You are in Post a Job • tap Post tab again for Posts & Blogs</Text>
+          <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
+            <Ionicons name="close" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -403,6 +414,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     textAlign: 'center',
+  },
+  sectionHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  sectionHintText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  sectionHintClose: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,

@@ -1,58 +1,22 @@
-import { Badge } from '@/components/ui/badge';
+﻿import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { mockDashboardStats, mockRecentApplicants, mockRecentJobs } from '@/lib/mock-company';
-import { authApi } from '@/services/api';
+import { mockDashboardStats, mockRecentJobs } from '@/lib/mock-company';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const [activeTab, setActiveTab] = useState<'jobs' | 'applicants'>('jobs');
 
   const stats = mockDashboardStats;
   const recentJobs = mockRecentJobs;
-  const recentApplicants = mockRecentApplicants;
-
-  const getStatusColor = (status: string) => {
-    return status === 'active' ? colors.primary : colors.mutedForeground;
-  };
-
-  const getApplicantStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return { bg: '#fef3c7', text: '#92400e' };
-      case 'reviewing':
-        return { bg: '#dbeafe', text: '#1e40af' };
-      default:
-        return { bg: colors.muted, text: colors.mutedForeground };
-    }
-  };
-
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await authApi.logout();
-          } catch (error) {
-            console.log('Error during logout');
-          }
-          router.replace('/');
-        },
-      },
-    ]);
-  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -62,27 +26,6 @@ export default function CompanyDashboard() {
           <View style={styles.headerLeft}>
             <Text style={[styles.companyName, { color: colors.foreground }]}>TechCorp Inc.</Text>
             <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>Company Dashboard</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Button
-              variant="outline"
-              style={styles.postsButton}
-              onPress={() => router.push('/(company)/posts')}
-            >
-              <Text style={styles.postsButtonText}>Posts</Text>
-            </Button>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => router.push('/(company)/profile/settings')}
-            >
-              <Ionicons name="settings-outline" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleSignOut}
-            >
-              <Ionicons name="log-out-outline" size={20} color={colors.foreground} />
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -150,29 +93,12 @@ export default function CompanyDashboard() {
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Button
-            style={styles.actionButton}
-            onPress={() => router.push('/(company)/posts/post-job')}
-          >
-            <Ionicons name="add" size={20} color="#fff" style={styles.actionIcon} />
-            <Text style={styles.actionButtonText}>Post New Job</Text>
-          </Button>
-
-          <Button
-            variant="outline"
-            style={styles.actionButton}
-            onPress={() => router.push('/(company)/applicants/review-applicants')}
-          >
-            <Ionicons name="people-outline" size={20} color={colors.foreground} style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: colors.foreground }]}>Review Applicants</Text>
-          </Button>
-
-          <Button
             variant="outline"
             style={[styles.actionButton, { borderColor: '#a855f7' }]}
             onPress={() => router.push('/(company)/applicants/ai-shortlist')}
           >
             <Ionicons name="sparkles" size={20} color="#a855f7" style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: '#a855f7' }]}>AI Shortlist</Text>
+            <Text style={[styles.actionButtonTextOutline, { color: '#a855f7' }]}>AI Shortlist History</Text>
           </Button>
 
           <Button
@@ -181,160 +107,69 @@ export default function CompanyDashboard() {
             onPress={() => router.push('/(company)/applicants/interview-results/1')}
           >
             <Ionicons name="document-text-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>Interview Results</Text>
-          </Button>
-
-          <Button
-            variant="outline"
-            style={styles.actionButton}
-            onPress={() => router.push('/(company)/posts')}
-          >
-            <Ionicons name="create-outline" size={20} color={colors.foreground} style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: colors.foreground }]}>Create Post</Text>
+            <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>PreScreening Results</Text>
           </Button>
         </View>
 
-        {/* Tabs Section */}
-        <View style={styles.tabs}>
-          <View style={styles.tabsList}>
-            <TouchableOpacity
-              style={[
-                styles.tabTrigger,
-                activeTab === 'jobs' && { ...styles.tabTriggerActive, backgroundColor: colors.primary }
-              ]}
-              onPress={() => setActiveTab('jobs')}
-            >
-              <Text style={[
-                styles.tabTriggerText,
-                { color: activeTab === 'jobs' ? '#fff' : colors.foreground }
-              ]}>Job Postings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tabTrigger,
-                activeTab === 'applicants' && { ...styles.tabTriggerActive, backgroundColor: colors.primary }
-              ]}
-              onPress={() => setActiveTab('applicants')}
-            >
-              <Text style={[
-                styles.tabTriggerText,
-                { color: activeTab === 'applicants' ? '#fff' : colors.foreground }
-              ]}>Recent Applicants</Text>
-            </TouchableOpacity>
-          </View>
-
-          {activeTab === 'jobs' && (
-            <View style={styles.tabContent}>
-              {recentJobs.map((job) => (
-                <Card
-                  key={job.id}
-                  style={[styles.jobCard, { borderColor: colors.border, borderWidth: 2 }]}
-                >
-                  <CardContent style={styles.jobCardContent}>
-                    <View style={styles.jobCardMain}>
-                      <View style={styles.jobInfo}>
-                        <View style={styles.jobTitleRow}>
-                          <Text style={[styles.jobTitle, { color: colors.foreground }]} numberOfLines={1}>
-                            {job.title}
-                          </Text>
-                          <Badge
-                            variant={job.status === 'active' ? 'default' : 'secondary'}
-                            style={styles.jobStatusBadge}
-                          >
-                            <Text
-                              style={{
-                                ...styles.statusText,
-                                color: job.status === 'active' ? '#fff' : colors.mutedForeground,
-                              }}
-                            >
-                              {job.status}
-                            </Text>
-                          </Badge>
-                        </View>
-                        <View style={styles.jobMeta}>
-                          <View style={styles.jobMetaItem}>
-                            <Ionicons
-                              name="people-outline"
-                              size={14}
-                              color={colors.mutedForeground}
-                            />
-                            <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
-                              {job.applicants} applicants
-                            </Text>
-                          </View>
-                          <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
-                            Posted {job.posted}
-                          </Text>
-                        </View>
-                      </View>
-                      <Button
-                        variant="outline"
-                        style={styles.viewDetailsButton}
-                        onPress={() => router.push(`/(company)/posts/${job.id}`)}
-                      >
-                        <Text style={[styles.viewDetailsText, { color: colors.foreground }]}>
-                          View Details
+        <View style={styles.jobsSection}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Job Postings</Text>
+          <View style={styles.tabContent}>
+            {recentJobs.map((job) => (
+              <Card
+                key={job.id}
+                style={[styles.jobCard, { borderColor: colors.border, borderWidth: 2 }]}
+              >
+                <CardContent style={styles.jobCardContent}>
+                  <View style={styles.jobCardMain}>
+                    <View style={styles.jobInfo}>
+                      <View style={styles.jobTitleRow}>
+                        <Text style={[styles.jobTitle, { color: colors.foreground }]} numberOfLines={1}>
+                          {job.title}
                         </Text>
-                      </Button>
-                    </View>
-                  </CardContent>
-                </Card>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'applicants' && (
-            <View style={styles.tabContent}>
-              {recentApplicants.map((applicant) => (
-                <Card
-                  key={applicant.id}
-                  style={[styles.applicantCard, { borderColor: colors.border, borderWidth: 2 }]}
-                >
-                  <CardContent style={styles.applicantCardContent}>
-                    <View style={styles.applicantCardMain}>
-                      <View style={styles.applicantInfo}>
-                        <View style={styles.applicantTitleRow}>
-                          <Text style={[styles.applicantName, { color: colors.foreground }]}>
-                            {applicant.name}
-                          </Text>
-                          <Badge
-                            variant="outline"
+                        <Badge
+                          variant={job.status === 'active' ? 'default' : 'secondary'}
+                          style={styles.jobStatusBadge}
+                        >
+                          <Text
                             style={{
-                              ...styles.applicantStatusBadge,
-                              backgroundColor: getApplicantStatusColor(applicant.status).bg,
+                              ...styles.statusText,
+                              color: job.status === 'active' ? '#fff' : colors.mutedForeground,
                             }}
                           >
-                            <Text
-                              style={{
-                                ...styles.applicantStatusText,
-                                color: getApplicantStatusColor(applicant.status).text,
-                              }}
-                            >
-                              {applicant.status}
-                            </Text>
-                          </Badge>
+                            {job.status}
+                          </Text>
+                        </Badge>
+                      </View>
+                      <View style={styles.jobMeta}>
+                        <View style={styles.jobMetaItem}>
+                          <Ionicons
+                            name="people-outline"
+                            size={14}
+                            color={colors.mutedForeground}
+                          />
+                          <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}>
+                            {job.applicants} applicants
+                          </Text>
                         </View>
-                        <Text style={[styles.applicantJob, { color: colors.mutedForeground }]} numberOfLines={1}>
-                          Applied for: {applicant.job}
-                        </Text>
-                        <Text style={[styles.applicantTime, { color: colors.mutedForeground }]}>
-                          {applicant.applied}
+                        <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}> 
+                          Posted {job.posted}
                         </Text>
                       </View>
-                      <Button
-                        style={styles.reviewButton}
-                        onPress={() =>
-                          router.push('/(company)/applicants/review-applicants')
-                        }
-                      >
-                        <Text style={styles.reviewButtonText}>Review</Text>
-                      </Button>
                     </View>
-                  </CardContent>
-                </Card>
-              ))}
-            </View>
-          )}
+                    <Button
+                      variant="outline"
+                      style={styles.viewDetailsButton}
+                      onPress={() => router.push(`/(company)/posts/${job.id}`)}
+                    >
+                      <Text style={[styles.viewDetailsText, { color: colors.foreground }]}> 
+                        View Details
+                      </Text>
+                    </Button>
+                  </View>
+                </CardContent>
+              </Card>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -366,26 +201,6 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 12,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  postsButton: {
-    paddingHorizontal: 16,
-    height: 60,
-    minWidth: 80,
-  },
-  postsButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,
@@ -450,32 +265,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  tabs: {
-    gap: 16,
+  jobsSection: {
+    gap: 10,
   },
-  tabsList: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  tabTrigger: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabTriggerActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabTriggerText: {
-    fontSize: 14,
-    fontWeight: '600',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   tabContent: {
     gap: 12,
@@ -533,58 +328,6 @@ const styles = StyleSheet.create({
   },
   viewDetailsText: {
     fontSize: 12,
-  },
-  applicantCard: {
-    overflow: 'hidden',
-  },
-  applicantCardContent: {
-    padding: 12,
-  },
-  applicantCardMain: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  applicantInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  applicantTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  applicantName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  applicantStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  applicantStatusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  applicantJob: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  applicantTime: {
-    fontSize: 10,
-  },
-  reviewButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    height: 60,
-  },
-  reviewButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
 });
 
