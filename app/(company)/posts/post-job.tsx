@@ -24,7 +24,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship'
+type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Remote'
 
 export default function PostJobScreen() {
   const router = useRouter()
@@ -47,7 +47,7 @@ export default function PostJobScreen() {
     description: '',
   })
 
-  const employmentTypes: EmploymentType[] = ['Full-time', 'Part-time', 'Contract', 'Internship']
+  const employmentTypes: EmploymentType[] = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
 
   const addRequirement = () => {
     if (newRequirement.trim() && !requirements.includes(newRequirement.trim())) {
@@ -62,7 +62,7 @@ export default function PostJobScreen() {
 
   const mapEmploymentTypeToApi = (
     type: EmploymentType
-  ): 'full-time' | 'part-time' | 'contract' | 'internship' => {
+  ): 'full-time' | 'part-time' | 'contract' | 'internship' | 'remote' => {
     switch (type) {
       case 'Full-time':
         return 'full-time'
@@ -72,6 +72,8 @@ export default function PostJobScreen() {
         return 'contract'
       case 'Internship':
         return 'internship'
+      case 'Remote':
+        return 'remote'
       default:
         return 'full-time'
     }
@@ -124,7 +126,6 @@ export default function PostJobScreen() {
         salary_max: salaryMax,
         requirements: requirements.filter(Boolean),
         has_questions: hasQuestions,
-        is_remote: /remote/i.test(formData.location),
         status: 'active',
       })
 

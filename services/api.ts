@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Both your phone and PC must be on the SAME WiFi network
 // You can also set EXPO_PUBLIC_API_BASE_URL in your env for easier switching
 const API_BASE_URL = __DEV__ 
-  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.227.66:8000/api')
+  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.166.66:8000/api')
   : 'https://your-production-url.com/api';
 
 const REQUEST_TIMEOUT_MS = 10000;
@@ -428,7 +428,6 @@ export interface Job {
   company_logo?: string;
   location: string;
   job_type: string;
-  is_remote: boolean;
   salary_min?: number;
   salary_max?: number;
   description: string;
@@ -457,8 +456,7 @@ export const jobsApi = {
     title: string;
     description: string;
     location: string;
-    job_type: 'full-time' | 'part-time' | 'contract' | 'internship';
-    is_remote?: boolean;
+    job_type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'remote';
     salary_min?: number;
     salary_max?: number;
     requirements?: string[];
@@ -466,6 +464,27 @@ export const jobsApi = {
     status?: 'active' | 'closed' | 'draft';
   }): Promise<Job> {
     return apiClient.post<Job>('/jobs/', data);
+  },
+
+  async updateJob(
+    id: number,
+    data: Partial<{
+      title: string;
+      description: string;
+      location: string;
+      job_type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'remote';
+      salary_min: number;
+      salary_max: number;
+      requirements: string[];
+      has_questions: boolean;
+      status: 'active' | 'closed' | 'draft';
+    }>
+  ): Promise<Job> {
+    return apiClient.patch<Job>(`/jobs/${id}/`, data);
+  },
+
+  async deleteJob(id: number): Promise<void> {
+    await apiClient.delete<void>(`/jobs/${id}/`);
   },
 
   async getSwipeJobs(): Promise<Job[]> {

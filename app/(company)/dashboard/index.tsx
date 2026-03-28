@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
@@ -20,6 +20,10 @@ export default function CompanyDashboard() {
   const [companyName, setCompanyName] = useState('Company');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedJobForActions, setSelectedJobForActions] = useState<Job | null>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -81,6 +85,32 @@ export default function CompanyDashboard() {
     if (diffDays === 1) return '1 day ago';
     return `${diffDays} days ago`;
   };
+
+  const handleDeleteJob = useCallback(
+    async (jobId: number) => {
+      setDeleting(true);
+      try {
+        await jobsApi.deleteJob(jobId);
+        setShowDeleteConfirm(false);
+        setShowActionsModal(false);
+        setSelectedJobForActions(null);
+        await fetchDashboardData();
+      } catch (error: any) {
+        Alert.alert('Delete Failed', error?.message || 'Could not delete this job.');
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [fetchDashboardData]
+  );
+
+  const openJobActions = useCallback(
+    (job: Job) => {
+      setSelectedJobForActions(job);
+      setShowActionsModal(true);
+    },
+    []
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -230,15 +260,28 @@ export default function CompanyDashboard() {
                         </Text>
                       </View>
                     </View>
-                    <Button
-                      variant="outline"
-                      style={styles.viewDetailsButton}
-                      onPress={() => router.push(`/(company)/posts/${job.id}`)}
-                    >
-                      <Text style={[styles.viewDetailsText, { color: colors.foreground }]}> 
-                        View Details
-                      </Text>
-                    </Button>
+                    <View style={styles.jobCardFooter}>
+                      <Button
+                        variant="outline"
+                        style={styles.viewDetailsButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(company)/dashboard/job_detail',
+                            params: { id: String(job.id) },
+                          })
+                        }
+                      >
+                        <Text style={[styles.viewDetailsText, { color: colors.foreground }]}> 
+                          View Details
+                        </Text>
+                      </Button>
+                      <TouchableOpacity
+                        onPress={() => openJobActions(job)}
+                        style={[styles.jobActionsButton, { borderColor: colors.border }]}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={18} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </CardContent>
               </Card>
@@ -246,6 +289,135 @@ export default function CompanyDashboard() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Actions Modal */}
+      <Modal
+        visible={showActionsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActionsModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
+          onPress={() => setShowActionsModal(false)}
+        >
+          <View style={[styles.actionsContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.actionsTitle, { color: colors.foreground }]}>
+              Job Actions
+            </Text>
+
+            {/* Edit Action */}
+            <TouchableOpacity
+              style={[styles.actionItem, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setShowActionsModal(false);
+                if (selectedJobForActions) {
+                  router.push({
+                    pathname: '/(company)/dashboard/edit_job',
+                    params: { id: String(selectedJobForActions.id) },
+                  });
+                }
+              }}
+            >
+              <Ionicons name="pencil" size={18} color={colors.foreground} />
+              <Text style={[styles.actionItemText, { color: colors.foreground }]}>
+                Edit Job
+              </Text>
+            </TouchableOpacity>
+
+            {/* Delete Action */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => setShowDeleteConfirm(true)}
+            >
+              <Ionicons name="trash" size={18} color={colors.destructive} />
+              <Text style={[styles.actionItemText, { color: colors.destructive }]}>
+                Delete Job
+              </Text>
+            </TouchableOpacity>
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: colors.secondary }]}
+              onPress={() => setShowActionsModal(false)}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.foreground }]}>
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
+          onPress={() => !deleting && setShowDeleteConfirm(false)}
+        >
+          <View style={[styles.confirmContainer, { backgroundColor: colors.card }]}>
+            <View style={[styles.confirmIcon, { backgroundColor: colors.destructive + '1A' }]}>
+              <Ionicons name="trash" size={32} color={colors.destructive} />
+            </View>
+
+            <Text style={[styles.confirmTitle, { color: colors.foreground }]}>
+              Delete Job?
+            </Text>
+
+            <Text style={[styles.confirmMessage, { color: colors.mutedForeground }]}>
+              Are you sure you want to delete this job? This action cannot be undone.
+            </Text>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                disabled={deleting}
+                style={[
+                  styles.confirmButton,
+                  styles.confirmCancelButton,
+                  { borderColor: colors.border, opacity: deleting ? 0.5 : 1 }
+                ]}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={[styles.confirmCancelButtonText, { color: colors.foreground }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={deleting}
+                style={[
+                  styles.confirmButton,
+                  styles.confirmDeleteButton,
+                  { backgroundColor: colors.destructive, opacity: deleting ? 0.6 : 1 }
+                ]}
+                onPress={() => {
+                  if (selectedJobForActions) {
+                    handleDeleteJob(selectedJobForActions.id);
+                  }
+                }}
+              >
+                {deleting ? (
+                  <ActivityIndicator color={colors.destructiveForeground} size="small" />
+                ) : (
+                  <View style={styles.deleteButtonContent}>
+                    <Ionicons name="trash" size={16} color={colors.destructiveForeground} />
+                    <Text style={[styles.confirmDeleteButtonText, { color: colors.destructiveForeground }]}>
+                      Delete
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -378,6 +550,13 @@ const styles = StyleSheet.create({
   jobStatusBadge: {
     alignSelf: 'flex-start',
   },
+  jobActionsButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
@@ -416,6 +595,110 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  jobCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionsContainer: {
+    borderRadius: 16,
+    padding: 16,
+    width: '80%',
+    maxWidth: 280,
+    gap: 12,
+  },
+  actionsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  actionItemText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  closeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  closeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Delete Confirmation Modal Styles
+  confirmContainer: {
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    maxWidth: 320,
+    alignItems: 'center',
+    gap: 16,
+  },
+  confirmIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  confirmMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginTop: 8,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  confirmCancelButton: {
+    borderWidth: 1,
+  },
+  confirmCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmDeleteButton: {},
+  confirmDeleteButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });
 
