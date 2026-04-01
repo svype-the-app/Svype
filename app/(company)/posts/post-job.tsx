@@ -5,10 +5,12 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Colors } from '@/constants/theme'
+import { getPostJobQuizDraft, resetPostJobQuizDraft, type QuizQuestionDraft } from '@/lib/post-job-quiz-draft'
 import { jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +40,8 @@ export default function PostJobScreen() {
   const [showSectionHint, setShowSectionHint] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [employmentTypeModal, setEmploymentTypeModal] = useState(false)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionDraft[]>([])
+  const [quizConfirmed, setQuizConfirmed] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     location: '',
@@ -48,6 +52,14 @@ export default function PostJobScreen() {
   })
 
   const employmentTypes: EmploymentType[] = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
+
+  useFocusEffect(
+    useCallback(() => {
+      const draft = getPostJobQuizDraft()
+      setQuizQuestions(draft.questions)
+      setQuizConfirmed(draft.confirmed)
+    }, [])
+  )
 
   const addRequirement = () => {
     if (newRequirement.trim() && !requirements.includes(newRequirement.trim())) {
@@ -107,14 +119,15 @@ export default function PostJobScreen() {
     setIsSubmitting(true)
 
     try {
-      const hasQuizQuestions = false
-      const hasQuestions = enablePreScreening && hasQuizQuestions
+      const hasQuestions = enablePreScreening && quizConfirmed && quizQuestions.length >= 5
 
       if (enablePreScreening && !hasQuestions) {
         Alert.alert(
-          'Pre-Screening Not Added',
-          'No quiz questions were added. Job will be posted with pre-screening disabled.'
+          'Quiz Required',
+          'Please confirm at least 5 quiz questions before posting this job.'
         )
+        setIsSubmitting(false)
+        return
       }
 
       await jobsApi.createJob({
@@ -126,8 +139,22 @@ export default function PostJobScreen() {
         salary_max: salaryMax,
         requirements: requirements.filter(Boolean),
         has_questions: hasQuestions,
+        quiz_questions: hasQuestions
+          ? quizQuestions.map((q, index) => ({
+              type: q.type,
+              question: q.question,
+              options: q.type === 'multiple-choice' ? q.options.filter((opt) => opt.trim()) : [],
+              correctAnswer: q.type === 'multiple-choice' ? q.correctAnswer : undefined,
+              points: q.points,
+              order: index,
+            }))
+          : [],
         status: 'active',
       })
+
+      resetPostJobQuizDraft()
+      setQuizQuestions([])
+      setQuizConfirmed(false)
 
       Alert.alert('Success', 'Job posted successfully!', [
         {
@@ -337,11 +364,42 @@ export default function PostJobScreen() {
                     onPress={() => router.push('posts/add-quiz-qs' as any)}
                     style={styles.subButton}
                   >
-                    <Ionicons name="add" size={16} color="#fff" />
+                    <Ionicons name={quizConfirmed ? 'create-outline' : 'add'} size={16} color="#fff" />
                     <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 6 }}>
-                      Add Quiz Questions
+                      {quizConfirmed ? 'Edit Quiz Questions' : 'Add Quiz Questions'}
                     </Text>
                   </Button>
+                  <Button
+                    onPress={() => Alert.alert('Coming Soon', 'AI quiz question generation will be available soon.')}
+                    style={[styles.subButtonSecondary, { borderColor: colors.primary }]}
+                  >
+                    <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontWeight: '600', marginLeft: 6 }}>
+                      Generate Questions with AI
+                    </Text>
+                  </Button>
+                  {quizQuestions.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        resetPostJobQuizDraft()
+                        setQuizQuestions([])
+                        setQuizConfirmed(false)
+                      }}
+                      style={[styles.restartButton, { borderColor: colors.border }]}
+                    >
+                      <Ionicons name="refresh" size={14} color={colors.mutedForeground} />
+                      <Text style={{ color: colors.mutedForeground, marginLeft: 6, fontSize: 12, fontWeight: '600' }}>
+                        Start From Scratch
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {quizQuestions.length > 0 && (
+                    <Text style={[styles.quizStateText, { color: colors.mutedForeground }]}> 
+                      {quizConfirmed
+                        ? `Quiz confirmed (${quizQuestions.length} questions)`
+                        : `${quizQuestions.length} question(s) drafted. Minimum 5 required.`}
+                    </Text>
+                  )}
                   <Text style={[styles.expandedText, { color: colors.mutedForeground }]}>
                     Create custom questions to assess candidates' skills and knowledge
                   </Text>
@@ -631,6 +689,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
+  },
+  subButtonSecondary: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  restartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  quizStateText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   expandedText: {
     fontSize: 12,

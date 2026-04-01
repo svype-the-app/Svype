@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   View,
   ScrollView,
@@ -9,6 +9,9 @@ import {
   Modal,
   FlatList,
   Alert,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -19,75 +22,139 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { getPostJobQuizDraft, setPostJobQuizDraft } from '@/lib/post-job-quiz-draft'
 
 interface Question {
   id: string
   type: 'multiple-choice' | 'text'
   question: string
-  options?: string[]
-  correctAnswer?: number
+  options: string[]
+  correctAnswer: number
   points: number
 }
+
+const createEmptyQuestion = (): Question => ({
+  id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+  type: 'multiple-choice',
+  question: '',
+  options: ['', '', '', ''],
+  correctAnswer: 0,
+  points: 10,
+})
 
 export default function AddQuizQuestionsScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
 
-  const [questions, setQuestions] = useState<Question[]>([])
+  const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
   const [typeModal, setTypeModal] = useState(false)
-  const [currentQuestion, setCurrentQuestion] = useState<Question>({
-    id: Date.now().toString(),
-    type: 'multiple-choice',
-    question: '',
-    options: ['', '', '', ''],
-    correctAnswer: 0,
-    points: 10,
-  })
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
+  const [isQuizConfirmed, setIsQuizConfirmed] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const questionTypes: Array<'multiple-choice' | 'text'> = ['multiple-choice', 'text']
 
-  const handleAddQuestion = () => {
-    if (!currentQuestion.question.trim()) {
-      Alert.alert('Missing Question', 'Please enter a question text')
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true)
+    }
+
+    const draft = getPostJobQuizDraft()
+    if (draft.questions.length > 0) {
+      setQuestions(draft.questions)
+    }
+    setIsQuizConfirmed(draft.confirmed)
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    setPostJobQuizDraft({
+      questions,
+      confirmed: isQuizConfirmed,
+    })
+  }, [questions, isQuizConfirmed, isHydrated])
+
+  const validateQuestion = (question: Question): string | null => {
+    if (!question.question.trim()) {
+      return 'Please enter question text before adding the next question.'
+    }
+
+    if (question.type === 'multiple-choice') {
+      const filledOptions = (question.options || []).filter((opt) => opt.trim())
+      if (filledOptions.length < 2) {
+        return 'Each multiple choice question needs at least 2 options.'
+      }
+    }
+
+    return null
+  }
+
+  const updateQuestion = (id: string, patch: Partial<Question>) => {
+    setIsQuizConfirmed(false)
+    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)))
+  }
+
+  const handleAddAnotherQuestion = () => {
+    const latest = questions[questions.length - 1]
+    const validationError = validateQuestion(latest)
+    if (validationError) {
+      Alert.alert('Incomplete Question', validationError)
       return
     }
 
-    if (currentQuestion.type === 'multiple-choice') {
-      const filledOptions = (currentQuestion.options || []).filter((opt) => opt.trim())
-      if (filledOptions.length < 2) {
-        Alert.alert('Insufficient Options', 'Please provide at least 2 answer options')
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+    setIsQuizConfirmed(false)
+    setQuestions((prev) => [...prev, createEmptyQuestion()])
+  }
+
+  const handleRemoveQuestion = (id: string) => {
+    if (questions.length === 1) {
+      Alert.alert('Required', 'At least one question box is required.')
+      return
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+    setIsQuizConfirmed(false)
+    setQuestions((prev) => prev.filter((q) => q.id !== id))
+  }
+
+  const handleOptionChange = (questionId: string, index: number, value: string) => {
+    setIsQuizConfirmed(false)
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== questionId) return q
+        const newOptions = [...(q.options || ['', '', '', ''])]
+        newOptions[index] = value
+        return { ...q, options: newOptions }
+      })
+    )
+  }
+
+  const canConfirm = useMemo(() => questions.length >= 5, [questions.length])
+
+  const handleConfirmQuiz = () => {
+    if (questions.length < 5) {
+      Alert.alert('Minimum Questions', 'Please add at least 5 questions to confirm this quiz.')
+      return
+    }
+
+    for (let i = 0; i < questions.length; i += 1) {
+      const error = validateQuestion(questions[i])
+      if (error) {
+        Alert.alert('Incomplete Quiz', `Question ${i + 1}: ${error}`)
         return
       }
     }
 
-    setQuestions([...questions, { ...currentQuestion, id: Date.now().toString() }])
-    setCurrentQuestion({
-      id: Date.now().toString(),
-      type: 'multiple-choice',
-      question: '',
-      options: ['', '', '', ''],
-      correctAnswer: 0,
-      points: 10,
+    setIsQuizConfirmed(true)
+    setPostJobQuizDraft({
+      questions,
+      confirmed: true,
     })
-  }
 
-  const handleRemoveQuestion = (id: string) => {
-    setQuestions(questions.filter((q) => q.id !== id))
-  }
-
-  const handleOptionChange = (index: number, value: string) => {
-    const newOptions = [...(currentQuestion.options || [])]
-    newOptions[index] = value
-    setCurrentQuestion({ ...currentQuestion, options: newOptions })
-  }
-
-  const handleSave = () => {
-    if (questions.length === 0) {
-      Alert.alert('No Questions', 'Please add at least one question to the quiz')
-      return
-    }
-    Alert.alert('Success', `Quiz saved with ${questions.length} question(s)`, [
+    Alert.alert('Quiz Confirmed', `${questions.length} question(s) linked to this job draft.`, [
       {
         text: 'OK',
         onPress: () => router.back(),
@@ -99,22 +166,18 @@ export default function AddQuizQuestionsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Add Quiz Questions</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-            Create a custom pre-screening quiz
-          </Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>Minimum 5 questions required</Text>
         </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Info Banner */}
           <Card
             style={[
               styles.infoBanner,
@@ -124,249 +187,156 @@ export default function AddQuizQuestionsScreen() {
             <View style={styles.infoBannerContent}>
               <Ionicons name="help-circle" size={20} color={colors.primary} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.infoBannerTitle, { color: colors.foreground }]}>
-                  Quiz Best Practices
-                </Text>
-                <Text style={[styles.infoBannerText, { color: colors.mutedForeground }]}>
-                  • Keep questions relevant to the job{'\n'}
-                  • Aim for 5-10 questions{'\n'}
-                  • Mix difficulty levels{'\n'}
+                <Text style={[styles.infoBannerTitle, { color: colors.foreground }]}>Quiz Best Practices</Text>
+                <Text style={[styles.infoBannerText, { color: colors.mutedForeground }]}> 
+                  • Keep questions relevant to the job{"\n"}
+                  • Minimum 5 questions required{"\n"}
+                  • Mix difficulty levels{"\n"}
                   • Set passing score at 60-70%
                 </Text>
               </View>
             </View>
           </Card>
 
-          {/* Question Builder */}
-          <Card style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>
-                Create New Question
+          <View style={styles.questionsHeader}>
+            <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Quiz Questions</Text>
+            <View style={[styles.pointsBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.badgeText, { color: colors.mutedForeground }]}>
+                {questions.length} questions • {totalPoints} pts
               </Text>
             </View>
-            <View style={styles.cardContent}>
-              {/* Question Type Selector */}
-              <View style={styles.fieldGroup}>
-                <Label>Question Type</Label>
-                <TouchableOpacity
-                  onPress={() => setTypeModal(true)}
-                  style={[styles.selectButton, { borderColor: colors.border }]}
-                >
-                  <Text style={{ color: colors.foreground, fontSize: 14 }}>
-                    {currentQuestion.type === 'multiple-choice' ? 'Multiple Choice' : 'Text Answer'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              </View>
+          </View>
 
-              {/* Question Text */}
-              <View style={styles.fieldGroup}>
-                <Label>Question</Label>
-                <Textarea
-                  placeholder="Enter your question..."
-                  value={currentQuestion.question}
-                  onChangeText={(text) => setCurrentQuestion({ ...currentQuestion, question: text })}
-                  style={[styles.textarea, { borderColor: colors.border, color: colors.foreground }]}
-                  placeholderTextColor={colors.mutedForeground}
-                  numberOfLines={3}
-                />
-              </View>
+          <Text style={[styles.helperText, { color: colors.mutedForeground }]}> 
+            Add another question from the latest card. Confirm appears after 5 questions.
+          </Text>
 
-              {/* Multiple Choice Options */}
-              {currentQuestion.type === 'multiple-choice' && (
-                <View style={styles.fieldGroup}>
-                  <Label>Answer Options</Label>
-                  <View style={styles.optionsContainer}>
-                    {currentQuestion.options?.map((option, index) => (
-                      <View key={index} style={styles.optionRow}>
-                        <TouchableOpacity
-                          onPress={() =>
-                            setCurrentQuestion({ ...currentQuestion, correctAnswer: index })
-                          }
-                          style={[
-                            styles.radioButton,
-                            {
-                              borderColor: colors.border,
-                              backgroundColor:
-                                currentQuestion.correctAnswer === index
-                                  ? colors.primary
-                                  : 'transparent',
-                            },
-                          ]}
-                        >
-                          {currentQuestion.correctAnswer === index && (
-                            <Ionicons name="checkmark" size={16} color="#fff" />
-                          )}
-                        </TouchableOpacity>
-                        <Input
-                          placeholder={`Option ${index + 1}`}
-                          value={option}
-                          onChangeText={(text) => handleOptionChange(index, text)}
-                          style={[styles.optionInput, { borderColor: colors.border, color: colors.foreground }]}
-                          placeholderTextColor={colors.mutedForeground}
-                        />
-                        {currentQuestion.correctAnswer === index && (
-                          <Text style={[styles.correctLabel, { color: colors.primary }]}>
-                            Correct
-                          </Text>
-                        )}
-                      </View>
-                    ))}
+          <View style={styles.questionsList}>
+            {questions.map((q, index) => {
+              const isLatest = index === questions.length - 1
+              return (
+                <Card key={q.id} style={styles.card}>
+                  <View style={styles.cardHeaderRow}>
+                    <View style={[styles.numberBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>{index + 1}</Text>
+                    </View>
+                    <Text style={[styles.cardTitle, { color: colors.cardForeground, marginLeft: 10 }]}>Question {index + 1}</Text>
+                    <View style={{ flex: 1 }} />
+                    <TouchableOpacity onPress={() => handleRemoveQuestion(q.id)} style={styles.deleteButton}>
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
-                    Tap the circle to mark the correct answer
-                  </Text>
-                </View>
-              )}
 
-              {/* Points */}
-              <View style={styles.fieldGroup}>
-                <Label>Points</Label>
-                <Input
-                  placeholder="10"
-                  value={currentQuestion.points.toString()}
-                  onChangeText={(text) =>
-                    setCurrentQuestion({
-                      ...currentQuestion,
-                      points: parseInt(text) || 10,
-                    })
-                  }
-                  keyboardType="number-pad"
-                  style={[styles.input, { borderColor: colors.border, color: colors.foreground }]}
-                  placeholderTextColor={colors.mutedForeground}
-                />
-              </View>
-
-              {/* Add Question Button */}
-              <Button
-                onPress={handleAddQuestion}
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
-              >
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>
-                  Add Question to Quiz
-                </Text>
-              </Button>
-            </View>
-          </Card>
-
-          {/* Questions List */}
-          {questions.length > 0 && (
-            <Card style={styles.card}>
-              <View style={styles.questionsHeader}>
-                <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>
-                  Quiz Questions
-                </Text>
-                <View
-                  style={[
-                    styles.pointsBadge,
-                    { backgroundColor: colors.secondary },
-                  ]}
-                >
-                  <Text style={[styles.badgeText, { color: colors.mutedForeground }]}>
-                    Total: {totalPoints} pts
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.questionsList}>
-                {questions.map((q, index) => (
-                  <View
-                    key={q.id}
-                    style={[
-                      styles.questionCard,
-                      { backgroundColor: colors.secondary },
-                    ]}
-                  >
-                    <View style={styles.questionCardContent}>
-                      <View
-                        style={[
-                          styles.numberBadge,
-                          { backgroundColor: colors.primary },
-                        ]}
+                  <View style={styles.cardContent}>
+                    <View style={styles.fieldGroup}>
+                      <Label>Question Type</Label>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setActiveQuestionId(q.id)
+                          setTypeModal(true)
+                        }}
+                        style={[styles.selectButton, { borderColor: colors.border }]}
                       >
-                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
-                          {index + 1}
+                        <Text style={{ color: colors.foreground, fontSize: 14 }}>
+                          {q.type === 'multiple-choice' ? 'Multiple Choice' : 'Text Answer'}
                         </Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text
-                          style={[
-                            styles.questionText,
-                            { color: colors.foreground },
-                          ]}
-                        >
-                          {q.question}
-                        </Text>
-                        {q.type === 'multiple-choice' && q.options && (
-                          <View style={styles.optionsList}>
-                            {q.options.map((opt, i) => (
-                              <Text
-                                key={i}
+                        <Ionicons name="chevron-down" size={20} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Label>Question</Label>
+                      <Textarea
+                        placeholder="Enter your question..."
+                        value={q.question}
+                        onChangeText={(text) => updateQuestion(q.id, { question: text })}
+                        style={[styles.textarea, { borderColor: colors.border, color: colors.foreground }]}
+                        placeholderTextColor={colors.mutedForeground}
+                        numberOfLines={3}
+                      />
+                    </View>
+
+                    {q.type === 'multiple-choice' && (
+                      <View style={styles.fieldGroup}>
+                        <Label>Answer Options</Label>
+                        <View style={styles.optionsContainer}>
+                          {(q.options || ['', '', '', '']).map((option, optIndex) => (
+                            <View key={`${q.id}-${optIndex}`} style={styles.optionRow}>
+                              <TouchableOpacity
+                                onPress={() => updateQuestion(q.id, { correctAnswer: optIndex })}
                                 style={[
-                                  styles.optionListItem,
+                                  styles.radioButton,
                                   {
-                                    color:
-                                      i === q.correctAnswer
-                                        ? colors.primary
-                                        : colors.mutedForeground,
-                                    fontWeight:
-                                      i === q.correctAnswer ? '600' : '400',
+                                    borderColor: colors.border,
+                                    backgroundColor: q.correctAnswer === optIndex ? colors.primary : 'transparent',
                                   },
                                 ]}
                               >
-                                {i + 1}. {opt}{' '}
-                                {i === q.correctAnswer ? '✓' : ''}
-                              </Text>
-                            ))}
-                          </View>
-                        )}
-                        <Text
-                          style={[
-                            styles.pointsText,
-                            { color: colors.mutedForeground },
-                          ]}
-                        >
-                          {q.points} points
-                        </Text>
+                                {q.correctAnswer === optIndex && (
+                                  <Ionicons name="checkmark" size={16} color="#fff" />
+                                )}
+                              </TouchableOpacity>
+                              <Input
+                                placeholder={`Option ${optIndex + 1}`}
+                                value={option}
+                                onChangeText={(text) => handleOptionChange(q.id, optIndex, text)}
+                                style={[styles.optionInput, { borderColor: colors.border, color: colors.foreground }]}
+                                placeholderTextColor={colors.mutedForeground}
+                              />
+                              {q.correctAnswer === optIndex && (
+                                <Text style={[styles.correctLabel, { color: colors.primary }]}>Correct</Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveQuestion(q.id)}
-                        style={styles.deleteButton}
-                      >
-                        <Ionicons name="trash" size={20} color="#ef4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </Card>
-          )}
+                    )}
 
-          {/* Save Buttons */}
-          {questions.length > 0 && (
-            <View style={styles.buttonRow}>
-              <Button
-                onPress={() => router.back()}
-                style={[styles.button, { borderColor: colors.border, borderWidth: 1 }]}
-              >
-                <Text style={{ color: colors.foreground, fontWeight: '600' }}>Cancel</Text>
-              </Button>
-              <Button
-                onPress={handleSave}
-                style={[styles.button, { backgroundColor: colors.primary }]}
-              >
-                <Ionicons name="save" size={18} color="#fff" />
-                <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>
-                  Save Quiz ({questions.length})
-                </Text>
-              </Button>
-            </View>
-          )}
+                    <View style={styles.fieldGroup}>
+                      <Label>Points</Label>
+                      <Input
+                        placeholder="10"
+                        value={String(q.points)}
+                        onChangeText={(text) => updateQuestion(q.id, { points: parseInt(text, 10) || 10 })}
+                        keyboardType="number-pad"
+                        style={[styles.input, { borderColor: colors.border, color: colors.foreground }]}
+                        placeholderTextColor={colors.mutedForeground}
+                      />
+                    </View>
+
+                    {isLatest && (
+                      <View style={styles.buttonRow}>
+                        <Button onPress={handleAddAnotherQuestion} style={[styles.button, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="add" size={18} color="#fff" />
+                          <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>Add Another Question</Text>
+                        </Button>
+
+                        {canConfirm && (
+                          <Button onPress={handleConfirmQuiz} style={[styles.button, { backgroundColor: '#2563eb' }]}>
+                            <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                            <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>Confirm Quiz</Text>
+                          </Button>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </Card>
+              )
+            })}
+          </View>
+
+          <Button
+            onPress={() => router.back()}
+            style={[
+              styles.cancelOnlyButton,
+              { borderColor: colors.border, borderWidth: 1, backgroundColor: 'transparent' },
+            ]}
+          >
+            <Text style={{ color: colors.foreground, fontWeight: '600' }}>Back to Post Job</Text>
+          </Button>
         </View>
       </ScrollView>
 
-      {/* Question Type Modal */}
       <Modal
         visible={typeModal}
         transparent
@@ -389,14 +359,22 @@ export default function AddQuizQuestionsScreen() {
             renderItem={({ item }) => (
               <TouchableOpacity
                 onPress={() => {
-                  setCurrentQuestion({ ...currentQuestion, type: item })
+                  if (activeQuestionId) {
+                    updateQuestion(activeQuestionId, {
+                      type: item,
+                      options: item === 'multiple-choice' ? ['', '', '', ''] : [],
+                      correctAnswer: 0,
+                    })
+                  }
                   setTypeModal(false)
                 }}
                 style={[
                   styles.modalItem,
                   {
                     backgroundColor:
-                      currentQuestion.type === item ? colors.primary + '10' : 'transparent',
+                      questions.find((q) => q.id === activeQuestionId)?.type === item
+                        ? colors.primary + '10'
+                        : 'transparent',
                     borderBottomColor: colors.border,
                   },
                 ]}
@@ -404,7 +382,7 @@ export default function AddQuizQuestionsScreen() {
                 <Text style={[styles.modalItemText, { color: colors.foreground }]}>
                   {item === 'multiple-choice' ? 'Multiple Choice' : 'Text Answer'}
                 </Text>
-                {currentQuestion.type === item && (
+                {questions.find((q) => q.id === activeQuestionId)?.type === item && (
                   <Ionicons name="checkmark" size={20} color={colors.primary} />
                 )}
               </TouchableOpacity>
@@ -465,6 +443,11 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     marginBottom: 16,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   cardTitle: {
     fontSize: 16,
@@ -532,7 +515,7 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 12,
-    marginTop: 8,
+    marginTop: 2,
   },
   addButton: {
     flexDirection: 'row',
@@ -594,12 +577,17 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
   },
   button: {
-    flex: 1,
     flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelOnlyButton: {
     paddingVertical: 12,
     borderRadius: 8,
     justifyContent: 'center',

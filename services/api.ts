@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Both your phone and PC must be on the SAME WiFi network
 // You can also set EXPO_PUBLIC_API_BASE_URL in your env for easier switching
 const API_BASE_URL = __DEV__ 
-  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.166.66:8000/api')
+  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.229.66:8000/api')
   : 'https://your-production-url.com/api';
 
 const REQUEST_TIMEOUT_MS = 10000;
@@ -439,6 +439,15 @@ export interface Job {
   posted_at: string;
 }
 
+export interface QuizQuestionPayload {
+  type: 'multiple-choice' | 'text';
+  question: string;
+  options?: string[];
+  correctAnswer?: number;
+  points?: number;
+  order?: number;
+}
+
 export const jobsApi = {
   async getJobs(): Promise<Job[]> {
     return apiClient.get<Job[]>('/jobs/');
@@ -461,6 +470,7 @@ export const jobsApi = {
     salary_max?: number;
     requirements?: string[];
     has_questions?: boolean;
+    quiz_questions?: QuizQuestionPayload[];
     status?: 'active' | 'closed' | 'draft';
   }): Promise<Job> {
     return apiClient.post<Job>('/jobs/', data);
@@ -477,6 +487,7 @@ export const jobsApi = {
       salary_max: number;
       requirements: string[];
       has_questions: boolean;
+      quiz_questions: QuizQuestionPayload[];
       status: 'active' | 'closed' | 'draft';
     }>
   ): Promise<Job> {
