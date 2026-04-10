@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
-import { SwipeJob, mockSwipeJobs } from '@/lib/mock-jobs'
+import { Job as ApiJob, jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useEffect, useRef, useState } from 'react'
@@ -24,6 +24,60 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
 const FLICK_VELOCITY_THRESHOLD = 0.45
+const BUFFER_SIZE = 25
+
+type SwipeJob = {
+  id: number
+  title: string
+  company: string
+  location: string
+  type: string
+  salary_min: number
+  salary_max: number
+  posted_at: string
+  description: string
+  requirements: string[]
+}
+
+function formatJobType(jobType: string): string {
+  if (!jobType) return 'Not specified'
+  return jobType
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('-')
+}
+
+function mapApiJobToSwipeJob(job: ApiJob): SwipeJob {
+  const rawJob = job as ApiJob & {
+    company?: string | { name?: string }
+    company_name?: string
+  }
+
+  const companyName =
+    rawJob.company_name ||
+    (typeof rawJob.company === 'string' ? rawJob.company : rawJob.company?.name) ||
+    'Unknown Company'
+
+  const requirements = Array.isArray(rawJob.requirements)
+    ? rawJob.requirements
+        .filter((req): req is string => typeof req === 'string')
+        .map((req) => req.trim())
+        .filter(Boolean)
+    : []
+
+  return {
+    id: rawJob.id,
+    title: rawJob.title || 'Untitled Role',
+    company: companyName,
+    location: rawJob.location || 'Location not specified',
+    type: formatJobType(rawJob.job_type || ''),
+    salary_min: rawJob.salary_min ?? 0,
+    salary_max: rawJob.salary_max ?? 0,
+    posted_at: rawJob.posted_at || new Date().toISOString(),
+    description: rawJob.description || 'No description provided yet.',
+    requirements,
+  }
+}
 
 export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
@@ -31,6 +85,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [jobs, setJobs] = useState<SwipeJob[]>([])
+  const [bufferedJobs, setBufferedJobs] = useState<SwipeJob[]>([])
+  const [bufferStartIndex, setBufferStartIndex] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [pan] = useState(new Animated.ValueXY())
   const scrollViewRef = useRef<ScrollView>(null)
   const [showUndoModal, setShowUndoModal] = useState(false)
@@ -45,14 +103,39 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setJobs([...mockSwipeJobs])
+    const loadSwipeJobs = async () => {
+      setLoading(true)
+      setLoadError(null)
+
+      try {
+        const apiJobs = await jobsApi.getSwipeJobs()
+        const mappedJobs = apiJobs.map(mapApiJobToSwipeJob)
+        setJobs(mappedJobs)
+        setCurrentIndex(0)
+      } catch (error: any) {
+        setLoadError(error?.message || 'Could not load jobs. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSwipeJobs()
   }, [])
+
+  useEffect(() => {
+    const start = Math.max(0, currentIndex - BUFFER_SIZE)
+    const end = Math.min(jobs.length, currentIndex + BUFFER_SIZE + 1)
+    setBufferStartIndex(start)
+    setBufferedJobs(jobs.slice(start, end))
+  }, [jobs, currentIndex])
 
   const finalizeSwipeAction = () => {
     const action = undoActionType
 
     if (action === 'approve' || action === 'reject') {
       const indexToRemove = currentIndex
+      const swipedJob = jobs[indexToRemove]
+
       setJobs((prevJobs) => {
         const nextJobs = prevJobs.filter((_, idx) => idx !== indexToRemove)
         setCurrentIndex((prevIndex) => {
@@ -61,6 +144,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         })
         return nextJobs
       })
+
+      if (swipedJob) {
+        const swipeAction = action === 'approve' ? 'like' : 'dislike'
+        jobsApi.swipe(swipedJob.id, swipeAction).catch(() => {
+          // Keep UI responsive even if background swipe sync fails.
+        })
+      }
     }
 
     setShowUndoModal(false)
@@ -260,7 +350,50 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     }).start()
   }
 
-  const formatSalary = (min: number, max: number) => `£${Math.round(min / 1000)}k - £${Math.round(max / 1000)}k`
+  const formatSalary = (min?: number, max?: number) => {
+    if (!min && !max) return 'Salary not specified'
+    if (!min && max) return `Up to £${Math.round(max / 1000)}k`
+    if (min && !max) return `From £${Math.round(min / 1000)}k`
+    return `£${Math.round((min || 0) / 1000)}k - £${Math.round((max || 0) / 1000)}k`
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+        <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+          <View style={{ marginLeft: 4, flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
+          </View>
+        </View>
+
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>Loading jobs...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+        <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+          <View style={{ marginLeft: 4, flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
+          </View>
+        </View>
+
+        <View style={styles.emptyContainer}>
+          <Card style={{ width: '100%', maxWidth: 320 }}>
+            <CardContent style={styles.emptyContent}>
+              <Ionicons name="cloud-offline-outline" size={56} color={colors.mutedForeground} style={{ marginBottom: 8 }} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t Load Jobs</Text>
+              <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>{loadError}</Text>
+            </CardContent>
+          </Card>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   if (jobs.length === 0 || currentIndex >= jobs.length) {
     return (
@@ -268,7 +401,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         <View style={[styles.header, { borderBottomColor: colors.border }]}> 
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>0 remaining</Text>
           </View>
         </View>
 
@@ -278,7 +410,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <Ionicons name="checkmark-circle" size={64} color={colors.primary} style={{ marginBottom: 16 }} />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Jobs Reviewed!</Text>
               <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>You've reviewed all available jobs. Check back later for new opportunities.</Text>
-              <Button onPress={() => { setJobs([...mockSwipeJobs]); setCurrentIndex(0) }} style={{ marginTop: 16, width: '100%' }}>
+              <Button onPress={() => { setLoading(true); setLoadError(null); jobsApi.getSwipeJobs().then((apiJobs) => { setJobs(apiJobs.map(mapApiJobToSwipeJob)); setCurrentIndex(0) }).catch((error: any) => setLoadError(error?.message || 'Could not load jobs. Please try again.')).finally(() => setLoading(false)) }} style={{ marginTop: 16, width: '100%' }}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Reload Jobs</Text>
               </Button>
             </CardContent>
@@ -288,7 +420,11 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     )
   }
 
-  const currentJob = jobs[currentIndex]
+  const currentJob = bufferedJobs[currentIndex - bufferStartIndex]
+
+  if (!currentJob) {
+    return null
+  }
 
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -305,19 +441,20 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     }),
   }
 
-  const companyInitials = currentJob.company
-    .split(' ')
+  const companyInitials = (currentJob.company || 'Unknown Company')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase()
+    .toUpperCase() || 'UC'
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
       <View style={[styles.header, { borderBottomColor: colors.border }]}> 
         <View style={{ marginLeft: 4, flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>{jobs.length} remaining</Text>
         </View>
       </View>
 
