@@ -10,6 +10,13 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
+function normalizeWebsiteInput(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export default function CompanyOnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -80,11 +87,16 @@ export default function CompanyOnboardingScreen() {
     setSaving(true);
 
     try {
-      await companyApi.updateMyCompany({
-        location: formData.location.trim(),
-        website: formData.website.trim(),
-        description: formData.description.trim(),
-      });
+      const location = formData.location.trim();
+      const description = formData.description.trim();
+      const website = normalizeWebsiteInput(formData.website);
+
+      const payload: Record<string, string> = {};
+      if (location) payload.location = location;
+      if (website) payload.website = website;
+      if (description) payload.description = description;
+
+      await companyApi.updateMyCompany(payload);
 
       await goToProfile();
     } catch (error: any) {

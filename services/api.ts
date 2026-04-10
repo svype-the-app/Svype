@@ -143,6 +143,36 @@ export interface ApiError {
 class ApiClient {
   private token: string | null = null;
 
+  private extractErrorMessage(data: any): string | null {
+    if (!data) return null;
+
+    if (typeof data === 'string') return data;
+
+    if (Array.isArray(data)) {
+      const first = data[0];
+      return typeof first === 'string' ? first : null;
+    }
+
+    if (typeof data !== 'object') return null;
+
+    if (typeof data.error === 'string') return data.error;
+    if (typeof data.detail === 'string') return data.detail;
+
+    for (const [field, value] of Object.entries(data)) {
+      if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+        const prefix = field === 'non_field_errors' ? '' : `${field}: `;
+        return `${prefix}${value[0]}`;
+      }
+
+      if (typeof value === 'string') {
+        const prefix = field === 'non_field_errors' ? '' : `${field}: `;
+        return `${prefix}${value}`;
+      }
+    }
+
+    return null;
+  }
+
   async init() {
     this.token = await AsyncStorage.getItem(TOKEN_KEY);
   }
@@ -174,11 +204,19 @@ class ApiClient {
       clearTimeout(timeoutId);
 
       const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : {};
+      let data: any = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          data = { detail: raw };
+        }
+      }
 
       if (!response.ok) {
+        const message = this.extractErrorMessage(data) || `Request failed (${response.status})`;
         throw {
-          message: data.error || data.detail || 'Request failed',
+          message,
           errors: data,
           status: response.status,
         };
