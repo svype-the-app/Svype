@@ -6,11 +6,12 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Colors } from '@/constants/theme'
 import { getPostJobQuizDraft, resetPostJobQuizDraft, type QuizQuestionDraft } from '@/lib/post-job-quiz-draft'
+import { getPostJobDraft, resetPostJobDraft, setPostJobDraft } from '../../../lib/post-job-draft'
 import { jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -32,44 +33,62 @@ export default function PostJobScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const postJobDraft = getPostJobDraft()
 
-  const [requirements, setRequirements] = useState<string[]>(['React', 'TypeScript'])
-  const [newRequirement, setNewRequirement] = useState('')
-  const [enablePreScreening, setEnablePreScreening] = useState(false)
-  const [enableAIInterview, setEnableAIInterview] = useState(false)
-  const [showSectionHint, setShowSectionHint] = useState(true)
+  const [requirements, setRequirements] = useState<string[]>(postJobDraft.requirements)
+  const [enablePreScreening, setEnablePreScreening] = useState(postJobDraft.enablePreScreening)
+  const [enableAIInterview, setEnableAIInterview] = useState(postJobDraft.enableAIInterview)
+  const [showSectionHint, setShowSectionHint] = useState(postJobDraft.showSectionHint)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [employmentTypeModal, setEmploymentTypeModal] = useState(false)
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestionDraft[]>([])
   const [quizConfirmed, setQuizConfirmed] = useState(false)
-  const [formData, setFormData] = useState({
-    title: '',
-    location: '',
-    type: 'Full-time' as EmploymentType,
-    salaryMin: '',
-    salaryMax: '',
-    description: '',
-  })
+  const [formData, setFormData] = useState(postJobDraft.formData)
 
   const employmentTypes: EmploymentType[] = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
 
   useFocusEffect(
     useCallback(() => {
-      const draft = getPostJobQuizDraft()
-      setQuizQuestions(draft.questions)
-      setQuizConfirmed(draft.confirmed)
+      const latestPostJobDraft = getPostJobDraft()
+      setFormData(latestPostJobDraft.formData)
+      setRequirements(latestPostJobDraft.requirements)
+      setEnablePreScreening(latestPostJobDraft.enablePreScreening)
+      setEnableAIInterview(latestPostJobDraft.enableAIInterview)
+      setShowSectionHint(latestPostJobDraft.showSectionHint)
+
+      const latestQuizDraft = getPostJobQuizDraft()
+      setQuizQuestions(latestQuizDraft.questions)
+      setQuizConfirmed(latestQuizDraft.confirmed)
     }, [])
   )
 
-  const addRequirement = () => {
-    if (newRequirement.trim() && !requirements.includes(newRequirement.trim())) {
-      setRequirements([...requirements, newRequirement.trim()])
-      setNewRequirement('')
-    }
+  useEffect(() => {
+    setPostJobDraft({
+      formData,
+      requirements,
+      enablePreScreening,
+      enableAIInterview,
+      showSectionHint,
+    })
+  }, [formData, requirements, enablePreScreening, enableAIInterview, showSectionHint])
+
+  const addRequirementInput = () => {
+    setRequirements((prev) => [...prev, ''])
   }
 
-  const removeRequirement = (index: number) => {
-    setRequirements(requirements.filter((_, i) => i !== index))
+  const removeLatestRequirementInput = () => {
+    setRequirements((prev) => {
+      if (prev.length <= 1) return prev
+      return prev.slice(0, -1)
+    })
+  }
+
+  const updateRequirement = (index: number, value: string) => {
+    setRequirements((prev) => {
+      const next = [...prev]
+      next[index] = value
+      return next
+    })
   }
 
   const mapEmploymentTypeToApi = (
@@ -137,7 +156,7 @@ export default function PostJobScreen() {
         job_type: mapEmploymentTypeToApi(formData.type),
         salary_min: salaryMin,
         salary_max: salaryMax,
-        requirements: requirements.filter(Boolean),
+        requirements: requirements.map((r) => r.trim()).filter(Boolean),
         has_questions: hasQuestions,
         quiz_questions: hasQuestions
           ? quizQuestions.map((q, index) => ({
@@ -151,10 +170,6 @@ export default function PostJobScreen() {
           : [],
         status: 'active',
       })
-
-      resetPostJobQuizDraft()
-      setQuizQuestions([])
-      setQuizConfirmed(false)
 
       Alert.alert('Success', 'Job posted successfully!', [
         {
@@ -288,47 +303,41 @@ export default function PostJobScreen() {
               <Text style={[styles.cardTitle, { color: colors.cardForeground }]}>Requirements</Text>
             </View>
             <View style={styles.cardContent}>
-              {/* Add Requirement */}
-              <View style={styles.requirementInputRow}>
-                <Input
-                  placeholder="Add a requirement (e.g. 5+ years experience)"
-                  value={newRequirement}
-                  onChangeText={setNewRequirement}
-                  style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.foreground }]}
-                  placeholderTextColor={colors.mutedForeground}
-                />
-                <TouchableOpacity
-                  onPress={addRequirement}
-                  style={[styles.addButton, { backgroundColor: colors.primary }]}
-                >
-                  <Ionicons name="add" size={24} color="#fff" />
-                </TouchableOpacity>
-              </View>
+              {requirements.map((req, index) => {
+                const isLatest = index === requirements.length - 1
 
-              {/* Requirements List */}
-              <View style={styles.badgesContainer}>
-                {requirements.map((req, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.badge,
-                      { backgroundColor: colors.secondary },
-                    ]}
-                  >
-                    <View style={styles.badgeContent}>
-                      <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                        {req}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => removeRequirement(index)}
-                        style={{ marginLeft: 6 }}
-                      >
-                        <Ionicons name="close" size={14} color={colors.mutedForeground} />
-                      </TouchableOpacity>
-                    </View>
+                return (
+                  <View key={`requirement-${index}`} style={styles.requirementRow}>
+                    <Input
+                      placeholder={`Requirement ${index + 1}`}
+                      value={req}
+                      onChangeText={(text) => updateRequirement(index, text)}
+                      style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.foreground }]}
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+
+                    {isLatest && (
+                      <>
+                        {requirements.length > 1 && (
+                          <TouchableOpacity
+                            onPress={removeLatestRequirementInput}
+                            style={[styles.addButton, { backgroundColor: colors.secondary }]}
+                          >
+                            <Ionicons name="trash-outline" size={20} color={colors.mutedForeground} />
+                          </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                          onPress={addRequirementInput}
+                          style={[styles.addButton, { backgroundColor: colors.primary }]}
+                        >
+                          <Ionicons name="add" size={24} color="#fff" />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
-                ))}
-              </View>
+                )
+              })}
             </View>
           </Card>
 
@@ -458,7 +467,11 @@ export default function PostJobScreen() {
           {/* Submit Buttons */}
           <View style={styles.buttonRow}>
             <Button
-              onPress={() => router.back()}
+              onPress={() => {
+                resetPostJobDraft()
+                resetPostJobQuizDraft()
+                router.back()
+              }}
               style={[styles.submitButton, { backgroundColor: colors.muted }]}
             >
               <Text style={{ color: colors.mutedForeground, fontWeight: '600' }}>Cancel</Text>
@@ -620,7 +633,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
   },
-  requirementInputRow: {
+  requirementRow: {
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',

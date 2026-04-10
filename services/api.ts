@@ -3,10 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ⚠️ IMPORTANT: Replace with your computer's IP address
 // Find it by running 'ipconfig' in terminal and look for IPv4 Address
 // Both your phone and PC must be on the SAME WiFi network
-// You can also set EXPO_PUBLIC_API_BASE_URL in your env for easier switching
-const API_BASE_URL = __DEV__ 
-  ? (process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://192.168.229.66:8000/api')
-  : 'https://your-production-url.com/api';
+// Set EXPO_PUBLIC_API_BASE_URL in .env for easier switching
+const ENV_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '');
+if (!ENV_API_BASE_URL) {
+  throw new Error('Missing EXPO_PUBLIC_API_BASE_URL. Set it in Svype/.env and restart Expo with "npx expo start -c".');
+}
+const API_BASE_URL = ENV_API_BASE_URL;
 
 const REQUEST_TIMEOUT_MS = 10000;
 
