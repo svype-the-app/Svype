@@ -9,6 +9,9 @@ if (!ENV_API_BASE_URL) {
   throw new Error('Missing EXPO_PUBLIC_API_BASE_URL. Set it in Svype/.env and restart Expo with "npx expo start -c".');
 }
 const API_BASE_URL = ENV_API_BASE_URL;
+const MEDIA_BASE_URL = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL;
 
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -48,23 +51,25 @@ export interface ProfileCompletion {
   filled: {
     name: boolean;
     email: boolean;
-    bio: boolean;
+    headline: boolean;
+    about: boolean;
     location: boolean;
     experience: boolean;
     skills: boolean;
     education: boolean;
-    preferences: boolean;
+    avatar: boolean;
     resume: boolean;
   };
   weights: {
     name: number;
     email: number;
-    bio: number;
+    headline: number;
+    about: number;
     location: number;
     experience: number;
     skills: number;
     education: number;
-    preferences: number;
+    avatar: number;
     resume: number;
   };
 }
@@ -72,9 +77,12 @@ export interface ProfileCompletion {
 export interface JobSeekerProfile {
   id: number;
   full_name: string;
-  bio: string;
+  contact_number: string;
+  headline: string;
+  about: string;
   location: string;
   experience: string;
+  education: string;
   career_goals: string;
   life_goals: string;
   skills: string[];
@@ -274,6 +282,12 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 
+export function resolveMediaUrl(path?: string | null): string | undefined {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${MEDIA_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 // =============================================================================
 // AUTH API
 // =============================================================================
@@ -364,7 +378,7 @@ export const authApi = {
   async logout(): Promise<void> {
     try {
       await apiClient.post('/auth/logout/', {});
-    } catch (error) {
+    } catch {
       // Ignore errors on logout
     }
     
@@ -407,6 +421,66 @@ export const authApi = {
   async updateState(state: UserState): Promise<{ user: User; message: string }> {
     return apiClient.post('/auth/update-state/', { state });
   },
+
+  async uploadAvatar(fileUri: string, fileName: string): Promise<User> {
+    const token = await this.getStoredToken();
+    const url = `${API_BASE_URL}/auth/avatar/`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    const formData = new FormData();
+    formData.append('avatar', {
+      uri: fileUri,
+      name: fileName,
+      type: 'image/jpeg',
+    } as any);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Token ${token}` } : {},
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const raw = await response.text();
+      let data: any = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          data = { detail: raw };
+        }
+      }
+
+      if (!response.ok) {
+        throw {
+          message: data.error || data.detail || 'Failed to upload profile image',
+          errors: data,
+          status: response.status,
+        };
+      }
+
+      const user = data.user as User;
+      try {
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+      } catch (storageError) {
+        console.warn('Failed to persist updated user avatar:', storageError);
+      }
+      return user;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error?.name === 'AbortError') {
+        throw { message: `Avatar upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` };
+      }
+      if (error?.message === 'Network request failed') {
+        throw { message: `Unable to upload avatar. Check backend connectivity at ${API_BASE_URL}.` };
+      }
+      throw error;
+    }
+  },
 };
 
 export const companyApi = {
@@ -437,7 +511,7 @@ export function getRouteForUserState(user: User): string {
     
     case 'profile_preview':
       // User is at profile preview stage
-      return '/(onboarding)/profile-preview';
+      return '/(jobseeker)/profile/profile-preview';
     
     case 'active':
       // User completed onboarding - go to swipe
@@ -575,15 +649,13 @@ export const applicationsApi = {
 // PROFILE API
 // =============================================================================
 
-export interface JobSeekerProfile {
+export interface ResumeRecord {
   id: number;
-  full_name: string;
-  bio: string;
-  location: string;
-  experience: string;
-  skills: string[];
-  career_goals: string;
-  life_goals: string;
+  file: string;
+  file_name: string;
+  file_size: string;
+  is_primary: boolean;
+  uploaded_at: string;
 }
 
 export const profileApi = {
@@ -593,6 +665,68 @@ export const profileApi = {
 
   async updateProfile(data: Partial<JobSeekerProfile>): Promise<JobSeekerProfile> {
     return apiClient.patch<JobSeekerProfile>('/profiles/me/', data);
+  },
+
+  async getResumes(): Promise<ResumeRecord[]> {
+    return apiClient.get<ResumeRecord[]>('/resumes/');
+  },
+
+  async uploadResume(fileUri: string, fileName: string, fileSizeBytes: number = 0): Promise<ResumeRecord> {
+    const token = await authApi.getStoredToken();
+    const url = `${API_BASE_URL}/resumes/`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileUri,
+      name: fileName,
+      type: 'application/pdf',
+    } as any);
+    formData.append('file_name', fileName);
+
+    const sizeKb = Math.max(1, Math.round(fileSizeBytes / 1024));
+    formData.append('file_size', `${sizeKb} KB`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Token ${token}` } : {},
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const raw = await response.text();
+      let data: any = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          data = { detail: raw };
+        }
+      }
+
+      if (!response.ok) {
+        throw {
+          message: data.error || data.detail || 'Failed to upload resume',
+          errors: data,
+          status: response.status,
+        };
+      }
+
+      return data as ResumeRecord;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error?.name === 'AbortError') {
+        throw { message: `Resume upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` };
+      }
+      if (error?.message === 'Network request failed') {
+        throw { message: `Unable to upload resume. Check backend connectivity at ${API_BASE_URL}.` };
+      }
+      throw error;
+    }
   },
 };
 

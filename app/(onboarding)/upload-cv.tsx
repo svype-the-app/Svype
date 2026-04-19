@@ -18,22 +18,22 @@ export default function UploadCVScreen() {
     // Update user state to 'profile_preview' when proceeding
     try {
       await authApi.updateState('profile_preview');
-    } catch (error) {
+    } catch {
       console.log('Could not update state, continuing anyway');
     }
     
-    router.push('/(onboarding)/profile-preview' as any);
+    router.push('/(jobseeker)/profile/profile-preview' as any);
   };
 
   const handleSkip = async () => {
     // Update user state to 'profile_preview' even when skipping
     try {
       await authApi.updateState('profile_preview');
-    } catch (error) {
+    } catch {
       console.log('Could not update state, continuing anyway');
     }
     
-    router.push('/(onboarding)/profile-preview' as any);
+    router.push('/(jobseeker)/profile/profile-preview' as any);
   };
 
   return (

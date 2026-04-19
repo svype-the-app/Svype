@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { applicationsApi, authApi, ProfileCompletion } from '@/services/api';
+import { applicationsApi, authApi, ProfileCompletion, resolveMediaUrl } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,6 +25,8 @@ interface UserProfile {
   fullName: string;
   email: string;
   initials: string;
+  avatarUrl?: string;
+  professionalSummary: string;
   careerGoals: string;
   lifeGoals: string;
   interests: string[];
@@ -52,10 +55,17 @@ export default function ProfileScreen() {
         .join('')
         .toUpperCase() || 'U';
 
+      const summarySource = (user.profile?.headline || user.profile?.about || '').trim();
+      const professionalSummary = summarySource.length > 90
+        ? `${summarySource.slice(0, 90).trim()}...`
+        : summarySource;
+
       setProfile({
         fullName,
         email: user.email,
         initials,
+        avatarUrl: resolveMediaUrl(user.avatar),
+        professionalSummary,
         careerGoals: user.profile?.career_goals || '',
         lifeGoals: user.profile?.life_goals || '',
         interests: user.profile?.interests || [],
@@ -69,6 +79,8 @@ export default function ProfileScreen() {
         fullName: 'User',
         email: '',
         initials: 'U',
+        avatarUrl: undefined,
+        professionalSummary: '',
         careerGoals: '',
         lifeGoals: '',
         interests: [],
@@ -91,7 +103,7 @@ export default function ProfileScreen() {
   );
 
   const getCompletionColor = (percentage: number) => {
-    if (percentage >= 80) return '#10b981';
+    if (percentage >= 90) return '#10b981';
     if (percentage >= 50) return '#f59e0b';
     return '#ef4444';
   };
@@ -105,7 +117,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           try {
             await authApi.logout();
-          } catch (e) {
+          } catch {
             console.log('Error during logout');
           }
           router.replace('/');
@@ -131,6 +143,7 @@ export default function ProfileScreen() {
   }
 
   const completionPercentage = profile?.completion?.percentage || 15;
+  const completionColor = getCompletionColor(completionPercentage);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -154,12 +167,21 @@ export default function ProfileScreen() {
             }}
           >
             <AvatarFallback>
-              <Text style={[styles.avatarText, { color: colors.primaryForeground }]}>
-                {profile?.initials || 'U'}
-              </Text>
+              {profile?.avatarUrl ? (
+                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+              ) : (
+                <Text style={[styles.avatarText, { color: colors.primaryForeground }]}>
+                  {profile?.initials || 'U'}
+                </Text>
+              )}
             </AvatarFallback>
           </Avatar>
           <Text style={[styles.profileName, { color: colors.foreground }]}>{profile?.fullName}</Text>
+          {!!profile?.professionalSummary && (
+            <Text style={[styles.profileHeadline, { color: colors.mutedForeground }]} numberOfLines={2}>
+              {profile.professionalSummary}
+            </Text>
+          )}
           <View style={styles.emailContainer}>
             <Ionicons name="mail-outline" size={16} color={colors.mutedForeground} />
             <Text style={[styles.email, { color: colors.mutedForeground }]} numberOfLines={1}>
@@ -179,27 +201,49 @@ export default function ProfileScreen() {
         </View>
 
         {/* Profile Completion Card */}
-        <Card style={styles.completionCard}>
-          <CardContent style={styles.completionContent}>
-            <View style={styles.completionHeader}>
-              <View style={styles.completionTitleRow}>
-                <Ionicons name="stats-chart" size={20} color={colors.primary} />
-                <Text style={[styles.completionTitle, { color: colors.foreground }]}>
-                  Profile Completion
+        {completionPercentage < 100 && (
+          <TouchableOpacity
+            onPress={() => router.push('/(jobseeker)/profile/profile-preview?mode=edit')}
+            activeOpacity={0.85}
+            style={styles.completionTapTarget}
+          >
+            <Card
+              style={[
+                styles.completionCard,
+                {
+                  borderWidth: 1,
+                  borderColor: completionColor + '66',
+                  backgroundColor: completionColor + '12',
+                },
+              ]}
+            >
+              <CardContent style={styles.completionContent}>
+                <View style={styles.completionHeader}>
+                  <View style={styles.completionTitleRow}>
+                    <Ionicons name="stats-chart" size={20} color={completionColor} />
+                    <Text style={[styles.completionTitle, { color: colors.foreground }]}>Profile Completion</Text>
+                  </View>
+                  <View style={styles.completionAction}>
+                    <Text style={[styles.completionPercentage, { color: completionColor }]}>
+                      {completionPercentage}%
+                    </Text>
+                    <Ionicons name="chevron-forward-circle" size={22} color={completionColor} />
+                  </View>
+                </View>
+                <Progress value={completionPercentage} style={styles.progressBar} />
+                <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
+                  {completionPercentage >= 90
+                    ? 'Great! Your profile is well optimized.'
+                    : 'Complete your profile to get better job matches.'}
                 </Text>
-              </View>
-              <Text style={[styles.completionPercentage, { color: getCompletionColor(completionPercentage) }]}>
-                {completionPercentage}%
-              </Text>
-            </View>
-            <Progress value={completionPercentage} style={styles.progressBar} />
-            <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
-              {completionPercentage >= 80 
-                ? 'Great! Your profile is well optimized.' 
-                : 'Complete your profile to get better job matches.'}
-            </Text>
-          </CardContent>
-        </Card>
+                <View style={styles.completionTapHintRow}>
+                  <Ionicons name="create-outline" size={14} color={completionColor} />
+                  <Text style={[styles.completionTapHint, { color: completionColor }]}>Tap to edit profile details</Text>
+                </View>
+              </CardContent>
+            </Card>
+          </TouchableOpacity>
+        )}
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
@@ -339,7 +383,7 @@ export default function ProfileScreen() {
               <MenuItem
                 icon={<Ionicons name="person-outline" size={20} color={colors.foreground} />}
                 label="Edit Personal Info"
-                onPress={() => router.push('/(jobseeker)/profile/personal-info')}
+                onPress={() => router.push('/(jobseeker)/profile/profile-preview?mode=personal')}
                 colors={colors}
               />
               <MenuItem
@@ -455,11 +499,22 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
   },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
   profileName: {
     fontSize: 24,
     fontWeight: '700',
     marginTop: 16,
     textAlign: 'center',
+  },
+  profileHeadline: {
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   emailContainer: {
     flexDirection: 'row',
@@ -472,6 +527,10 @@ const styles = StyleSheet.create({
   },
   completionCard: {
     marginBottom: 0,
+    borderRadius: 14,
+  },
+  completionTapTarget: {
+    borderRadius: 14,
   },
   completionContent: {
     padding: 16,
@@ -491,6 +550,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  completionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   completionPercentage: {
     fontSize: 18,
     fontWeight: '700',
@@ -500,6 +564,16 @@ const styles = StyleSheet.create({
   },
   completionHint: {
     fontSize: 12,
+  },
+  completionTapHintRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completionTapHint: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
