@@ -25,7 +25,7 @@ export default function UserTypeSelectionScreen() {
             <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
               Find your dream job with AI-powered matching
             </Text>
-            <Button onPress={() => router.push('/(onboarding)/job-seeker-onboarding')}>
+            <Button onPress={() => router.push('/(onboarding)/onboarding-choice')}>
               Continue as Job Seeker
             </Button>
           </CardContent>

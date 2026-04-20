@@ -12,7 +12,7 @@ export default function SignUpSuccessScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { firstName } = useLocalSearchParams<{ firstName: string }>();
-  const [onboardingRoute, setOnboardingRoute] = useState('/(onboarding)/job-seeker-onboarding');
+  const [onboardingRoute, setOnboardingRoute] = useState('/(onboarding)/onboarding-choice');
   const [isCompanyUser, setIsCompanyUser] = useState(false);
 
   useEffect(() => {
@@ -58,8 +58,18 @@ export default function SignUpSuccessScreen() {
               onPress={() => router.push(onboardingRoute as any)}
               style={styles.startButton}
             >
-              {isCompanyUser ? 'Start Onboarding' : 'Start AI Onboarding'}
+              {isCompanyUser ? 'Start Onboarding' : 'Manual Onboarding'}
             </Button>
+
+            {!isCompanyUser && (
+              <Button
+                size="lg"
+                onPress={() => router.push('/(onboarding)/job-seeker-onboarding' as any)}
+                style={styles.aiOnboardingButton}
+              >
+                AI Onboarding
+              </Button>
+            )}
 
             {/* Skip Button */}
             <Button 
@@ -119,6 +129,10 @@ const styles = StyleSheet.create({
   },
   startButton: {
     width: '100%',
+  },
+  aiOnboardingButton: {
+    width: '100%',
+    backgroundColor: '#7c3aed',
   },
   skipButton: {
     width: '100%',
