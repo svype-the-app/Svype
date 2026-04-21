@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Colors } from '@/constants/theme';
-import { aiChatResponses, initialChatMessages, Message, quickPrompts } from '@/lib/mock-chat';
+import { aiChatApi, AIChatSession } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -20,13 +20,30 @@ import {
   View,
 } from 'react-native';
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+const quickPrompts = [
+  'Help me improve my headline',
+  'Suggest a better career plan for me',
+  'What skills should I learn next?',
+  'How do I prepare for interviews?',
+];
+
 export default function AIChatScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>(initialChatMessages);
+  const [sessions, setSessions] = useState<AIChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const scrollToBottom = () => {
@@ -37,8 +54,66 @@ export default function AIChatScreen() {
     setTimeout(scrollToBottom, 100);
   }, [messages, isTyping]);
 
+  useEffect(() => {
+    const initChat = async () => {
+      setIsLoading(true);
+      try {
+        const existing = await aiChatApi.getSessions();
+        if (existing.length > 0) {
+          setSessions(existing);
+          const selected = existing[0];
+          setActiveSessionId(selected.id);
+          setMessages(mapSessionMessages(selected));
+        } else {
+          const created = await aiChatApi.createSession('career_coach');
+          setSessions([created]);
+          setActiveSessionId(created.id);
+          setMessages(mapSessionMessages(created));
+        }
+      } catch {
+        setMessages([
+          {
+            id: 'fallback-assistant',
+            role: 'assistant',
+            content: "Hi, I'm Svyper AI. I'm here to help with your career and profile.",
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initChat();
+  }, []);
+
+  const mapSessionMessages = (session: AIChatSession): Message[] => {
+    if (!session.messages || session.messages.length === 0) {
+      return [
+        {
+          id: `seed-${session.id}`,
+          role: 'assistant',
+          content: "Hi, I'm Svyper AI. I'm here to help with your career and profile.",
+          timestamp: new Date(),
+        },
+      ];
+    }
+
+    return session.messages.map((m) => ({
+      id: String(m.id),
+      role: m.role,
+      content: m.content,
+      timestamp: new Date(m.created_at),
+    }));
+  };
+
+  const handleSelectSession = (session: AIChatSession) => {
+    setActiveSessionId(session.id);
+    setMessages(mapSessionMessages(session));
+  };
+
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !activeSessionId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -51,18 +126,32 @@ export default function AIChatScreen() {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response with hardcoded data
-    setTimeout(() => {
+    try {
+      const result = await aiChatApi.sendMessage(activeSessionId, userMessage.content);
       const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: String(result.ai_response.id),
         role: 'assistant',
-        content: aiChatResponses[Math.floor(Math.random() * aiChatResponses.length)],
-        timestamp: new Date(),
+        content: result.ai_response.content,
+        timestamp: new Date(result.ai_response.created_at),
       };
-
       setMessages((prev) => [...prev, aiMessage]);
+
+      // Refresh sessions so previous chat list stays current.
+      const updated = await aiChatApi.getSessions();
+      setSessions(updated);
+    } catch (error: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: error?.message || 'I had trouble replying. Please try again.',
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleQuickPrompt = (prompt: string) => {
@@ -118,6 +207,31 @@ export default function AIChatScreen() {
           </Badge>
         </View>
       </View>
+
+      {/* Previous sessions */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.sessionTabs}
+      >
+        {sessions.map((session) => (
+          <TouchableOpacity
+            key={session.id}
+            onPress={() => handleSelectSession(session)}
+            style={[
+              styles.sessionTab,
+              {
+                backgroundColor: activeSessionId === session.id ? colors.primary + '22' : colors.card,
+                borderColor: activeSessionId === session.id ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.sessionTabText, { color: colors.foreground }]}>
+              {session.title || (session.context === 'onboarding' ? 'Onboarding Chat' : 'Career Chat')}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Messages */}
       <ScrollView
@@ -202,7 +316,7 @@ export default function AIChatScreen() {
       </ScrollView>
 
       {/* Quick Prompts */}
-      {messages.length === 1 && (
+      {messages.length <= 1 && !isLoading && (
         <View style={styles.quickPromptsContainer}>
           <Text style={[styles.quickPromptsLabel, { color: colors.mutedForeground }]}>
             Quick prompts to get started:
@@ -289,7 +403,7 @@ function TypingDot({ delay, color }: { delay: number; color: string }) {
     );
     animation.start();
     return () => animation.stop();
-  }, []);
+  }, [delay, opacity]);
 
   return (
     <Animated.View
@@ -354,6 +468,21 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
+  },
+  sessionTabs: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  sessionTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  sessionTabText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   messagesContent: {
     padding: 16,

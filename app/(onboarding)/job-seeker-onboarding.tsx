@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { onboardingSteps, OnboardingStep } from '@/lib/mock-onboarding';
+import { aiOnboardingApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -12,31 +12,59 @@ interface Message {
   content: string;
 }
 
-type Step = OnboardingStep;
-
 export default function JobSeekerOnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const scrollViewRef = useRef<ScrollView>(null);
   
-  const [currentStep, setCurrentStep] = useState(0);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 0,
-      type: "bot",
-      content: "Hi! I'm your AI career assistant. I'll help you build your profile so we can find the perfect job opportunities for you. Ready? Let's start!"
-    },
-    {
-      id: 1,
-      type: "bot",
-      content: onboardingSteps[0].question
-    }
-  ]);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [totalFields, setTotalFields] = useState(1);
+  const [completedFields, setCompletedFields] = useState(0);
+  const [isLoadingStart, setIsLoadingStart] = useState(true);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  const progress = ((currentStep + 1) / onboardingSteps.length) * 100;
+  const progress = Math.max(0, Math.min(100, (completedFields / Math.max(totalFields, 1)) * 100));
+
+  const toUiMessages = (apiMessages: { role: 'user' | 'assistant'; content: string }[]): Message[] => {
+    return apiMessages.map((m, index) => ({
+      id: index,
+      type: m.role === 'assistant' ? 'bot' : 'user',
+      content: m.content,
+    }));
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      setIsLoadingStart(true);
+      try {
+        const start = await aiOnboardingApi.startSession();
+        setSessionId(start.session_id);
+        setMessages(toUiMessages(start.messages));
+        setTotalFields(start.total_fields);
+        setCompletedFields(start.completed_fields);
+
+        if (start.is_complete) {
+          const route = start.next_route || '/(jobseeker)/profile/profile-preview?mode=edit';
+          setTimeout(() => router.push(route as any), 1200);
+        }
+      } catch (error: any) {
+        setMessages([
+          {
+            id: 0,
+            type: 'bot',
+            content: error?.message || 'Unable to start AI onboarding right now. Please try again.',
+          },
+        ]);
+      } finally {
+        setIsLoadingStart(false);
+      }
+    };
+
+    init();
+  }, [router]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -47,55 +75,51 @@ export default function JobSeekerOnboardingScreen() {
 
   const handleSend = async (answer?: string) => {
     const userAnswer = answer || input.trim();
-    if (!userAnswer) return;
+    if (!userAnswer || !sessionId || isLoadingStart) return;
 
-    // Add user message
+    // Add user message immediately for responsive UX.
     const userMessage: Message = {
       id: messages.length,
       type: "user",
       content: userAnswer
     };
-    setMessages([...messages, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI thinking
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const nextStep = currentStep + 1;
-    
-    if (nextStep < onboardingSteps.length) {
-      // Add next question
+    try {
+      const result = await aiOnboardingApi.sendMessage(sessionId, userAnswer);
       const botMessage: Message = {
         id: messages.length + 1,
         type: "bot",
-        content: onboardingSteps[nextStep].question
+        content: result.reply
       };
       setMessages(prev => [...prev, botMessage]);
-      setCurrentStep(nextStep);
-    } else {
-      // Onboarding complete
-      const completionMessage: Message = {
+
+      setTotalFields(result.total_fields);
+      setCompletedFields(result.completed_fields);
+
+      if (result.is_complete) {
+        const route = result.next_route || '/(jobseeker)/profile/profile-preview?mode=edit';
+        setTimeout(() => {
+          router.push(route as any);
+        }, 1300);
+      }
+    } catch (error: any) {
+      const errorMessage: Message = {
         id: messages.length + 1,
-        type: "bot",
-        content: "Perfect! I've created your profile. Let me show you a choice for importing additional data..."
+        type: 'bot',
+        content: error?.message || 'I could not process that. Please try a short answer again.',
       };
-      setMessages(prev => [...prev, completionMessage]);
-      
-      // Navigate to choice screen after delay
-      setTimeout(() => {
-        router.push('/(onboarding)/onboarding-choice' as any);
-      }, 2000);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
     }
-    
-    setIsTyping(false);
   };
 
   const handleSkip = () => {
-    router.push('/(onboarding)/onboarding-choice' as any);
+    router.push('/(jobseeker)/profile/profile-preview?mode=edit' as any);
   };
-
-  const currentStepData = onboardingSteps[currentStep];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -125,7 +149,7 @@ export default function JobSeekerOnboardingScreen() {
           <View style={styles.progressContainer}>
             <View style={styles.progressInfo}>
               <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
-                Step {currentStep + 1} of {onboardingSteps.length}
+                {completedFields} of {totalFields} profile fields collected
               </Text>
               <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
                 {Math.round(progress)}%
@@ -205,40 +229,15 @@ export default function JobSeekerOnboardingScreen() {
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-        {/* Quick Options */}
-        {currentStepData.options && (
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.optionsScroll}
-            contentContainerStyle={styles.optionsContent}
-          >
-            {currentStepData.options.map((option, index) => (
-              <Pressable
-                key={index}
-                onPress={() => handleSend(option)}
-                style={[styles.optionBadge, { 
-                  backgroundColor: colors.background,
-                  borderColor: colors.border 
-                }]}
-              >
-                <Text style={[styles.optionText, { color: colors.foreground }]}>
-                  {option}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
         {/* Text Input */}
         <View style={styles.inputRow}>
           <TextInput
             value={input}
             onChangeText={setInput}
             onSubmitEditing={() => handleSend()}
-            placeholder={currentStepData.placeholder}
+            placeholder={isLoadingStart ? 'Starting AI onboarding...' : 'Write a short answer...'}
             placeholderTextColor={colors.mutedForeground}
-            editable={!isTyping}
+            editable={!isTyping && !isLoadingStart}
             style={[styles.textInput, { 
               backgroundColor: colors.background,
               borderColor: colors.border,
@@ -247,10 +246,10 @@ export default function JobSeekerOnboardingScreen() {
           />
           <Pressable
             onPress={() => handleSend()}
-            disabled={!input.trim() || isTyping}
+            disabled={!input.trim() || isTyping || isLoadingStart}
             style={[
               styles.sendButton,
-              { backgroundColor: (!input.trim() || isTyping) ? colors.muted : colors.primary }
+              { backgroundColor: (!input.trim() || isTyping || isLoadingStart) ? colors.muted : colors.primary }
             ]}
           >
             <Ionicons name="send" size={18} color={colors.background} />
@@ -410,21 +409,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     borderTopWidth: 1,
-  },
-  optionsScroll: {
-    marginBottom: 12,
-  },
-  optionsContent: {
-    gap: 8,
-  },
-  optionBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  optionText: {
-    fontSize: 13,
   },
   inputRow: {
     flexDirection: 'row',
