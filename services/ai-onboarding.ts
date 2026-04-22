@@ -24,11 +24,11 @@ export interface OnboardingMessageResponse {
 
 export const aiOnboardingApi = {
   async startSession(): Promise<OnboardingStartResponse> {
-    return apiClient.post<OnboardingStartResponse>('/ai/onboarding/start/', {});
+    return apiClient.postAI<OnboardingStartResponse>('/ai/onboarding/start/', {});
   },
 
   async sendMessage(sessionId: number, message: string): Promise<OnboardingMessageResponse> {
-    return apiClient.post<OnboardingMessageResponse>('/ai/onboarding/message/', {
+    return apiClient.postAI<OnboardingMessageResponse>('/ai/onboarding/message/', {
       session_id: sessionId,
       message,
     });

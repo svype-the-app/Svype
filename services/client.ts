@@ -14,6 +14,7 @@ export const MEDIA_BASE_URL = API_BASE_URL.endsWith('/api')
   : API_BASE_URL;
 
 export const REQUEST_TIMEOUT_MS = 10000;
+export const AI_REQUEST_TIMEOUT_MS = 60000;
 
 // Token storage keys
 export const TOKEN_KEY = 'auth_token';
@@ -58,11 +59,12 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs: number = REQUEST_TIMEOUT_MS
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -106,7 +108,7 @@ class ApiClient {
       clearTimeout(timeoutId);
 
       if (error?.name === 'AbortError') {
-        throw { message: `Server timeout after ${REQUEST_TIMEOUT_MS / 1000}s. Check backend connectivity at ${API_BASE_URL}.` };
+        throw { message: `Server timeout after ${timeoutMs / 1000}s. Check backend connectivity at ${API_BASE_URL}.` };
       }
 
       if (error?.message === 'Network request failed') {
@@ -126,6 +128,14 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  }
+
+  async postAI<T>(endpoint: string, body: any): Promise<T> {
+    return this.request<T>(
+      endpoint,
+      { method: 'POST', body: JSON.stringify(body) },
+      AI_REQUEST_TIMEOUT_MS
+    );
   }
 
   async put<T>(endpoint: string, body: any): Promise<T> {

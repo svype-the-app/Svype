@@ -14,6 +14,6 @@ export const aiChatApi = {
     user_message: AIChatMessage;
     ai_response: AIChatMessage;
   }> {
-    return apiClient.post(`/ai-chat/${sessionId}/send_message/`, { content });
+    return apiClient.postAI(`/ai-chat/${sessionId}/send_message/`, { content });
   },
 };
