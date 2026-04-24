@@ -208,30 +208,32 @@ export default function AIChatScreen() {
         </View>
       </View>
 
-      {/* Previous sessions */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.sessionTabs}
-      >
-        {sessions.map((session) => (
-          <TouchableOpacity
-            key={session.id}
-            onPress={() => handleSelectSession(session)}
-            style={[
-              styles.sessionTab,
-              {
-                backgroundColor: activeSessionId === session.id ? colors.primary + '22' : colors.card,
-                borderColor: activeSessionId === session.id ? colors.primary : colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.sessionTabText, { color: colors.foreground }]}>
-              {session.title || (session.context === 'onboarding' ? 'Onboarding Chat' : 'Career Chat')}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Previous sessions — only show when there are multiple */}
+      {sessions.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sessionTabs}
+        >
+          {sessions.map((session) => (
+            <TouchableOpacity
+              key={session.id}
+              onPress={() => handleSelectSession(session)}
+              style={[
+                styles.sessionTab,
+                {
+                  backgroundColor: activeSessionId === session.id ? colors.primary + '22' : colors.card,
+                  borderColor: activeSessionId === session.id ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.sessionTabText, { color: colors.foreground }]}>
+                {session.context === 'onboarding' ? 'Career Chat' : (session.title || 'Career Chat')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Messages */}
       <ScrollView
