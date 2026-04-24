@@ -69,12 +69,7 @@ export default function CompanyOnboardingScreen() {
   };
 
   const goToProfile = async () => {
-    try {
-      await authApi.updateState('active');
-    } catch {
-      // ignore if already active
-    }
-    router.replace('/(company)/profile');
+    router.replace('/(company)/profile/profile-preview?mode=onboarding' as any);
   };
 
   const handleSkip = async () => {

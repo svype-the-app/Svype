@@ -20,7 +20,7 @@ export default function SignUpSuccessScreen() {
       const storedUser = await authApi.getStoredUser();
       if (storedUser?.user_type === 'company') {
         setIsCompanyUser(true);
-        setOnboardingRoute('/(onboarding)/company-onboarding');
+        setOnboardingRoute('/(company)/profile/profile-preview?mode=onboarding');
       }
     };
 

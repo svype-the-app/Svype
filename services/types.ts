@@ -79,6 +79,9 @@ export interface CompanyCompletion {
     location: boolean;
     website: boolean;
     description: boolean;
+    logo: boolean;
+    culture: boolean;
+    benefits: boolean;
   };
   weights: {
     name: number;
@@ -86,6 +89,9 @@ export interface CompanyCompletion {
     location: number;
     website: number;
     description: number;
+    logo: number;
+    culture: number;
+    benefits: number;
   };
 }
 
@@ -96,9 +102,7 @@ export interface CompanyProfile {
   website: string;
   location: string;
   description: string;
-  industry: string;
-  size: string;
-  founded: string;
+  logo?: string;
   rating: string;
   reviews_count: number;
   followers_count: number;

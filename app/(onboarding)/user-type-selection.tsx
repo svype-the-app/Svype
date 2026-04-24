@@ -38,7 +38,7 @@ export default function UserTypeSelectionScreen() {
             <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
               Post jobs and find talented candidates
             </Text>
-            <Button onPress={() => router.push('/(onboarding)/company-onboarding')}>
+            <Button onPress={() => router.push('/(company)/profile/profile-preview?mode=onboarding' as any)}>
               Continue as Company
             </Button>
           </CardContent>

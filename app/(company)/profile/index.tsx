@@ -1,10 +1,10 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { authApi } from '@/services/api';
+import { authApi, resolveMediaUrl } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,9 +29,6 @@ interface CompanyProfileData {
   location: string;
   website: string;
   description: string;
-  industry: string;
-  size: string;
-  founded: string;
   rating: number;
   reviewsCount: number;
   followersCount: number;
@@ -38,6 +36,8 @@ interface CompanyProfileData {
   culture: string[];
   benefits: string[];
   completionPercentage: number;
+  completionFilled: Record<string, boolean>;
+  avatarUrl?: string;
 }
 
 export default function CompanyProfileScreen() {
@@ -69,16 +69,15 @@ export default function CompanyProfileScreen() {
         location: company?.location || '',
         website: company?.website || '',
         description: company?.description || '',
-        industry: company?.industry || '',
-        size: company?.size || '',
-        founded: company?.founded || '',
         rating: Number(company?.rating || 0),
         reviewsCount: Number(company?.reviews_count || 0),
         followersCount: Number(company?.followers_count || 0),
         jobsCount: Number(company?.jobs_count || 0),
         culture: company?.culture || [],
         benefits: company?.benefits || [],
-        completionPercentage: Number(company?.completion?.percentage || 40),
+        completionPercentage: Number(company?.completion?.percentage || 0),
+        completionFilled: company?.completion?.filled || {},
+        avatarUrl: resolveMediaUrl(user.avatar),
       });
     } catch (error) {
       console.log('Could not fetch company profile:', error);
@@ -89,16 +88,15 @@ export default function CompanyProfileScreen() {
         location: '',
         website: '',
         description: '',
-        industry: '',
-        size: '',
-        founded: '',
         rating: 0,
         reviewsCount: 0,
         followersCount: 0,
         jobsCount: 0,
         culture: [],
         benefits: [],
-        completionPercentage: 40,
+        completionPercentage: 0,
+        completionFilled: {},
+        avatarUrl: undefined,
       });
     } finally {
       setLoading(false);
@@ -155,6 +153,9 @@ export default function CompanyProfileScreen() {
     );
   }
 
+  const pct = profile?.completionPercentage ?? 0;
+  const completionColor = pct >= 90 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -175,9 +176,13 @@ export default function CompanyProfileScreen() {
             }}
           >
             <AvatarFallback>
-              <Text style={[styles.avatarText, { color: colors.primaryForeground }]}> 
-                {profile?.initials || 'CO'}
-              </Text>
+              {profile?.avatarUrl ? (
+                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+              ) : (
+                <Text style={[styles.avatarText, { color: colors.primaryForeground }]}> 
+                  {profile?.initials || 'CO'}
+                </Text>
+              )}
             </AvatarFallback>
           </Avatar>
 
@@ -202,25 +207,49 @@ export default function CompanyProfileScreen() {
           </Badge>
         </View>
 
-        <Card style={styles.completionCard}>
-          <CardContent style={styles.completionContent}>
-            <View style={styles.completionHeader}>
-              <View style={styles.completionTitleRow}>
-                <Ionicons name="stats-chart" size={20} color={colors.primary} />
-                <Text style={[styles.completionTitle, { color: colors.foreground }]}>Account Completion</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/(company)/profile/profile-preview')}
+          activeOpacity={0.85}
+          style={styles.completionTapTarget}
+        >
+          <Card
+            style={[
+              styles.completionCard,
+              {
+                borderWidth: 1,
+                borderColor: completionColor + '66',
+                backgroundColor: completionColor + '12',
+              },
+            ]}
+          >
+            <CardContent style={styles.completionContent}>
+              <View style={styles.completionHeader}>
+                <View style={styles.completionTitleRow}>
+                  <Ionicons name="stats-chart" size={20} color={completionColor} />
+                  <Text style={[styles.completionTitle, { color: colors.foreground }]}>Account Completion</Text>
+                </View>
+                <View style={styles.completionAction}>
+                  <Text style={[styles.completionPercentage, { color: completionColor }]}>
+                    {profile?.completionPercentage ?? 0}%
+                  </Text>
+                  <Ionicons name="chevron-forward-circle" size={22} color={completionColor} />
+                </View>
               </View>
-              <Text style={[styles.completionPercentage, { color: colors.primary }]}>
-                {profile?.completionPercentage ?? 40}%
+              <Progress value={profile?.completionPercentage ?? 0} style={styles.progressBar} />
+              <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
+                {(profile?.completionPercentage ?? 0) >= 90
+                  ? 'Great! Your company profile is well optimized.'
+                  : (profile?.completionPercentage ?? 0) >= 50
+                    ? 'Almost there! Add more details to attract better candidates.'
+                    : 'Complete your company details to attract better candidates.'}
               </Text>
-            </View>
-            <Progress value={profile?.completionPercentage ?? 40} style={styles.progressBar} />
-            <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
-              {(profile?.completionPercentage ?? 40) >= 80
-                ? 'Great! Your company profile is well optimized.'
-                : 'Complete your company details to attract better candidates.'}
-            </Text>
-          </CardContent>
-        </Card>
+              <View style={styles.completionTapHintRow}>
+                <Ionicons name="create-outline" size={14} color={completionColor} />
+                <Text style={[styles.completionTapHint, { color: completionColor }]}>Tap to edit company details</Text>
+              </View>
+            </CardContent>
+          </Card>
+        </TouchableOpacity>
 
         <View style={styles.statsContainer}>
           <Card style={[styles.statCard, { backgroundColor: colors.primary + '10' }]}>
@@ -264,10 +293,7 @@ export default function CompanyProfileScreen() {
             </View>
 
             <View style={styles.detailsList}>
-              <DetailRow label="Industry" value={profile?.industry} colors={colors} />
               <DetailRow label="Location" value={profile?.location} colors={colors} />
-              <DetailRow label="Company Size" value={profile?.size} colors={colors} />
-              <DetailRow label="Founded" value={profile?.founded} colors={colors} />
               <DetailRow label="Website" value={profile?.website} colors={colors} />
               <DetailRow label="Rating" value={profile?.rating ? `${profile.rating} (${profile.reviewsCount} reviews)` : ''} colors={colors} />
             </View>
@@ -311,8 +337,8 @@ export default function CompanyProfileScreen() {
             <View style={styles.menuItems}>
               <MenuItem
                 icon={<Ionicons name="create-outline" size={20} color={colors.primary} />}
-                label="Edit Company Settings"
-                onPress={() => router.push('/(company)/profile/settings')}
+                label="Edit Company Information"
+                onPress={() => router.push('/(company)/profile/profile-preview?mode=edit' as any)}
                 colors={colors}
               />
               <MenuItem
@@ -423,6 +449,10 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
   },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
   profileName: {
     fontSize: 24,
     fontWeight: '700',
@@ -437,6 +467,9 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
+  },
+  completionTapTarget: {
+    borderRadius: 14,
   },
   completionCard: {
     marginBottom: 0,
@@ -459,6 +492,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  completionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   completionPercentage: {
     fontSize: 18,
     fontWeight: '700',
@@ -468,6 +506,16 @@ const styles = StyleSheet.create({
   },
   completionHint: {
     fontSize: 12,
+  },
+  completionTapHintRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completionTapHint: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
