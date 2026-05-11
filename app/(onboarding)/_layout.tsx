@@ -7,9 +7,13 @@ export default function OnboardingLayout() {
         name="user-type-selection" 
         options={{ title: 'Select User Type' }}
       />
-      <Stack.Screen 
-        name="job-seeker-onboarding" 
+      <Stack.Screen
+        name="job-seeker-onboarding"
         options={{ title: 'Job Seeker Onboarding' }}
+      />
+      <Stack.Screen
+        name="onboarding-success"
+        options={{ title: 'You\'re Set!' }}
       />
       <Stack.Screen 
         name="onboarding-choice" 

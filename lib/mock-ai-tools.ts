@@ -28,20 +28,6 @@ export const cvTemplates: CVTemplate[] = [
   }
 ];
 
-// Cover Letter Tone Options
-export interface ToneOption {
-  value: string;
-  label: string;
-  description: string;
-}
-
-export const toneOptions: ToneOption[] = [
-  { value: "professional", label: "Professional", description: "Formal and business-like" },
-  { value: "enthusiastic", label: "Enthusiastic", description: "Passionate and energetic" },
-  { value: "confident", label: "Confident", description: "Strong and assertive" },
-  { value: "creative", label: "Creative", description: "Unique and innovative" }
-];
-
 // Job Options for CV/Cover Letter Generation
 export interface JobOption {
   id: string;
@@ -54,6 +40,20 @@ export const mockJobOptions: JobOption[] = [
   { id: "1", title: "Senior Frontend Engineer", company: "TechCorp Inc.", description: "Looking for an experienced React developer..." },
   { id: "2", title: "Full Stack Developer", company: "StartupXYZ", description: "Join our fast-growing startup..." },
   { id: "3", title: "React Developer", company: "Digital Agency", description: "Creative agency seeking talented developer..." }
+];
+
+// Cover Letter Tone Options
+export interface ToneOption {
+  value: string;
+  label: string;
+  description: string;
+}
+
+export const toneOptions: ToneOption[] = [
+  { value: "professional", label: "Professional", description: "Formal and business-like" },
+  { value: "enthusiastic", label: "Enthusiastic", description: "Passionate and energetic" },
+  { value: "confident", label: "Confident", description: "Strong and assertive" },
+  { value: "creative", label: "Creative", description: "Unique and innovative" }
 ];
 
 // Interview Prep Types

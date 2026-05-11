@@ -80,10 +80,10 @@ export default function GenerateCVScreen() {
           ]}
           onPress={() => setActiveTab('customize')}
         >
-          <Ionicons 
-            name="brush-outline" 
-            size={16} 
-            color={activeTab === 'customize' ? colors.cardForeground : colors.mutedForeground} 
+          <Ionicons
+            name="brush-outline"
+            size={16}
+            color={activeTab === 'customize' ? colors.cardForeground : colors.mutedForeground}
           />
           <Text style={[
             styles.tabText,
@@ -101,10 +101,10 @@ export default function GenerateCVScreen() {
           onPress={() => isGenerated && setActiveTab('preview')}
           disabled={!isGenerated}
         >
-          <Ionicons 
-            name="eye-outline" 
-            size={16} 
-            color={activeTab === 'preview' && isGenerated ? colors.cardForeground : colors.mutedForeground} 
+          <Ionicons
+            name="eye-outline"
+            size={16}
+            color={activeTab === 'preview' && isGenerated ? colors.cardForeground : colors.mutedForeground}
           />
           <Text style={[
             styles.tabText,
@@ -115,7 +115,7 @@ export default function GenerateCVScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
@@ -175,10 +175,10 @@ export default function GenerateCVScreen() {
                     </Badge>
                   </View>
 
-                  <TouchableOpacity 
-                    style={[styles.selectTrigger, { 
+                  <TouchableOpacity
+                    style={[styles.selectTrigger, {
                       backgroundColor: colors.card,
-                      borderColor: colors.border 
+                      borderColor: colors.border
                     }]}
                     onPress={() => setShowJobPicker(!showJobPicker)}
                   >
@@ -186,17 +186,17 @@ export default function GenerateCVScreen() {
                       styles.selectText,
                       { color: selectedJob ? colors.cardForeground : colors.mutedForeground }
                     ]}>
-                      {selectedJob 
-                        ? selectedJob === "none" 
+                      {selectedJob
+                        ? selectedJob === "none"
                           ? "General CV (no specific job)"
                           : `${selectedJobData?.title} - ${selectedJobData?.company}`
                         : "Select a job or leave blank for general CV"
                       }
                     </Text>
-                    <Ionicons 
-                      name={showJobPicker ? "chevron-up" : "chevron-down"} 
-                      size={20} 
-                      color={colors.mutedForeground} 
+                    <Ionicons
+                      name={showJobPicker ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color={colors.mutedForeground}
                     />
                   </TouchableOpacity>
 
@@ -234,7 +234,7 @@ export default function GenerateCVScreen() {
                   )}
 
                   {selectedJob && selectedJob !== "none" && (
-                    <View style={[styles.aiOptimization, { 
+                    <View style={[styles.aiOptimization, {
                       backgroundColor: colors.primary + '0D',
                       borderColor: colors.primary + '33'
                     }]}>
@@ -288,7 +288,7 @@ export default function GenerateCVScreen() {
                   </View>
                   <Text style={[styles.profileNote, { color: colors.mutedForeground }]}>
                     Data from your profile. You can edit in{' '}
-                    <Text 
+                    <Text
                       style={[styles.profileLink, { color: colors.primary }]}
                       onPress={() => router.push('/(jobseeker)/profile')}
                     >

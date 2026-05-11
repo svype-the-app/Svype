@@ -46,9 +46,8 @@ export default function JobSeekerOnboardingScreen() {
         setTotalFields(start.total_fields);
         setCompletedFields(start.completed_fields);
 
-        if (start.is_complete) {
-          const route = start.next_route || '/(jobseeker)/profile/profile-preview?mode=edit';
-          setTimeout(() => router.push(route as any), 1200);
+        if (start.is_complete && start.next_route) {
+          setTimeout(() => router.replace(start.next_route as any), 1200);
         }
       } catch (error: any) {
         setMessages([
@@ -99,10 +98,9 @@ export default function JobSeekerOnboardingScreen() {
       setTotalFields(result.total_fields);
       setCompletedFields(result.completed_fields);
 
-      if (result.is_complete) {
-        const route = result.next_route || '/(jobseeker)/profile/profile-preview?mode=edit';
+      if (result.is_complete && result.next_route) {
         setTimeout(() => {
-          router.push(route as any);
+          router.replace(result.next_route as any);
         }, 1300);
       }
     } catch (error: any) {

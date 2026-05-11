@@ -25,7 +25,7 @@ export default function GenerateCoverLetterScreen() {
     setIsGenerating(true);
     // Simulate AI generation
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
+
     const selectedJobData = mockJobOptions.find(j => j.id === selectedJob);
     const letter = `Dear Hiring Manager,
 
@@ -86,7 +86,7 @@ John Doe`;
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
@@ -111,10 +111,10 @@ John Doe`;
                 </Badge>
               </View>
 
-              <TouchableOpacity 
-                style={[styles.selectTrigger, { 
+              <TouchableOpacity
+                style={[styles.selectTrigger, {
                   backgroundColor: colors.card,
-                  borderColor: colors.border 
+                  borderColor: colors.border
                 }]}
                 onPress={() => setShowJobPicker(!showJobPicker)}
               >
@@ -122,15 +122,15 @@ John Doe`;
                   styles.selectText,
                   { color: selectedJob ? colors.cardForeground : colors.mutedForeground }
                 ]}>
-                  {selectedJob 
+                  {selectedJob
                     ? mockJobOptions.find(j => j.id === selectedJob)?.title
                     : "Select a job to generate cover letter"
                   }
                 </Text>
-                <Ionicons 
-                  name={showJobPicker ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color={colors.mutedForeground} 
+                <Ionicons
+                  name={showJobPicker ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={colors.mutedForeground}
                 />
               </TouchableOpacity>
 
@@ -257,9 +257,9 @@ John Doe`;
                     </Badge>
                   </View>
 
-                  <View style={[styles.letterContent, { 
+                  <View style={[styles.letterContent, {
                     backgroundColor: colorScheme === 'dark' ? colors.muted + '40' : '#fff',
-                    borderColor: colors.border 
+                    borderColor: colors.border
                   }]}>
                     <Text style={[styles.letterText, { color: colors.cardForeground }]}>
                       {generatedLetter}
