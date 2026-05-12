@@ -3,7 +3,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useChatUnread } from '@/lib/chat-unread-context';
 import { aiOnboardingApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -25,6 +25,7 @@ interface Message {
 
 export default function AIChatScreen() {
   const router = useRouter();
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const scrollViewRef = useRef<ScrollView>(null);
@@ -66,6 +67,30 @@ export default function AIChatScreen() {
 
         if (start.is_complete && start.next_route) {
           setTimeout(() => router.replace(start.next_route as any), 1200);
+          return;
+        }
+
+        // cv_incomplete entry: silently send a trigger message so the AI
+        // explains what is still needed and resumes collection naturally.
+        if (reason === 'cv_incomplete' && start.session_id) {
+          try {
+            const triggerResult = await aiOnboardingApi.sendMessage(
+              start.session_id,
+              'I tried to generate my CV',
+            );
+            // Only show the bot reply — do NOT render the user trigger bubble
+            setMessages((prev) => [
+              ...prev,
+              { id: prev.length, type: 'bot', content: triggerResult.reply },
+            ]);
+            setTotalFields(triggerResult.total_fields);
+            setCompletedFields(triggerResult.completed_fields);
+            if (triggerResult.is_complete && triggerResult.next_route) {
+              setTimeout(() => router.replace(triggerResult.next_route as any), 1300);
+            }
+          } catch {
+            // Non-fatal — user can still chat normally
+          }
         }
       } catch (error: any) {
         setMessages([

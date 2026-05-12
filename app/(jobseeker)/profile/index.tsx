@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { applicationsApi, authApi, ProfileCompletion, resolveMediaUrl } from '@/services/api';
+import { cvApi } from '@/services/cv';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -343,7 +344,19 @@ export default function ProfileScreen() {
               <MenuItem
                 icon={<Ionicons name="document-text-outline" size={20} color={colors.primary} />}
                 label="Generate CV"
-                onPress={() => router.push('/(jobseeker)/ai-tools/generate-cv')}
+                onPress={async () => {
+                  try {
+                    const check = await cvApi.checkCvReady();
+                    if (check.cv_ready) {
+                      router.push('/(jobseeker)/ai-tools/generate-cv');
+                    } else {
+                      router.push('/(jobseeker)/chat?reason=cv_incomplete' as any);
+                    }
+                  } catch {
+                    // Network error — navigate to generate-cv anyway; it will handle errors
+                    router.push('/(jobseeker)/ai-tools/generate-cv');
+                  }
+                }}
                 colors={colors}
               />
               <MenuItem

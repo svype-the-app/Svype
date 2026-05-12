@@ -11,4 +11,6 @@ export { aiChatApi } from './ai-chat';
 export type { CareerStartResponse } from './ai-chat';
 export { aiOnboardingApi } from './ai-onboarding';
 export type { OnboardingStartResponse, OnboardingMessageResponse } from './ai-onboarding';
+export { cvApi } from './cv';
+export type { CvTemplate, CvReadyResponse, CvGenerateResponse, CvSections } from './cv';
 export { getRouteForUserState } from './routing';
