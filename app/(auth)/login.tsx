@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Colors } from '@/constants/theme';
-import { authApi, getRouteForUserState } from '@/services/api';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -31,9 +31,13 @@ export default function LoginScreen() {
     try {
       // Call login API
       const response = await authApi.login(email, password);
-      
-      // Get the appropriate route based on user's state
-      const route = getRouteForUserState(response.user);
+
+      // Always land on the role's home screen after login (swipe for jobseekers,
+      // dashboard for companies) — bypass the user_state-based routing so
+      // returning users go straight to their main feed.
+      const route = response.user.user_type === 'company'
+        ? '/(company)/dashboard'
+        : '/(jobseeker)/swipe';
       router.replace(route as any);
     } catch (error: any) {
       // Handle errors
