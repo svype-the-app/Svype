@@ -2,7 +2,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
-import { Application, applicationsApi } from '@/services/api';
+import { useChatUnread } from '@/lib/chat-unread-context';
+import { Application, aiChatApi, applicationsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -20,13 +21,26 @@ export default function DashboardScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { setHasUnreadAiMsg } = useChatUnread();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
 
   useEffect(() => {
     loadApplications();
+    triggerAiWelcome();
   }, []);
+
+  const triggerAiWelcome = async () => {
+    try {
+      const result = await aiChatApi.careerStart();
+      if (!result.already_started && result.new_message) {
+        setHasUnreadAiMsg(true);
+      }
+    } catch {
+      // Non-critical — silently ignore if AI welcome fails
+    }
+  };
 
   const ACTIVE_STATUSES = ['applied', 'shortlisted', 'interview', 'offered'];
   const CLOSED_STATUSES = ['rejected', 'withdrawn'];

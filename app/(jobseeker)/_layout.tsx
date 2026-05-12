@@ -1,10 +1,36 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View } from 'react-native';
 
-export default function JobSeekerLayout() {
+function ChatTabIcon({ color, focused }: { color: string; focused: boolean }) {
+  const { hasUnreadAiMsg } = useChatUnread();
+  return (
+    <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={hasUnreadAiMsg ? '#7c3aed' : color} />
+      {hasUnreadAiMsg && !focused && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 9,
+            height: 9,
+            borderRadius: 5,
+            backgroundColor: '#7c3aed',
+            borderWidth: 1.5,
+            borderColor: '#ffffff',
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+function JobSeekerTabs() {
   const colorScheme = useColorScheme();
 
   return (
@@ -44,7 +70,7 @@ export default function JobSeekerLayout() {
           title: 'AI Chat',
           href: '/chat',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={color} />
+            <ChatTabIcon color={color} focused={focused} />
           ),
         }}
       />
@@ -66,5 +92,13 @@ export default function JobSeekerLayout() {
       <Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="+not-found" options={{ href: null }} />
     </Tabs>
+  );
+}
+
+export default function JobSeekerLayout() {
+  return (
+    <ChatUnreadProvider>
+      <JobSeekerTabs />
+    </ChatUnreadProvider>
   );
 }

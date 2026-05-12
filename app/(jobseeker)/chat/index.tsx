@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Colors } from '@/constants/theme';
+import { useChatUnread } from '@/lib/chat-unread-context';
 import { aiChatApi, AIChatSession } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -38,6 +39,7 @@ export default function AIChatScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { setHasUnreadAiMsg } = useChatUnread();
   const [sessions, setSessions] = useState<AIChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,6 +47,11 @@ export default function AIChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Clear the nav badge as soon as the user opens the chat screen.
+  useEffect(() => {
+    setHasUnreadAiMsg(false);
+  }, []);
 
   const scrollToBottom = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
