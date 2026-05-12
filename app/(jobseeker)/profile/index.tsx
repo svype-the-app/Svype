@@ -200,37 +200,6 @@ export default function ProfileScreen() {
           </Badge>
         </View>
 
-        {/* Continue AI Onboarding Chat */}
-        <TouchableOpacity
-          onPress={() => router.push('/(onboarding)/job-seeker-onboarding' as any)}
-          activeOpacity={0.85}
-          style={styles.completionTapTarget}
-        >
-          <Card
-            style={[
-              styles.completionCard,
-              {
-                borderWidth: 1,
-                borderColor: colors.primary + '55',
-                backgroundColor: colors.primary + '0D',
-              },
-            ]}
-          >
-            <CardContent style={styles.completionContent}>
-              <View style={styles.completionHeader}>
-                <View style={styles.completionTitleRow}>
-                  <Ionicons name="chatbubbles" size={20} color={colors.primary} />
-                  <Text style={[styles.completionTitle, { color: colors.foreground }]}>Chat with AI</Text>
-                </View>
-                <Ionicons name="chevron-forward-circle" size={22} color={colors.primary} />
-              </View>
-              <Text style={[styles.completionHint, { color: colors.mutedForeground }]}>
-                Tell our AI more about yourself — past roles, preferences, what you're looking for — so we can find better matches.
-              </Text>
-            </CardContent>
-          </Card>
-        </TouchableOpacity>
-
         {/* Profile Completion Card */}
         {completionPercentage < 100 && (
           <TouchableOpacity
