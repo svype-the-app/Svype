@@ -14,3 +14,5 @@ export type { OnboardingStartResponse, OnboardingMessageResponse } from './ai-on
 export { cvApi } from './cv';
 export type { CvTemplate, CvReadyResponse, CvGenerateResponse, CvSections } from './cv';
 export { getRouteForUserState } from './routing';
+export { githubApi } from './github';
+export type { GitHubConnectResult, GitHubRefreshResult } from './github';

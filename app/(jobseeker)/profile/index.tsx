@@ -382,6 +382,12 @@ export default function ProfileScreen() {
                 label="Saved Jobs"
                 onPress={() => router.push('/(jobseeker)/saved')}
                 colors={colors}
+              />
+              <MenuItem
+                icon={<Ionicons name="logo-github" size={20} color={colors.foreground} />}
+                label="Connect GitHub"
+                onPress={() => router.push('/(jobseeker)/github-connect')}
+                colors={colors}
                 isLast
               />
             </View>

@@ -55,10 +55,24 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuthLogin = (provider: string) => {
-    // For prototype: Simulate OAuth login
-    console.log(`OAuth login with ${provider}`);
-    Alert.alert('Coming Soon', `${provider} login will be available soon!`);
+  const handleGithubLogin = async () => {
+    setIsLoading(true);
+    try {
+      const result = await authApi.loginWithGithub();
+
+      if (result.is_new || result.user_state === 'new') {
+        router.replace('/(onboarding)/onboarding-chat' as any);
+      } else {
+        const route = result.user_type === 'company'
+          ? '/(company)/dashboard'
+          : '/(jobseeker)/swipe';
+        router.replace(route as any);
+      }
+    } catch (error: any) {
+      Alert.alert('GitHub Login Failed', error.message || 'Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,8 +111,9 @@ export default function LoginScreen() {
               </Button>
               <Button
                 variant="outline"
-                onPress={() => handleOAuthLogin('github')}
+                onPress={handleGithubLogin}
                 style={styles.oauthButton}
+                disabled={isLoading}
               >
                 <Ionicons name="logo-github" size={16} color={colors.foreground} />
                 <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>GitHub</Text>

@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { apiClient, API_BASE_URL, REQUEST_TIMEOUT_MS, TOKEN_KEY, USER_KEY } from './client';
 import type { AuthResponse, User, UserState } from './types';
 
@@ -73,6 +75,52 @@ export const authApi = {
     apiClient.setToken(response.token);
     
     return response;
+  },
+
+  async loginWithGithub(): Promise<{
+    token: string;
+    user_type: string;
+    user_state: string;
+    is_new: boolean;
+    name: string;
+  }> {
+    const initUrl = `${API_BASE_URL}/auth/github/`;
+    const redirectScheme = 'svype://';
+
+    const result = await WebBrowser.openAuthSessionAsync(initUrl, redirectScheme);
+
+    if (result.type !== 'success') {
+      throw new Error('GitHub login was cancelled');
+    }
+
+    const parsed = Linking.parse(result.url);
+    const p = (parsed.queryParams ?? {}) as Record<string, string>;
+
+    if (p.error) {
+      throw new Error(`GitHub login failed: ${p.error}`);
+    }
+
+    const token = p.token;
+    const user_type = p.user_type ?? 'jobseeker';
+    const user_state = p.user_state ?? 'new';
+    const is_new = p.is_new === 'true';
+    const name = p.name ?? '';
+
+    if (!token) {
+      throw new Error('GitHub login failed: no token returned');
+    }
+
+    const userData = { user_type, user_state, first_name: name };
+
+    try {
+      await AsyncStorage.setItem(TOKEN_KEY, token);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+    } catch (storageError) {
+      console.warn('Failed to save GitHub auth data to storage:', storageError);
+    }
+    apiClient.setToken(token);
+
+    return { token, user_type, user_state, is_new, name };
   },
 
   async logout(): Promise<void> {
