@@ -128,8 +128,14 @@ export default function AIChatScreen() {
       setTotalFields(result.total_fields);
       setCompletedFields(result.completed_fields);
 
-      if (result.is_complete && result.next_route) {
-        setTimeout(() => router.replace(result.next_route as any), 1300);
+      if (result.next_route) {
+        setTimeout(() => {
+          if (result.is_complete) {
+            router.replace(result.next_route as any);
+          } else {
+            router.push(result.next_route as any);
+          }
+        }, 1300);
       }
     } catch (error: any) {
       setMessages((prev) => [
