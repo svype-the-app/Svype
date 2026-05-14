@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -44,6 +45,15 @@ export default function AIChatScreen() {
   // Clear nav badge as soon as this tab is opened.
   useEffect(() => {
     setHasUnreadAiMsg(false);
+  }, []);
+
+  // Scroll to bottom whenever the keyboard shows (Android pan mode doesn't
+  // auto-scroll the ScrollView content, so we do it manually).
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => sub.remove();
   }, []);
 
   const toUiMessages = (
@@ -85,9 +95,32 @@ export default function AIChatScreen() {
             ]);
             setTotalFields(triggerResult.total_fields);
             setCompletedFields(triggerResult.completed_fields);
-            if (triggerResult.is_complete && triggerResult.next_route) {
-              setTimeout(() => router.replace(triggerResult.next_route as any), 1300);
+            if (triggerResult.next_route) {
+              if (triggerResult.is_complete) {
+                setTimeout(() => router.replace(triggerResult.next_route as any), 1300);
+              } else {
+                setTimeout(() => router.push(triggerResult.next_route as any), 1300);
+              }
             }
+          } catch {
+            // Non-fatal — user can still chat normally
+          }
+        }
+
+        // github_connected entry: silently trigger so AI confirms imported skills
+        if (reason === 'github_connected' && start.session_id) {
+          try {
+            const triggerResult = await aiOnboardingApi.sendMessage(
+              start.session_id,
+              '__github_connected__',
+            );
+            // Only show the bot reply — do NOT render the user trigger bubble
+            setMessages((prev) => [
+              ...prev,
+              { id: prev.length, type: 'bot', content: triggerResult.reply },
+            ]);
+            setTotalFields(triggerResult.total_fields);
+            setCompletedFields(triggerResult.completed_fields);
           } catch {
             // Non-fatal — user can still chat normally
           }
@@ -128,8 +161,13 @@ export default function AIChatScreen() {
       setTotalFields(result.total_fields);
       setCompletedFields(result.completed_fields);
 
-      if (result.is_complete && result.next_route) {
-        setTimeout(() => router.replace(result.next_route as any), 1300);
+      if (result.next_route) {
+        if (result.is_complete) {
+          setTimeout(() => router.replace(result.next_route as any), 1300);
+        } else {
+          // Mid-session navigation (e.g. GitHub connect) — push so user can return
+          setTimeout(() => router.push(result.next_route as any), 1300);
+        }
       }
     } catch (error: any) {
       setMessages((prev) => [
@@ -149,7 +187,7 @@ export default function AIChatScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={0}
       >
         {/* Header */}

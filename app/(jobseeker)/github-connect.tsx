@@ -51,14 +51,8 @@ export default function GitHubConnectScreen() {
     handledRef.current = true;
 
     if (result.success) {
-      const count = result.skills_added?.length ?? 0;
-      Alert.alert(
-        'GitHub Connected!',
-        count > 0
-          ? `Added ${count} skill${count === 1 ? '' : 's'} from @${result.github_username}.`
-          : `Connected @${result.github_username}. No new skills found.`,
-      );
-      setTimeout(() => router.back(), 1500);
+      // Navigate to chat — AI will confirm imported skills there
+      router.replace('/(jobseeker)/chat?reason=github_connected' as any);
     } else {
       Alert.alert(
         'GitHub Error',
