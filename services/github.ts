@@ -13,8 +13,9 @@ export interface GitHubRefreshResult {
 }
 
 export const githubApi = {
-  async getAuthUrl(): Promise<{ auth_url: string }> {
-    return apiClient.get('/auth/github/initiate/');
+  async getAuthUrl(redirectUrl?: string): Promise<{ auth_url: string }> {
+    const qs = redirectUrl ? `?redirect_url=${encodeURIComponent(redirectUrl)}` : '';
+    return apiClient.get(`/auth/github/initiate/${qs}`);
   },
 
   async disconnect(): Promise<{ ok: boolean }> {
