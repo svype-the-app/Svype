@@ -90,6 +90,7 @@ function JobSeekerTabs() {
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="ai-tools" options={{ href: null }} />
       <Tabs.Screen name="account" options={{ href: null }} />
+      <Tabs.Screen name="github-connect" options={{ href: null }} />
       <Tabs.Screen name="+not-found" options={{ href: null }} />
     </Tabs>
   );

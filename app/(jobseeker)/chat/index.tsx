@@ -162,12 +162,13 @@ export default function AIChatScreen() {
       setCompletedFields(result.completed_fields);
 
       if (result.next_route) {
-        if (result.is_complete) {
-          setTimeout(() => router.replace(result.next_route as any), 1300);
-        } else {
-          // Mid-session navigation (e.g. GitHub connect) — push so user can return
-          setTimeout(() => router.push(result.next_route as any), 1300);
-        }
+        setTimeout(() => {
+          if (result.is_complete) {
+            router.replace(result.next_route as any);
+          } else {
+            router.push(result.next_route as any);
+          }
+        }, 1300);
       }
     } catch (error: any) {
       setMessages((prev) => [
