@@ -68,6 +68,8 @@ export interface JobSeekerProfile {
   remote_preference: boolean;
   hybrid_preference: boolean;
   onsite_preference: boolean;
+  ai_checkin_frequency?: 'every_5_mins' | 'daily' | 'every_3_days' | 'weekly' | 'never';
+  last_ai_checkin_at?: string | null;
   completion?: ProfileCompletion;
 }
 

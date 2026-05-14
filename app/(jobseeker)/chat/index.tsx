@@ -3,8 +3,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useChatUnread } from '@/lib/chat-unread-context';
 import { aiOnboardingApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -24,6 +25,15 @@ interface Message {
   content: string;
 }
 
+const toUiMessages = (
+  apiMessages: { role: 'user' | 'assistant'; content: string }[],
+): Message[] =>
+  apiMessages.map((m, index) => ({
+    id: index,
+    type: m.role === 'assistant' ? 'bot' : 'user',
+    content: m.content,
+  }));
+
 export default function AIChatScreen() {
   const router = useRouter();
   const { reason } = useLocalSearchParams<{ reason?: string }>();
@@ -42,10 +52,27 @@ export default function AIChatScreen() {
 
   const progress = Math.max(0, Math.min(100, (completedFields / Math.max(totalFields, 1)) * 100));
 
-  // Clear nav badge as soon as this tab is opened.
-  useEffect(() => {
-    setHasUnreadAiMsg(false);
-  }, []);
+  // Every time the chat tab gains focus:
+  //   1. Clear the nav badge (the user is now reading).
+  //   2. If the session is already loaded, refresh its messages so any
+  //      proactive check-ins added by the poller while the user was on
+  //      another tab appear immediately. We skip this on first focus
+  //      (sessionId is still null) because the main init effect below
+  //      handles the initial load.
+  useFocusEffect(
+    useCallback(() => {
+      setHasUnreadAiMsg(false);
+      if (sessionId === null) return;
+      let cancelled = false;
+      aiOnboardingApi.startSession().then((start) => {
+        if (cancelled) return;
+        setMessages(toUiMessages(start.messages));
+        setTotalFields(start.total_fields);
+        setCompletedFields(start.completed_fields);
+      }).catch(() => {});
+      return () => { cancelled = true; };
+    }, [sessionId, setHasUnreadAiMsg])
+  );
 
   // Scroll to bottom whenever the keyboard shows (Android pan mode doesn't
   // auto-scroll the ScrollView content, so we do it manually).
@@ -55,15 +82,6 @@ export default function AIChatScreen() {
     });
     return () => sub.remove();
   }, []);
-
-  const toUiMessages = (
-    apiMessages: { role: 'user' | 'assistant'; content: string }[],
-  ): Message[] =>
-    apiMessages.map((m, index) => ({
-      id: index,
-      type: m.role === 'assistant' ? 'bot' : 'user',
-      content: m.content,
-    }));
 
   useEffect(() => {
     const init = async () => {

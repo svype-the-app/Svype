@@ -8,7 +8,12 @@ export { companyApi } from './company';
 export { applicationsApi } from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';
-export type { CareerStartResponse } from './ai-chat';
+export type {
+  CareerStartResponse,
+  CheckInStatusResponse,
+  CheckInSettingsResponse,
+  AiCheckInFrequency,
+} from './ai-chat';
 export { aiOnboardingApi } from './ai-onboarding';
 export type { OnboardingStartResponse, OnboardingMessageResponse } from './ai-onboarding';
 export { cvApi } from './cv';

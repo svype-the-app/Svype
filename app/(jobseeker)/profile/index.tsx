@@ -417,6 +417,13 @@ export default function ProfileScreen() {
                 onPress={() => router.push('/(jobseeker)/profile/preferences')}
                 colors={colors}
               />
+              <MenuItem
+                icon={<Ionicons name="sparkles-outline" size={20} color="#a855f7" />}
+                label="AI Assistant"
+                subtitle="Control how often AI contacts you"
+                onPress={() => router.push('/(account)/ai-settings' as any)}
+                colors={colors}
+              />
               <TouchableOpacity
                 onPress={handleSignOut}
                 style={[styles.menuItem, styles.signOutItem, { borderTopColor: colors.border }]}
@@ -461,12 +468,13 @@ function ProfileSection({ icon, title, content, colors }: ProfileSectionProps) {
 interface MenuItemProps {
   icon: React.ReactNode;
   label: string;
+  subtitle?: string;
   onPress: () => void;
   colors: any;
   isLast?: boolean;
 }
 
-function MenuItem({ icon, label, onPress, colors, isLast }: MenuItemProps) {
+function MenuItem({ icon, label, subtitle, onPress, colors, isLast }: MenuItemProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -474,7 +482,14 @@ function MenuItem({ icon, label, onPress, colors, isLast }: MenuItemProps) {
     >
       <View style={styles.menuItemContent}>
         {icon}
-        <Text style={[styles.menuItemLabel, { color: colors.foreground }]}>{label}</Text>
+        <View style={styles.menuItemTextBlock}>
+          <Text style={[styles.menuItemLabel, { color: colors.foreground }]}>{label}</Text>
+          {subtitle ? (
+            <Text style={[styles.menuItemSubtitle, { color: colors.mutedForeground }]}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
       </View>
       <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
     </TouchableOpacity>
@@ -698,10 +713,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+  },
+  menuItemTextBlock: {
+    flex: 1,
   },
   menuItemLabel: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  menuItemSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
   signOutItem: {
     borderTopWidth: 1,

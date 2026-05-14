@@ -1,10 +1,54 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
+import { aiChatApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { View } from 'react-native';
+import React, { useEffect } from 'react';
+import { AppState, View } from 'react-native';
+
+// How often to re-check the AI check-in cadence while the user is inside
+// the jobseeker section. 60s is short enough that an 'every_5_mins' test
+// cadence reliably surfaces a new badge within the window, and infrequent
+// enough that idle users don't burn battery on polling.
+const CHECKIN_POLL_INTERVAL_MS = 60_000;
+
+function CheckInPoller() {
+  const { setHasUnreadAiMsg } = useChatUnread();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const status = await aiChatApi.checkInStatus();
+        if (!cancelled && status.due) {
+          setHasUnreadAiMsg(true);
+        }
+      } catch {
+        // Silently ignore — not worth surfacing a network blip to the user.
+      }
+    };
+
+    // Initial check the moment the user enters the jobseeker section.
+    poll();
+    // Periodic re-check so a newly-due check-in lights the badge without
+    // requiring the user to manually navigate tabs.
+    const intervalId = setInterval(poll, CHECKIN_POLL_INTERVAL_MS);
+    // Re-check when the app comes back to the foreground from background.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') poll();
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      appStateSub.remove();
+    };
+  }, [setHasUnreadAiMsg]);
+
+  return null;
+}
 
 function ChatTabIcon({ color, focused }: { color: string; focused: boolean }) {
   const { hasUnreadAiMsg } = useChatUnread();
@@ -99,6 +143,7 @@ function JobSeekerTabs() {
 export default function JobSeekerLayout() {
   return (
     <ChatUnreadProvider>
+      <CheckInPoller />
       <JobSeekerTabs />
     </ChatUnreadProvider>
   );
