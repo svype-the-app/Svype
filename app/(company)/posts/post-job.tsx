@@ -171,6 +171,24 @@ export default function PostJobScreen() {
         status: 'active',
       })
 
+      // Clear the draft stores so the form is empty next time the user opens it.
+      resetPostJobDraft()
+      resetPostJobQuizDraft()
+      // Clear local state immediately so the form looks empty when the alert closes.
+      setFormData({
+        title: '',
+        location: '',
+        type: 'Full-time',
+        salaryMin: '',
+        salaryMax: '',
+        description: '',
+      })
+      setRequirements([''])
+      setEnablePreScreening(false)
+      setEnableAIInterview(false)
+      setQuizQuestions([])
+      setQuizConfirmed(false)
+
       Alert.alert('Success', 'Job posted successfully!', [
         {
           text: 'OK',
@@ -379,7 +397,7 @@ export default function PostJobScreen() {
                     </Text>
                   </Button>
                   <Button
-                    onPress={() => Alert.alert('Coming Soon', 'AI quiz question generation will be available soon.')}
+                    onPress={() => router.push('posts/ai-quiz-generator' as any)}
                     style={[styles.subButtonSecondary, { borderColor: colors.primary }]}
                   >
                     <Ionicons name="sparkles-outline" size={16} color={colors.primary} />

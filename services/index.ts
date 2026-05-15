@@ -17,6 +17,15 @@ export type {
 } from './ai-chat';
 export { aiOnboardingApi } from './ai-onboarding';
 export type { OnboardingStartResponse, OnboardingMessageResponse } from './ai-onboarding';
+export { aiQuizApi } from './ai-quiz';
+export type {
+  AIQuizGenerateParams,
+  AIQuizGenerateResponse,
+  AIQuizGeneratedQuestion,
+  AIQuizQuestionType,
+  AIQuizQuestionTypesOption,
+  AIQuizDifficulty,
+} from './ai-quiz';
 export { cvApi } from './cv';
 export type { CvTemplate, CvReadyResponse, CvGenerateResponse, CvSections } from './cv';
 export { getRouteForUserState } from './routing';
