@@ -85,15 +85,39 @@ export const authApi = {
     name: string;
   }> {
     const initUrl = `${API_BASE_URL}/auth/github/`;
-    const redirectScheme = 'svype://';
 
-    const result = await WebBrowser.openAuthSessionAsync(initUrl, redirectScheme);
+    // Use openBrowserAsync + deep-link listener so the OAuth browser
+    // survives the user tabbing out for a 2FA code.
+    let resolveCallback: (url: string | null) => void = () => {};
+    const callbackPromise = new Promise<string | null>((resolve) => {
+      resolveCallback = resolve;
+    });
 
-    if (result.type !== 'success') {
+    const sub = Linking.addEventListener('url', (event) => {
+      // Backend redirects to svype://auth/github?token=...&user_type=...
+      if (!event.url.includes('auth/github')) return;
+      resolveCallback(event.url);
+      WebBrowser.dismissBrowser();
+    });
+
+    let captured: string | null = null;
+    try {
+      const browserPromise = WebBrowser.openBrowserAsync(initUrl, {
+        dismissButtonStyle: 'close',
+        enableBarCollapsing: true,
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+      }).then(() => null);
+
+      captured = await Promise.race([callbackPromise, browserPromise]);
+    } finally {
+      sub.remove();
+    }
+
+    if (!captured) {
       throw new Error('GitHub login was cancelled');
     }
 
-    const parsed = Linking.parse(result.url);
+    const parsed = Linking.parse(captured);
     const p = (parsed.queryParams ?? {}) as Record<string, string>;
 
     if (p.error) {

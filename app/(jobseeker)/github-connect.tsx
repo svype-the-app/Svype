@@ -7,8 +7,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,58 +24,37 @@ export default function GitHubConnectScreen() {
   const [connecting, setConnecting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ username: string; skills: string[] } | null>(null);
 
   const handleConnectPress = async () => {
     setConnecting(true);
     setError(null);
     setStatusMessage('Contacting server…');
+
     try {
       // Expo Go → exp://192.168.x.x:8081/--/github-callback
       // Custom dev client / production build → svype://github-callback
       const redirectUrl = Linking.createURL('github-callback');
-
-      // Tell the backend where to bounce us back to — the scheme differs
-      // between Expo Go and a real build, so we can't hard-code it server-side.
       const { auth_url } = await githubApi.getAuthUrl(redirectUrl);
-
       setStatusMessage('Opening GitHub…');
-      // prefersEphemeralWebBrowserSession: isolate from system browser cookies
-      // so GitHub always shows the login screen instead of silently
-      // re-authorizing the existing session. iOS only — on Android the user
-      // can revoke at github.com/settings/applications to force re-login.
-      const authResult = await WebBrowser.openAuthSessionAsync(auth_url, redirectUrl, {
-        preferEphemeralSession: true,
+
+      // openBrowserAsync survives backgrounding so the user can pop out to
+      // an authenticator app for 2FA and come back. When the OAuth flow
+      // finishes, the backend redirects the browser to our deep-link URL,
+      // which Expo Router routes to app/github-callback.tsx — that's where
+      // the success / error UI lives, not here.
+      await WebBrowser.openBrowserAsync(auth_url, {
+        toolbarColor: colors.background,
+        controlsColor: colors.primary,
+        dismissButtonStyle: 'close',
+        enableBarCollapsing: true,
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
       });
-
-      if (authResult.type !== 'success' || !authResult.url) {
-        // 'cancel' or 'dismiss' — user closed the browser
-        setStatusMessage(null);
-        return;
-      }
-
-      const { queryParams } = Linking.parse(authResult.url);
-      if (queryParams?.success === 'true') {
-        const skillsRaw = (queryParams?.skills_added as string) ?? '';
-        const skills = skillsRaw ? skillsRaw.split(',').filter(Boolean) : [];
-        const username = (queryParams?.github_username as string) ?? '';
-        setStatusMessage(null);
-        setResult({ username, skills });
-      } else {
-        setStatusMessage(null);
-        const errMsg = (queryParams?.error as string) ?? 'Something went wrong.';
-        Alert.alert('GitHub Error', errMsg);
-      }
     } catch (err: any) {
-      setStatusMessage(null);
       setError(err?.message ?? 'Failed to start GitHub connection');
     } finally {
+      setStatusMessage(null);
       setConnecting(false);
     }
-  };
-
-  const handleContinueToChat = () => {
-    router.replace('/(jobseeker)/chat?reason=github_connected' as any);
   };
 
   const handleCancelInFlight = () => {
@@ -86,66 +63,6 @@ export default function GitHubConnectScreen() {
     setStatusMessage(null);
     setConnecting(false);
   };
-
-  if (result) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: colors.border ?? '#e5e7eb' }]}>
-          <View style={styles.cancelButton} />
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>GitHub Connected</Text>
-          <View style={styles.cancelButton} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.landing}>
-          <View style={[styles.iconCircle, { backgroundColor: colors.muted }]}>
-            <Ionicons name="checkmark-circle" size={56} color={colors.primary} />
-          </View>
-
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            {result.skills.length > 0 ? 'Skills extracted!' : 'GitHub connected'}
-          </Text>
-          {result.username ? (
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
-              Connected as @{result.username}
-            </Text>
-          ) : null}
-
-          {result.skills.length > 0 ? (
-            <>
-              <Text style={[styles.description, { color: colors.mutedForeground }]}>
-                We pulled these skills from your public repositories:
-              </Text>
-              <View style={styles.chipRow}>
-                {result.skills.map((skill) => (
-                  <View
-                    key={skill}
-                    style={[styles.chip, { backgroundColor: colors.muted, borderColor: colors.border ?? '#e5e7eb' }]}
-                  >
-                    <Text style={[styles.chipText, { color: colors.foreground }]}>{skill}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          ) : (
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
-              We didn't find any new skills to add — your profile already has everything we
-              detected from your repositories.
-            </Text>
-          )}
-
-          <TouchableOpacity
-            style={[styles.connectButton, { backgroundColor: colors.foreground }]}
-            onPress={handleContinueToChat}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.connectButtonText, { color: colors.background }]}>
-              Continue
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -166,7 +83,7 @@ export default function GitHubConnectScreen() {
           Import skills from GitHub
         </Text>
         <Text style={[styles.description, { color: colors.mutedForeground }]}>
-          We'll scan your public repositories and automatically extract your top programming
+          We&apos;ll scan your public repositories and automatically extract your top programming
           languages and technologies. This gives you a more accurate and complete skills profile.
         </Text>
 
@@ -217,7 +134,7 @@ export default function GitHubConnectScreen() {
 
         <TouchableOpacity onPress={() => router.back()} style={styles.skipButton}>
           <Text style={[styles.skipText, { color: colors.mutedForeground }]}>
-            I'll enter skills manually
+            I&apos;ll enter skills manually
           </Text>
         </TouchableOpacity>
       </View>
