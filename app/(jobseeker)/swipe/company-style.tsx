@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme'
 import { Job as ApiJob, jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
+import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import {
   Animated,
@@ -82,6 +83,7 @@ function mapApiJobToSwipeJob(job: ApiJob): SwipeJob {
 export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const router = useRouter()
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [jobs, setJobs] = useState<SwipeJob[]>([])
@@ -616,15 +618,15 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, styles.filterButton]}
-          onPress={() => {}}
+          style={styles.aiMatchButton}
+          onPress={() => {
+            if (!currentJob) return
+            router.push(
+              `/(jobseeker)/job/compatibility?jobId=${currentJob.id}` as any
+            )
+          }}
         >
-          <View style={styles.filterIconWrap}>
-            <Ionicons name="funnel" size={24} color="#fff" />
-            <View style={styles.filterSparkleBadge}>
-              <Ionicons name="sparkles" size={12} color="#fff" />
-            </View>
-          </View>
+          <Ionicons name="funnel" size={26} color="white" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -869,32 +871,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-  filterButton: {
-    backgroundColor: '#8b5cf6',
-    borderWidth: 0,
-    shadowColor: '#a855f7',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  filterIconWrap: {
-    position: 'relative',
+  aiMatchButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#7c3aed',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  filterSparkleBadge: {
-    position: 'absolute',
-    top: -7,
-    right: -9,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#c084fc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   swipeOverlay: {
     position: 'absolute',
