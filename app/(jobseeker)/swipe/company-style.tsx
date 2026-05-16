@@ -81,6 +81,26 @@ function mapApiJobToSwipeJob(job: ApiJob): SwipeJob {
   }
 }
 
+// Reject sync used to be a fire-and-forget call with an empty .catch.
+// Now that the swipe deck excludes jobs with a SwipeAction (bug #14),
+// missing that POST means the rejected job comes back on the next deck
+// fetch. Retry once after a 1s delay to survive transient network blips,
+// then log if it still fails so it's visible in dev logs / error tracking.
+const syncRejectInBackground = async (jobId: number): Promise<void> => {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await jobsApi.swipe(jobId, 'dislike')
+      return
+    } catch (err) {
+      if (attempt === 2) {
+        console.warn(`[swipe-sync] failed to sync reject for job ${jobId}:`, err)
+        return
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+}
+
 export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
@@ -170,9 +190,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         })
         return nextJobs
       })
-      jobsApi.swipe(swipedJob.id, 'dislike').catch(() => {
-        // Keep UI responsive even if background swipe sync fails.
-      })
+      syncRejectInBackground(swipedJob.id)
     }
 
     setShowUndoModal(false)
