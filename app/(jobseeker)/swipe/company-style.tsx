@@ -330,29 +330,16 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             skillMatch: JSON.stringify(result.skill_match),
           },
         } as any)
-      } else {
-        const coverNote = result.cover_letter
-          ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
-          : ''
-        Alert.alert(
-          'Application Submitted',
-          `Your application for ${approvedJob.title} has been sent.${coverNote}`,
-          [{ text: 'OK' }]
-        )
       }
+      // Silent success: the green-overlay-during-swipe + card-fly-off is
+      // enough confirmation. Cover letter info, when present, will live in
+      // the Applications tab — no blocking modal interrupts the swipe flow.
     } catch (err: any) {
       const msg = String(err?.message || '')
-      if (msg.toLowerCase().includes('already applied')) {
-        Alert.alert(
-          'Already Applied',
-          `You have already applied to ${approvedJob.title}.`,
-          [{ text: 'OK' }]
-        )
-      } else {
-        Alert.alert('Apply Failed', msg || 'Could not submit application.')
-        // We can't easily reinsert the card here because the animation
-        // callback may already have removed it. The error is surfaced.
-      }
+      // 'Already applied' is silently swallowed (bug #14 will filter these
+      // server-side; defensive guard for now). Real failures still surface.
+      if (msg.toLowerCase().includes('already applied')) return
+      Alert.alert('Apply Failed', msg || 'Could not submit application.')
     }
   }
 
