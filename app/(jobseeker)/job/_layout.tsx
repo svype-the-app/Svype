@@ -6,6 +6,7 @@ export default function JobLayout() {
       <Stack.Screen name="[id]" />
       <Stack.Screen name="pre-screening-quiz" />
       <Stack.Screen name="company" />
+      <Stack.Screen name="compatibility" />
     </Stack>
   );
 }

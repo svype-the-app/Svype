@@ -1,9 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { githubApi } from '@/services/github';
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,8 +11,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function GitHubConnectScreen() {
   const router = useRouter();
@@ -31,24 +27,22 @@ export default function GitHubConnectScreen() {
     setStatusMessage('Contacting server…');
 
     try {
-      // Expo Go → exp://192.168.x.x:8081/--/github-callback
-      // Custom dev client / production build → svype://github-callback
-      const redirectUrl = Linking.createURL('github-callback');
-      const { auth_url } = await githubApi.getAuthUrl(redirectUrl);
-      setStatusMessage('Opening GitHub…');
-
-      // openBrowserAsync survives backgrounding so the user can pop out to
-      // an authenticator app for 2FA and come back. When the OAuth flow
-      // finishes, the backend redirects the browser to our deep-link URL,
-      // which Expo Router routes to app/github-callback.tsx — that's where
-      // the success / error UI lives, not here.
-      await WebBrowser.openBrowserAsync(auth_url, {
-        toolbarColor: colors.background,
-        controlsColor: colors.primary,
-        dismissButtonStyle: 'close',
-        enableBarCollapsing: true,
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-      });
+      // The in-app WebView (see app/github-webview.tsx) handles the full
+      // OAuth flow internally:
+      //   - Renders github.com/login inside the app (fresh cookies — no
+      //     auto-login from system Safari/Chrome on either iOS or Android).
+      //   - Intercepts GitHub's redirect to our backend callback URL before
+      //     the browser navigates there, so the user never sees ngrok.
+      //   - POSTs code+state to /api/auth/github/exchange/ and routes to
+      //     /github-callback with the result on success/failure.
+      // We don't need a deep-link redirect URL anymore — the WebView is
+      // doing the round-trip in-process.
+      const { auth_url } = await githubApi.getAuthUrl();
+      setStatusMessage(null);
+      router.push({
+        pathname: '/github-webview',
+        params: { authUrl: auth_url },
+      } as any);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to start GitHub connection');
     } finally {

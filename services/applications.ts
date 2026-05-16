@@ -1,15 +1,108 @@
 import { apiClient } from './client';
 import type { Application } from './types';
 
+// ─── Types shared by apply / quiz / applicants endpoints ────────────────────
+export interface SkillMatch {
+  matched: boolean;
+  matched_skills: string[];
+  missing_skills: string[];
+  message: string;
+}
+
+export interface ApplyQuizQuestion {
+  id: number;
+  question: string;
+  question_type: 'multiple-choice' | 'text';
+  options: string[];
+  points: number;
+  order: number;
+}
+
+export interface ApplyQuiz {
+  id: number;
+  title: string;
+  explanation: string;
+  passing_score: number;
+  questions: ApplyQuizQuestion[];
+}
+
+export interface ApplyResponse {
+  application_id: number;
+  requires_quiz: boolean;
+  cover_letter?: string;
+  skill_match: SkillMatch;
+  quiz?: ApplyQuiz;
+}
+
+export interface Answer {
+  question_id: number;
+  selected_option?: number;
+  text_answer?: string;
+}
+
+export interface QuizFeedbackItem {
+  question_id: number;
+  feedback: string;
+}
+
+export interface QuizSubmitResponse {
+  score: number;
+  passed: boolean;
+  passing_score: number;
+  cover_letter: string;
+  feedback: QuizFeedbackItem[];
+}
+
+export interface ApplicantCardApplicant {
+  id: number;
+  full_name: string;
+  headline: string;
+  current_job_title: string;
+  skills: string[];
+  avatar_url: string | null;
+  email: string;
+  location: string;
+  total_years_experience: number | null;
+  about: string;
+}
+
+export interface ApplicantCard {
+  application_id: number;
+  status: string;
+  applied_at: string;
+  quiz_score: number | null;
+  cover_letter: string;
+  applicant: ApplicantCardApplicant;
+}
+
 export const applicationsApi = {
+  // Jobseeker — existing API kept for compatibility with legacy callers.
   async getApplications(): Promise<Application[]> {
     return apiClient.get<Application[]>('/applications/');
   },
 
-  async apply(jobId: number, coverLetter?: string): Promise<Application> {
-    return apiClient.post<Application>('/applications/', {
-      job: jobId,
-      cover_letter: coverLetter,
-    });
+  async apply(jobId: number): Promise<ApplyResponse> {
+    return apiClient.postAI<ApplyResponse>('/apply/', { job_id: jobId });
+  },
+
+  async submitQuiz(applicationId: number, answers: Answer[]): Promise<QuizSubmitResponse> {
+    return apiClient.postAI<QuizSubmitResponse>(
+      `/apply/${applicationId}/quiz/submit/`,
+      { answers },
+    );
+  },
+
+  async getApplicants(jobId: number): Promise<ApplicantCard[]> {
+    return apiClient.get<ApplicantCard[]>(`/jobs/${jobId}/applicants/`);
+  },
+
+  // Note: backend `update_status` is a DRF @action(methods=['POST']) — we POST
+  // here rather than PATCH despite the spec, because that's what the existing
+  // ApplicationViewSet exposes and we must not modify it.
+  async updateStatus(applicationId: number, status: string): Promise<void> {
+    await apiClient.post<unknown>(
+      `/applications/${applicationId}/update_status/`,
+      { status },
+    );
   },
 };

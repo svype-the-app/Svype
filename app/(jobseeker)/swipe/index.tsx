@@ -508,6 +508,16 @@ function LegacySwipeScreen() {
                     <Ionicons name="chevron-up" size={24} color={colors.foreground} />
                   </Pressable>
                   <Pressable
+                    style={styles.aiMatchButton}
+                    onPress={() =>
+                      router.push(
+                        `/(jobseeker)/job/compatibility?jobId=${currentJob.id}` as any
+                      )
+                    }
+                  >
+                    <Ionicons name="sparkles" size={28} color="white" />
+                  </Pressable>
+                  <Pressable
                     style={[styles.actionButton, { backgroundColor: '#10b981', borderWidth: 0 }]}
                     onPress={handleApply}
                   >
@@ -521,7 +531,7 @@ function LegacySwipeScreen() {
 
         {/* Swipe Hints */}
         <Text style={[styles.swipeInstructions, { color: colors.mutedForeground }]}>
-          ← Pass • ↑ Details • Apply →
+          ← Pass • ↑ Details • ✦ AI • Apply →
         </Text>
       </View>
 
@@ -969,6 +979,14 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
     borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiMatchButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#7c3aed',
     justifyContent: 'center',
     alignItems: 'center',
   },
