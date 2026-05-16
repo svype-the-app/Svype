@@ -3,11 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
-import { Application, getApplications } from '@/lib/mock-data';
+import { Application, applicationsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,22 +17,43 @@ import {
   View,
 } from 'react-native';
 
+// Backend statuses are lowercase: 'applied' | 'shortlisted' | 'interview' |
+// 'offered' | 'rejected' | 'withdrawn'. Helper used for both display + as a
+// stable internal key.
+const formatStatus = (s: string) =>
+  s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
 export default function ApplicationDetailScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
   const params = useLocalSearchParams();
   const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'notes'>('overview');
 
   useEffect(() => {
-    const appId = params.id as string;
-    const apps = getApplications();
-    const found = apps.find((app) => app.id === appId);
-    if (found) {
-      setApplication(found);
+    const appId = Number(params.id);
+    if (!Number.isFinite(appId)) {
+      setLoading(false);
+      return;
     }
+    applicationsApi
+      .getApplication(appId)
+      .then(setApplication)
+      .catch(() => setApplication(null))
+      .finally(() => setLoading(false));
   }, [params.id]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.notFoundContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!application) {
     return (
@@ -48,9 +70,12 @@ export default function ApplicationDetailScreen() {
     );
   }
 
-  const { job, applicationStatus, applied_at } = application;
+  const { job, status, applied_at } = application;
 
-  const formatSalary = (min: number, max: number) => {
+  const formatSalary = (min?: number, max?: number) => {
+    if (min == null && max == null) return 'Salary not specified';
+    if (min == null) return `Up to £${Math.round((max as number) / 1000)}k`;
+    if (max == null) return `From £${Math.round(min / 1000)}k`;
     return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
   };
 
@@ -62,45 +87,52 @@ export default function ApplicationDetailScreen() {
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'APPLIED':
+  const getStatusColor = (s: string) => {
+    switch (s.toLowerCase()) {
+      case 'applied':
         return '#3b82f6';
-      case 'SHORTLISTED':
+      case 'shortlisted':
         return '#a855f7';
-      case 'INTERVIEW':
+      case 'interview':
         return '#f59e0b';
-      case 'REJECTED':
+      case 'offered':
+        return '#22c55e';
+      case 'rejected':
+      case 'withdrawn':
         return '#ef4444';
       default:
         return colors.muted;
     }
   };
 
+  // Reconstructed timeline. The 'applied' step is real (uses the row's
+  // applied_at). The later steps are placeholders using fake offsets — they'll
+  // be replaced with actual status-change timestamps once the backend tracks
+  // those (pass B work). For now they at least reflect the current status.
   const timeline = [
-    { status: 'APPLIED', date: applied_at, description: 'Application submitted' },
-    ...(applicationStatus === 'SHORTLISTED' || applicationStatus === 'INTERVIEW'
+    { status: 'applied', date: applied_at, description: 'Application submitted' },
+    ...(status === 'shortlisted' || status === 'interview'
       ? [
           {
-            status: 'SHORTLISTED',
+            status: 'shortlisted',
             date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
             description: 'Shortlisted for review',
           },
         ]
       : []),
-    ...(applicationStatus === 'INTERVIEW'
+    ...(status === 'interview'
       ? [
           {
-            status: 'INTERVIEW',
+            status: 'interview',
             date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
             description: 'Interview scheduled',
           },
         ]
       : []),
-    ...(applicationStatus === 'REJECTED'
+    ...(status === 'rejected'
       ? [
           {
-            status: 'REJECTED',
+            status: 'rejected',
             date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
             description: 'Application not selected',
           },
@@ -142,21 +174,21 @@ export default function ApplicationDetailScreen() {
               >
                 <AvatarFallback>
                   <Text style={[styles.avatarText, { color: colors.primaryForeground }]}>
-                    {job.company.charAt(0)}
+                    {(job.company_name || '?').charAt(0)}
                   </Text>
                 </AvatarFallback>
               </Avatar>
               <View style={styles.jobInfo}>
                 <Text style={[styles.jobTitle, { color: colors.foreground }]}>{job.title}</Text>
                 <Text style={[styles.companyName, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {job.company}
+                  {job.company_name}
                 </Text>
               </View>
               <Badge
-                style={{ backgroundColor: getStatusColor(applicationStatus) + '20' }}
-                textStyle={{ color: getStatusColor(applicationStatus) }}
+                style={{ backgroundColor: getStatusColor(status) + '20' }}
+                textStyle={{ color: getStatusColor(status) }}
               >
-                <Text>{applicationStatus}</Text>
+                <Text>{formatStatus(status)}</Text>
               </Badge>
             </View>
             <View style={styles.badgesRow}>
@@ -166,7 +198,7 @@ export default function ApplicationDetailScreen() {
               </Badge>
               <Badge variant="outline">
                 <Ionicons name="briefcase-outline" size={12} color={colors.foreground} />
-                <Text>{job.type}</Text>
+                <Text>{job.job_type}</Text>
               </Badge>
               <Badge variant="outline">
                 <Ionicons name="cash-outline" size={12} color={colors.foreground} />
@@ -251,10 +283,10 @@ export default function ApplicationDetailScreen() {
                   <View style={styles.infoRow}>
                     <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Status</Text>
                     <Badge
-                      style={{ backgroundColor: getStatusColor(applicationStatus) + '20' }}
-                      textStyle={{ color: getStatusColor(applicationStatus) }}
+                      style={{ backgroundColor: getStatusColor(status) + '20' }}
+                      textStyle={{ color: getStatusColor(status) }}
                     >
-                      <Text>{applicationStatus}</Text>
+                      <Text>{formatStatus(status)}</Text>
                     </Badge>
                   </View>
                   <View style={styles.infoRow}>
@@ -262,39 +294,47 @@ export default function ApplicationDetailScreen() {
                       Application ID
                     </Text>
                     <Text style={[styles.infoValue, { color: colors.foreground, fontFamily: 'monospace' }]}>
-                      {application.id}
+                      #{application.id}
                     </Text>
                   </View>
                 </View>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Job Description
-                </Text>
-                <Text style={[styles.description, { color: colors.mutedForeground }]}>
-                  {job.description}
-                </Text>
-              </CardContent>
-            </Card>
+            {/* description and requirements are NOT part of the Application
+                response's nested job (only the light Job fields are embedded).
+                Render these sections only when present — keeps the screen
+                stable instead of crashing on undefined.map. */}
+            {job.description ? (
+              <Card>
+                <CardContent style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                    Job Description
+                  </Text>
+                  <Text style={[styles.description, { color: colors.mutedForeground }]}>
+                    {job.description}
+                  </Text>
+                </CardContent>
+              </Card>
+            ) : null}
 
-            <Card>
-              <CardContent style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Requirements</Text>
-                <View style={styles.requirements}>
-                  {job.requirements.map((req, index) => (
-                    <View key={index} style={styles.requirementItem}>
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                      <Text style={[styles.requirementText, { color: colors.mutedForeground }]}>
-                        {req}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </CardContent>
-            </Card>
+            {Array.isArray(job.requirements) && job.requirements.length > 0 ? (
+              <Card>
+                <CardContent style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Requirements</Text>
+                  <View style={styles.requirements}>
+                    {job.requirements.map((req, index) => (
+                      <View key={index} style={styles.requirementItem}>
+                        <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                        <Text style={[styles.requirementText, { color: colors.mutedForeground }]}>
+                          {req}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </CardContent>
+              </Card>
+            ) : null}
           </View>
         )}
 
@@ -315,16 +355,16 @@ export default function ApplicationDetailScreen() {
                             { backgroundColor: getStatusColor(item.status) + '20' },
                           ]}
                         >
-                          {item.status === 'APPLIED' && (
+                          {item.status === 'applied' && (
                             <Ionicons name="document-text" size={20} color={getStatusColor(item.status)} />
                           )}
-                          {item.status === 'SHORTLISTED' && (
+                          {item.status === 'shortlisted' && (
                             <Ionicons name="trending-up" size={20} color={getStatusColor(item.status)} />
                           )}
-                          {item.status === 'INTERVIEW' && (
+                          {item.status === 'interview' && (
                             <Ionicons name="calendar" size={20} color={getStatusColor(item.status)} />
                           )}
-                          {item.status === 'REJECTED' && (
+                          {item.status === 'rejected' && (
                             <Ionicons name="close-circle" size={20} color={getStatusColor(item.status)} />
                           )}
                         </View>
@@ -349,7 +389,7 @@ export default function ApplicationDetailScreen() {
               </CardContent>
             </Card>
 
-            {applicationStatus === 'INTERVIEW' && (
+            {status === 'interview' && (
               <Card style={[styles.interviewCard, { borderColor: '#f59e0b40' }]}>
                 <CardContent style={styles.section}>
                   <View style={styles.interviewContent}>

@@ -81,6 +81,13 @@ export const applicationsApi = {
     return apiClient.get<Application[]>('/applications/');
   },
 
+  // Fetch a single application by id. DRF's ApplicationViewSet auto-provides
+  // the retrieve action at /applications/<id>/ and filters by request.user,
+  // so a 404 here means "this app doesn't exist OR doesn't belong to you."
+  async getApplication(id: number): Promise<Application> {
+    return apiClient.get<Application>(`/applications/${id}/`);
+  },
+
   async apply(jobId: number): Promise<ApplyResponse> {
     return apiClient.postAI<ApplyResponse>('/apply/', { job_id: jobId });
   },
