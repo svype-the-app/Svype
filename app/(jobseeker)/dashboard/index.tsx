@@ -5,8 +5,9 @@ import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
 import { Application, aiChatApi, applicationsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -26,36 +27,54 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
 
+  // Trigger the AI welcome message exactly once per app session — runs only
+  // on initial mount, not on every Dashboard focus.
   useEffect(() => {
-    loadApplications();
-    triggerAiWelcome();
-  }, []);
-
-  const triggerAiWelcome = async () => {
-    try {
-      const result = await aiChatApi.careerStart();
-      if (!result.already_started && result.new_message) {
-        setHasUnreadAiMsg(true);
+    (async () => {
+      try {
+        const result = await aiChatApi.careerStart();
+        if (!result.already_started && result.new_message) {
+          setHasUnreadAiMsg(true);
+        }
+      } catch {
+        // Non-critical — silently ignore if AI welcome fails
       }
-    } catch {
-      // Non-critical — silently ignore if AI welcome fails
-    }
-  };
+    })();
+  }, [setHasUnreadAiMsg]);
+
+  // Refetch applications every time the Dashboard tab gains focus, so
+  // approving a job from the swipe tab is reflected immediately when the
+  // user comes back. The `cancelled` flag prevents a stale in-flight fetch
+  // from overwriting fresher data if the user rapidly toggles tabs.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+
+      applicationsApi
+        .getApplications()
+        .then((apps) => {
+          if (cancelled) return;
+          setApplications(apps);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.log('Failed to load applications:', error);
+          setApplications([]);
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const ACTIVE_STATUSES = ['applied', 'shortlisted', 'interview', 'offered'];
   const CLOSED_STATUSES = ['rejected', 'withdrawn'];
-
-  const loadApplications = async () => {
-    try {
-      const apps = await applicationsApi.getApplications();
-      setApplications(apps);
-    } catch (error) {
-      console.log('Failed to load applications:', error);
-      setApplications([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatSalary = (min: number, max: number) => {
     return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
