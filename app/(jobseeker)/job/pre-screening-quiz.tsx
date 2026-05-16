@@ -1,674 +1,488 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Colors } from '@/constants/theme';
-import { mockPreScreeningQuiz, QuizQuestion } from '@/lib/mock-quiz';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Colors } from '@/constants/theme'
+import {
+  applicationsApi,
+  type Answer,
+  type ApplyQuiz,
+  type QuizSubmitResponse,
+  type SkillMatch,
+} from '@/services/api'
+import { Ionicons } from '@expo/vector-icons'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
-type Question = QuizQuestion;
+const QUIZ_DURATION_SECONDS = 600
+
+type AnswerMap = Record<number, { selected_option?: number; text_answer?: string }>
 
 export default function PreScreeningQuizScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const router = useRouter()
+  const params = useLocalSearchParams<{
+    applicationId?: string
+    jobTitle?: string
+    quizData?: string
+    skillMatch?: string
+  }>()
+  const colorScheme = useColorScheme()
+  const colors = Colors[colorScheme ?? 'light']
 
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<(number | null)[]>(Array(mockPreScreeningQuiz.length).fill(null));
-  const [showResult, setShowResult] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const applicationId = useMemo(() => Number(params.applicationId), [params.applicationId])
+  const jobTitle = (params.jobTitle as string) || 'Pre-Screening Quiz'
 
-  // Timer
+  const quiz: ApplyQuiz | null = useMemo(() => {
+    if (!params.quizData) return null
+    try {
+      return JSON.parse(String(params.quizData)) as ApplyQuiz
+    } catch {
+      return null
+    }
+  }, [params.quizData])
+
+  const skillMatch: SkillMatch | null = useMemo(() => {
+    if (!params.skillMatch) return null
+    try {
+      return JSON.parse(String(params.skillMatch)) as SkillMatch
+    } catch {
+      return null
+    }
+  }, [params.skillMatch])
+
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [answers, setAnswers] = useState<AnswerMap>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [result, setResult] = useState<QuizSubmitResponse | null>(null)
+  const [coverLetterExpanded, setCoverLetterExpanded] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION_SECONDS)
+  const submittedRef = useRef(false)
+
+  const questions = quiz?.questions ?? []
+  const totalQuestions = questions.length
+
+  const handleSubmit = useCallback(async () => {
+    if (submittedRef.current || !quiz) return
+    submittedRef.current = true
+    setIsSubmitting(true)
+
+    const payload: Answer[] = questions.map((q) => {
+      const entry = answers[q.id] || {}
+      return {
+        question_id: q.id,
+        ...(q.question_type === 'multiple-choice'
+          ? { selected_option: entry.selected_option }
+          : { text_answer: entry.text_answer || '' }),
+      }
+    })
+
+    try {
+      const res = await applicationsApi.submitQuiz(applicationId, payload)
+      setResult(res)
+    } catch (err: any) {
+      submittedRef.current = false
+      Alert.alert('Submission Failed', err?.message ?? 'Could not submit the quiz.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [answers, applicationId, questions, quiz])
+
+  // Countdown timer
   useEffect(() => {
-    if (showResult) return;
-    
-    const timer = setInterval(() => {
+    if (result || isSubmitting || !quiz) return
+    const id = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          handleSubmit();
-          return 0;
+          clearInterval(id)
+          handleSubmit()
+          return 0
         }
-        return prev - 1;
-      });
-    }, 1000);
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [result, isSubmitting, quiz, handleSubmit])
 
-    return () => clearInterval(timer);
-  }, [showResult]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleNext = () => {
-    if (selectedAnswer !== null) {
-      const newAnswers = [...answers];
-      newAnswers[currentQuestion] = selectedAnswer;
-      setAnswers(newAnswers);
-    }
-
-    if (currentQuestion < mockPreScreeningQuiz.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-      setSelectedAnswer(answers[currentQuestion + 1]);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
-      setSelectedAnswer(answers[currentQuestion - 1]);
-    }
-  };
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    // Simulate submission
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setShowResult(true);
-    setIsSubmitting(false);
-  };
-
-  const calculateScore = () => {
-    let correct = 0;
-    answers.forEach((answer, index) => {
-      if (answer === mockPreScreeningQuiz[index].correctAnswer) {
-        correct++;
-      }
-    });
-    return {
-      correct,
-      total: mockPreScreeningQuiz.length,
-      percentage: Math.round((correct / mockPreScreeningQuiz.length) * 100)
-    };
-  };
-
-  const score = showResult ? calculateScore() : null;
-  const currentQ = mockPreScreeningQuiz[currentQuestion];
-  const progress = ((currentQuestion + 1) / mockPreScreeningQuiz.length) * 100;
-
-  if (showResult && score) {
-    const passed = score.percentage >= 60;
-
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScrollView 
-          contentContainerStyle={styles.resultContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <Card style={styles.resultCard}>
-            <CardContent>
-              {/* Result Header */}
-              <View style={styles.resultHeader}>
-                <View style={[
-                  styles.resultIcon,
-                  { backgroundColor: passed ? '#10b981' + '1A' : '#ef4444' + '1A' }
-                ]}>
-                  <Ionicons 
-                    name={passed ? "checkmark-circle" : "close-circle"} 
-                    size={40} 
-                    color={passed ? "#10b981" : "#ef4444"} 
-                  />
-                </View>
-                <Text style={[styles.resultTitle, { color: colors.cardForeground }]}>
-                  {passed ? "Quiz Completed!" : "Quiz Submitted"}
-                </Text>
-                <Text style={[styles.resultSubtitle, { color: colors.mutedForeground }]}>
-                  {passed 
-                    ? "Great job! You've passed the pre-screening quiz." 
-                    : "Thank you for completing the quiz. The employer will review your application."}
-                </Text>
-              </View>
-
-              {/* Score Card */}
-              <Card style={[styles.scoreCard, { backgroundColor: colors.muted + '80' }]}>
-                <CardContent>
-                  <View style={styles.scoreHeader}>
-                    <Text style={[styles.scoreLabel, { color: colors.cardForeground }]}>
-                      Your Score
-                    </Text>
-                    <Badge 
-                      variant={passed ? "default" : "secondary"}
-                      style={styles.scoreBadge}
-                    >
-                      <Text style={styles.scorePercentage}>{score.percentage}%</Text>
-                    </Badge>
-                  </View>
-                  <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { 
-                          width: `${score.percentage}%`,
-                          backgroundColor: passed ? colors.primary : colors.mutedForeground 
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={[styles.scoreText, { color: colors.mutedForeground }]}>
-                    {score.correct} out of {score.total} questions correct
-                  </Text>
-                </CardContent>
-              </Card>
-
-              {/* Questions Review */}
-              <View style={styles.reviewSection}>
-                <ScrollView style={styles.reviewScroll}>
-                  {mockPreScreeningQuiz.map((question, index) => {
-                    const userAnswer = answers[index];
-                    const isCorrect = userAnswer === question.correctAnswer;
-                    
-                    return (
-                      <Card key={question.id} style={styles.reviewCard}>
-                        <CardContent>
-                          <View style={styles.reviewContent}>
-                            <View style={[
-                              styles.reviewIcon,
-                              { backgroundColor: isCorrect ? '#10b981' + '1A' : '#ef4444' + '1A' }
-                            ]}>
-                              <Ionicons 
-                                name={isCorrect ? "checkmark-circle" : "close-circle"} 
-                                size={20} 
-                                color={isCorrect ? "#10b981" : "#ef4444"} 
-                              />
-                            </View>
-                            <View style={styles.reviewText}>
-                              <Text style={[styles.reviewQuestion, { color: colors.cardForeground }]}>
-                                Question {index + 1}: {question.question}
-                              </Text>
-                              <Text style={[styles.reviewAnswer, { color: colors.mutedForeground }]}>
-                                Your answer: {userAnswer !== null ? question.options[userAnswer] : "Not answered"}
-                              </Text>
-                              {!isCorrect && (
-                                <Text style={[styles.correctAnswer, { color: '#10b981' }]}>
-                                  Correct answer: {question.options[question.correctAnswer]}
-                                </Text>
-                              )}
-                              <Text style={[styles.explanation, { color: colors.mutedForeground }]}>
-                                {question.explanation}
-                              </Text>
-                            </View>
-                          </View>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Actions */}
-              <View style={styles.resultActions}>
-                <Button
-                  variant="outline"
-                  onPress={() => router.push('/(jobseeker)/dashboard')}
-                  style={styles.resultButton}
-                >
-                  <Text style={[styles.resultButtonText, { color: colors.primary }]}>
-                    View Applications
-                  </Text>
-                </Button>
-                <Button
-                  onPress={() => router.push('/(jobseeker)/swipe')}
-                  style={styles.resultButton}
-                >
-                  <Text style={styles.resultButtonTextPrimary}>
-                    Continue Swiping
-                  </Text>
-                </Button>
-              </View>
-            </CardContent>
-          </Card>
-        </ScrollView>
-      </View>
-    );
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60)
+    const r = s % 60
+    return `${m}:${r.toString().padStart(2, '0')}`
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity 
-              onPress={() => router.back()} 
-              disabled={isSubmitting}
-              style={styles.backButton}
+  const setMcqAnswer = (qId: number, option: number) => {
+    setAnswers((prev) => ({ ...prev, [qId]: { selected_option: option } }))
+  }
+  const setTextAnswer = (qId: number, text: string) => {
+    setAnswers((prev) => ({ ...prev, [qId]: { text_answer: text } }))
+  }
+
+  // ── Bad params or no quiz ─────────────────────────────────────────────────
+  if (!quiz || !applicationId || Number.isNaN(applicationId)) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
+          <Text style={[styles.errorTitle, { color: colors.foreground }]}>Quiz unavailable</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.mutedForeground }]}>
+            Missing or invalid quiz data.
+          </Text>
+          <Button onPress={() => router.replace('/(jobseeker)/swipe' as any)} style={{ marginTop: 16 }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Back to Swipe</Text>
+          </Button>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  // ── RESULT SCREEN ────────────────────────────────────────────────────────
+  if (result) {
+    const passed = result.passed
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView contentContainerStyle={styles.resultContent}>
+          <View style={styles.resultHeader}>
+            <View
+              style={[
+                styles.resultIconWrap,
+                { backgroundColor: passed ? '#10b9811A' : '#ef44441A' },
+              ]}
             >
-              <Ionicons name="chevron-back" size={24} color={colors.cardForeground} />
-            </TouchableOpacity>
-            <View>
-              <Text style={[styles.headerTitle, { color: colors.cardForeground }]}>
-                Pre-Screening Quiz
-              </Text>
-              <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-                Question {currentQuestion + 1} of {mockPreScreeningQuiz.length}
-              </Text>
+              <Ionicons
+                name={passed ? 'checkmark-circle' : 'close-circle'}
+                size={48}
+                color={passed ? '#10b981' : '#ef4444'}
+              />
             </View>
-          </View>
-          <View style={styles.timerContainer}>
-            <Ionicons name="time-outline" size={16} color={colors.mutedForeground} />
-            <Text style={[
-              styles.timerText, 
-              { color: timeLeft < 60 ? '#ef4444' : colors.cardForeground }
-            ]}>
-              {formatTime(timeLeft)}
+            <Text style={[styles.scoreBig, { color: colors.foreground }]}>{result.score}%</Text>
+            <Text style={[styles.passedLabel, { color: passed ? '#10b981' : '#ef4444' }]}>
+              {passed ? 'Passed ✓' : 'Not passed'}
+            </Text>
+            <Text style={[styles.passingHint, { color: colors.mutedForeground }]}>
+              Passing score was {result.passing_score}%
             </Text>
           </View>
+
+          {skillMatch && !skillMatch.matched && (
+            <View style={[styles.warningBanner, { backgroundColor: '#fbbf241A', borderColor: '#fbbf24' }]}>
+              <Text style={[styles.warningText, { color: '#92400e' }]}>⚠️ {skillMatch.message}</Text>
+            </View>
+          )}
+
+          {!!result.cover_letter && (
+            <Card style={[styles.coverCard, { backgroundColor: colors.card }]}>
+              <CardContent>
+                <TouchableOpacity
+                  onPress={() => setCoverLetterExpanded((v) => !v)}
+                  style={styles.coverToggle}
+                >
+                  <Ionicons
+                    name={coverLetterExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={colors.foreground}
+                  />
+                  <Text style={[styles.coverToggleText, { color: colors.foreground }]}>
+                    Your Cover Letter
+                  </Text>
+                </TouchableOpacity>
+                {coverLetterExpanded && (
+                  <Text style={[styles.coverText, { color: colors.foreground }]}>
+                    {result.cover_letter}
+                  </Text>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {result.feedback.length > 0 && (
+            <Card style={[styles.coverCard, { backgroundColor: colors.card }]}>
+              <CardContent>
+                <Text style={[styles.feedbackTitle, { color: colors.foreground }]}>
+                  AI Feedback on Text Answers
+                </Text>
+                {result.feedback.map((f) => (
+                  <Text key={f.question_id} style={[styles.feedbackItem, { color: colors.mutedForeground }]}>
+                    • {f.feedback}
+                  </Text>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <Button
+            onPress={() => router.replace('/(jobseeker)/swipe' as any)}
+            style={[styles.doneButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Done</Text>
+          </Button>
+        </ScrollView>
+      </SafeAreaView>
+    )
+  }
+
+  // ── QUIZ TAKING SCREEN ───────────────────────────────────────────────────
+  const currentQ = questions[currentIndex]
+  const currentAnswer = answers[currentQ.id] || {}
+  const answeredCurrent =
+    currentQ.question_type === 'multiple-choice'
+      ? typeof currentAnswer.selected_option === 'number'
+      : !!(currentAnswer.text_answer && currentAnswer.text_answer.trim().length > 0)
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} disabled={isSubmitting} hitSlop={8}>
+          <Ionicons name="chevron-back" size={26} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+            {jobTitle}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
+            Question {currentIndex + 1} of {totalQuestions}
+          </Text>
         </View>
-        <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${progress}%`, backgroundColor: colors.primary }
-            ]} 
-          />
+        <View style={styles.timer}>
+          <Ionicons name="time-outline" size={16} color={timeLeft < 60 ? '#ef4444' : colors.foreground} />
+          <Text style={[styles.timerText, { color: timeLeft < 60 ? '#ef4444' : colors.foreground }]}>
+            {formatTime(timeLeft)}
+          </Text>
         </View>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Card style={styles.quizCard}>
+      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+        <View
+          style={[
+            styles.progressFill,
+            {
+              width: `${((currentIndex + 1) / totalQuestions) * 100}%`,
+              backgroundColor: colors.primary,
+            },
+          ]}
+        />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {skillMatch && !skillMatch.matched && (
+          <View style={[styles.warningBanner, { backgroundColor: '#fbbf241A', borderColor: '#fbbf24' }]}>
+            <Text style={[styles.warningText, { color: '#92400e' }]}>⚠️ {skillMatch.message}</Text>
+          </View>
+        )}
+
+        <Card style={[styles.questionCard, { backgroundColor: colors.card }]}>
           <CardContent>
-            {/* Question */}
-            <View style={styles.questionSection}>
-              <Badge variant="outline" style={styles.questionBadge}>
-                <Text style={styles.questionBadgeText}>Question {currentQuestion + 1}</Text>
-              </Badge>
-              <Text style={[styles.questionText, { color: colors.cardForeground }]}>
-                {currentQ.question}
-              </Text>
-              <Text style={[styles.questionHint, { color: colors.mutedForeground }]}>
-                Select one answer
-              </Text>
-            </View>
+            <Text style={[styles.questionText, { color: colors.foreground }]}>
+              {currentQ.question}
+            </Text>
+            <Text style={[styles.pointsText, { color: colors.mutedForeground }]}>
+              {currentQ.points} points
+            </Text>
 
-            {/* Options */}
-            <View style={styles.optionsContainer}>
-              {currentQ.options.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setSelectedAnswer(index)}
-                  style={[
-                    styles.optionButton,
-                    {
-                      borderColor: selectedAnswer === index ? colors.primary : colors.border,
-                      backgroundColor: selectedAnswer === index ? colors.primary + '0D' : 'transparent'
-                    }
-                  ]}
-                >
-                  <View style={[
-                    styles.radioButton,
-                    {
-                      borderColor: selectedAnswer === index ? colors.primary : colors.border,
-                      backgroundColor: selectedAnswer === index ? colors.primary : 'transparent'
-                    }
-                  ]}>
-                    {selectedAnswer === index && (
-                      <View style={styles.radioButtonInner} />
-                    )}
-                  </View>
-                  <Label style={[styles.optionLabel, { color: colors.cardForeground }]}>
-                    {option}
-                  </Label>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Warning for unanswered */}
-            {selectedAnswer === null && (
-              <View style={[styles.warningBox, { backgroundColor: '#fbbf24' + '1A' }]}>
-                <Ionicons name="alert-circle-outline" size={20} color="#fbbf24" />
-                <Text style={[styles.warningText, { color: '#92400e' }]}>
-                  Please select an answer before proceeding to the next question.
-                </Text>
+            {currentQ.question_type === 'multiple-choice' ? (
+              <View style={{ marginTop: 16 }}>
+                {currentQ.options.map((opt, idx) => {
+                  const selected = currentAnswer.selected_option === idx
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => setMcqAnswer(currentQ.id, idx)}
+                      style={[
+                        styles.optionRow,
+                        {
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected ? colors.primary + '15' : 'transparent',
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          { borderColor: selected ? colors.primary : colors.border },
+                        ]}
+                      >
+                        {selected && (
+                          <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />
+                        )}
+                      </View>
+                      <Text style={[styles.optionLabel, { color: colors.foreground }]}>{opt}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
+            ) : (
+              <TextInput
+                value={currentAnswer.text_answer || ''}
+                onChangeText={(t) => setTextAnswer(currentQ.id, t)}
+                placeholder="Type your answer here..."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                style={[
+                  styles.textAnswer,
+                  {
+                    color: colors.foreground,
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+              />
             )}
           </CardContent>
         </Card>
 
-        {/* Navigation */}
-        <View style={styles.navigation}>
+        <View style={styles.navRow}>
           <Button
             variant="outline"
-            onPress={handlePrevious}
-            disabled={currentQuestion === 0 || isSubmitting}
+            disabled={currentIndex === 0 || isSubmitting}
+            onPress={() => setCurrentIndex((i) => Math.max(0, i - 1))}
             style={styles.navButton}
           >
-            <Ionicons name="arrow-back" size={16} color={colors.primary} />
-            <Text style={[styles.navButtonText, { color: colors.primary }]}>
-              Previous
-            </Text>
+            <Text style={{ color: colors.foreground }}>Previous</Text>
           </Button>
 
-          <View style={styles.dots}>
-            {mockPreScreeningQuiz.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: index === currentQuestion
-                      ? colors.primary
-                      : answers[index] !== null
-                      ? colors.primary + '80'
-                      : colors.mutedForeground + '33',
-                    width: index === currentQuestion ? 16 : 8
-                  }
-                ]}
-              />
-            ))}
-          </View>
-
-          {currentQuestion === mockPreScreeningQuiz.length - 1 ? (
+          {currentIndex === totalQuestions - 1 ? (
             <Button
               onPress={handleSubmit}
-              disabled={isSubmitting}
-              style={styles.navButton}
+              disabled={!answeredCurrent || isSubmitting}
+              style={[styles.navButton, { backgroundColor: colors.primary }]}
             >
-              <Text style={styles.submitButtonText}>
-                {isSubmitting ? "Submitting..." : "Submit Quiz"}
-              </Text>
-              <Ionicons name="trophy-outline" size={16} color="#fff" />
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Submit Quiz</Text>
+              )}
             </Button>
           ) : (
             <Button
-              onPress={handleNext}
-              disabled={selectedAnswer === null || isSubmitting}
-              style={styles.navButton}
+              onPress={() => setCurrentIndex((i) => Math.min(totalQuestions - 1, i + 1))}
+              disabled={!answeredCurrent || isSubmitting}
+              style={[styles.navButton, { backgroundColor: colors.primary }]}
             >
-              <Text style={styles.nextButtonText}>Next</Text>
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Next</Text>
             </Button>
           )}
         </View>
       </ScrollView>
-    </View>
-  );
+    </SafeAreaView>
+  )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  center: {
     flex: 1,
-  },
-  header: {
-    paddingTop: 16,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-  },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  timerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'monospace',
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  quizCard: {
-    marginBottom: 24,
-  },
-  questionSection: {
-    marginBottom: 24,
-  },
-  questionBadge: {
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  questionBadgeText: {
-    fontSize: 12,
-  },
-  questionText: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 8,
-    lineHeight: 30,
-  },
-  questionHint: {
-    fontSize: 13,
-  },
-  optionsContainer: {
-    gap: 12,
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    gap: 12,
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#fff',
-  },
-  optionLabel: {
-    flex: 1,
-    fontSize: 15,
-  },
-  warningBox: {
-    flexDirection: 'row',
+    padding: 24,
     gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 24,
   },
-  warningText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
   },
-  navigation: {
+  errorSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  headerTitle: { fontSize: 16, fontWeight: '700' },
+  headerSubtitle: { fontSize: 12, marginTop: 2 },
+  timer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timerText: { fontSize: 14, fontWeight: '700', fontFamily: 'monospace' },
+  progressBar: { height: 4, width: '100%' },
+  progressFill: { height: '100%' },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+  warningBanner: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  warningText: { fontSize: 13, fontWeight: '600' },
+  questionCard: { marginBottom: 16 },
+  questionText: { fontSize: 18, fontWeight: '700', lineHeight: 25 },
+  pointsText: { fontSize: 12, marginTop: 4 },
+  optionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    padding: 14,
+    borderWidth: 2,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  optionLabel: { flex: 1, fontSize: 14 },
+  textAnswer: {
+    minHeight: 100,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    marginTop: 16,
+  },
+  navRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
   },
   navButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultContent: { padding: 20, paddingBottom: 40 },
+  resultHeader: { alignItems: 'center', marginBottom: 24, marginTop: 16 },
+  resultIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  scoreBig: { fontSize: 56, fontWeight: '800', letterSpacing: -1 },
+  passedLabel: { fontSize: 20, fontWeight: '700', marginTop: 4 },
+  passingHint: { fontSize: 13, marginTop: 8 },
+  coverCard: { marginBottom: 12 },
+  coverToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 4,
   },
-  navButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  resultContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 16,
-  },
-  resultCard: {
-    maxWidth: 600,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  resultHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  resultIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  resultTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  resultSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  scoreCard: {
-    marginBottom: 24,
-  },
-  scoreHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scoreLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  scoreBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  scorePercentage: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  scoreText: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  reviewSection: {
-    marginBottom: 24,
-    maxHeight: 400,
-  },
-  reviewScroll: {
-    gap: 12,
-  },
-  reviewCard: {
-    marginBottom: 12,
-  },
-  reviewContent: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  reviewIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reviewText: {
-    flex: 1,
-    gap: 6,
-  },
-  reviewQuestion: {
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  reviewAnswer: {
-    fontSize: 13,
-  },
-  correctAnswer: {
-    fontSize: 13,
-  },
-  explanation: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    lineHeight: 18,
-  },
-  resultActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  resultButton: {
-    flex: 1,
-    paddingVertical: 14,
-  },
-  resultButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  resultButtonTextPrimary: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
+  coverToggleText: { fontSize: 15, fontWeight: '700' },
+  coverText: { fontSize: 13, lineHeight: 19, marginTop: 12 },
+  feedbackTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  feedbackItem: { fontSize: 13, lineHeight: 19, marginBottom: 4 },
+  doneButton: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+})

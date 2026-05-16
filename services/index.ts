@@ -7,6 +7,17 @@ export type { CompatibilityScore, CompatibilityBreakdown } from './jobs';
 export { profileApi } from './profile';
 export { companyApi } from './company';
 export { applicationsApi } from './applications';
+export type {
+  Answer,
+  ApplyResponse,
+  ApplyQuiz,
+  ApplyQuizQuestion,
+  SkillMatch,
+  QuizSubmitResponse,
+  QuizFeedbackItem,
+  ApplicantCard,
+  ApplicantCardApplicant,
+} from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';
 export type {

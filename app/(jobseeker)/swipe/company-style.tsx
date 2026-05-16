@@ -3,12 +3,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
-import { Job as ApiJob, jobsApi } from '@/services/api'
+import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -87,8 +88,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [jobs, setJobs] = useState<SwipeJob[]>([])
-  const [bufferedJobs, setBufferedJobs] = useState<SwipeJob[]>([])
-  const [bufferStartIndex, setBufferStartIndex] = useState(0)
+  // bufferedJobs is derived synchronously from `jobs` + `currentIndex` so the
+  // render after a swipe-approve uses the up-to-date list immediately (the
+  // previous useState+useEffect version showed a stale card for one render).
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pan] = useState(new Animated.ValueXY())
@@ -103,6 +105,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const [isScrolling, setIsScrolling] = useState(false)
   const [isCardNavigating, setIsCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isApplying, setIsApplying] = useState(false)
 
   useEffect(() => {
     const loadSwipeJobs = async () => {
@@ -124,20 +127,22 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     loadSwipeJobs()
   }, [])
 
-  useEffect(() => {
+  const { bufferedJobs, bufferStartIndex } = useMemo(() => {
     const start = Math.max(0, currentIndex - BUFFER_SIZE)
     const end = Math.min(jobs.length, currentIndex + BUFFER_SIZE + 1)
-    setBufferStartIndex(start)
-    setBufferedJobs(jobs.slice(start, end))
+    return {
+      bufferStartIndex: start,
+      bufferedJobs: jobs.slice(start, end),
+    }
   }, [jobs, currentIndex])
 
+  // Reject path only — approve no longer routes through the undo modal.
   const finalizeSwipeAction = () => {
     const action = undoActionType
+    const indexToRemove = currentIndex
+    const swipedJob = jobs[indexToRemove]
 
-    if (action === 'approve' || action === 'reject') {
-      const indexToRemove = currentIndex
-      const swipedJob = jobs[indexToRemove]
-
+    if (action === 'reject' && swipedJob) {
       setJobs((prevJobs) => {
         const nextJobs = prevJobs.filter((_, idx) => idx !== indexToRemove)
         setCurrentIndex((prevIndex) => {
@@ -146,13 +151,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         })
         return nextJobs
       })
-
-      if (swipedJob) {
-        const swipeAction = action === 'approve' ? 'like' : 'dislike'
-        jobsApi.swipe(swipedJob.id, swipeAction).catch(() => {
-          // Keep UI responsive even if background swipe sync fails.
-        })
-      }
+      jobsApi.swipe(swipedJob.id, 'dislike').catch(() => {
+        // Keep UI responsive even if background swipe sync fails.
+      })
     }
 
     setShowUndoModal(false)
@@ -209,7 +210,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, { dx, dy }) => {
         const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
-        return isHorizontalSwipe && !isScrolling && !isCardNavigating
+        return isHorizontalSwipe && !isScrolling && !isCardNavigating && !isApplying
       },
       onPanResponderGrant: () => {
         setIsScrolling(false)
@@ -252,17 +253,85 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   ).current
 
   const handleApprove = async () => {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    const approvedJob = jobs[currentIndex]
-    setUndoJob(approvedJob)
-    setUndoActionType('approve')
-    setShowUndoModal(true)
+    if (isApplying) return
+    const indexToRemove = currentIndex
+    const approvedJob = jobs[indexToRemove]
+    if (!approvedJob) return
 
-    Animated.timing(pan.x, {
-      toValue: SCREEN_WIDTH,
-      duration: 300,
-      useNativeDriver: false,
-    }).start()
+    setIsApplying(true)
+    // Fire haptics non-blocking — awaiting on iOS can stall the animation start.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+
+    // Defensive: stop any in-flight animation on pan.x and rebase the value
+    // so the timing starts from a clean state, regardless of whether we got
+    // here from a finger gesture or a button tap.
+    pan.x.stopAnimation((currentX) => {
+      pan.x.setValue(currentX)
+
+      // Animate the swiped card off-screen. The card must remain in the list
+      // during the animation so pan.x drives the swiped card (not the next
+      // one underneath). Only on completion do we mutate the list + reset pan.
+      Animated.timing(pan.x, {
+        toValue: SCREEN_WIDTH * 1.2,
+        duration: 250,
+        useNativeDriver: false,
+      }).start(() => {
+        // Reset pan FIRST so the next card renders centered, then mutate list.
+        pan.setValue({ x: 0, y: 0 })
+        setJobs((prevJobs) => {
+          const nextJobs = prevJobs.filter((_, idx) => idx !== indexToRemove)
+          setCurrentIndex((prevIndex) => {
+            if (nextJobs.length === 0) return 0
+            return Math.min(prevIndex, nextJobs.length - 1)
+          })
+          return nextJobs
+        })
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: 0, animated: false })
+        }
+      })
+    })
+
+    // Fire the apply call in parallel with the animation. Result is processed
+    // when both the animation and the network call have finished.
+    try {
+      const result = await applicationsApi.apply(approvedJob.id)
+      if (result.requires_quiz && result.quiz) {
+        router.push({
+          pathname: '/(jobseeker)/job/pre-screening-quiz',
+          params: {
+            applicationId: String(result.application_id),
+            jobTitle: approvedJob.title,
+            quizData: JSON.stringify(result.quiz),
+            skillMatch: JSON.stringify(result.skill_match),
+          },
+        } as any)
+      } else {
+        const coverNote = result.cover_letter
+          ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
+          : ''
+        Alert.alert(
+          'Application Submitted',
+          `Your application for ${approvedJob.title} has been sent.${coverNote}`,
+          [{ text: 'OK' }]
+        )
+      }
+    } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.toLowerCase().includes('already applied')) {
+        Alert.alert(
+          'Already Applied',
+          `You have already applied to ${approvedJob.title}.`,
+          [{ text: 'OK' }]
+        )
+      } else {
+        Alert.alert('Apply Failed', msg || 'Could not submit application.')
+        // We can't easily reinsert the card here because the animation
+        // callback may already have removed it. The error is surfaced.
+      }
+    } finally {
+      setIsApplying(false)
+    }
   }
 
   const handleUndoAction = () => {
@@ -339,17 +408,22 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   }
 
   const handleReject = async () => {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     const rejectedJob = jobs[currentIndex]
+    if (!rejectedJob) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {})
+
     setUndoJob(rejectedJob)
     setUndoActionType('reject')
     setShowUndoModal(true)
 
-    Animated.timing(pan.x, {
-      toValue: -SCREEN_WIDTH,
-      duration: 300,
-      useNativeDriver: false,
-    }).start()
+    pan.x.stopAnimation((currentX) => {
+      pan.x.setValue(currentX)
+      Animated.timing(pan.x, {
+        toValue: -SCREEN_WIDTH * 1.2,
+        duration: 300,
+        useNativeDriver: false,
+      }).start()
+    })
   }
 
   const formatSalary = (min?: number, max?: number) => {
@@ -601,49 +675,50 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       </View>
 
       <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.navButton,
-            (currentIndex <= 0 || showUndoModal) && styles.navButtonDisabled,
-          ]}
-          onPress={handlePreviousJob}
-          disabled={currentIndex <= 0 || showUndoModal || isCardNavigating}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={28}
-            color={currentIndex <= 0 || showUndoModal ? '#9ca3af' : '#fff'}
-          />
-        </TouchableOpacity>
+        {(() => {
+          const noJobs = jobs.length === 0
+          const rejectDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
+          const approveDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
+          return (
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  styles.rejectButton,
+                  rejectDisabled && styles.actionButtonDisabled,
+                ]}
+                onPress={handleReject}
+                disabled={rejectDisabled}
+              >
+                <Ionicons name="close" size={28} color={rejectDisabled ? '#9ca3af' : '#fff'} />
+              </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.aiMatchButton}
-          onPress={() => {
-            if (!currentJob) return
-            router.push(
-              `/(jobseeker)/job/compatibility?jobId=${currentJob.id}` as any
-            )
-          }}
-        >
-          <Ionicons name="funnel" size={26} color="white" />
-        </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.aiMatchButton}
+                onPress={() => {
+                  if (!currentJob) return
+                  router.push(
+                    `/(jobseeker)/job/compatibility?jobId=${currentJob.id}` as any
+                  )
+                }}
+              >
+                <Ionicons name="funnel" size={26} color="white" />
+              </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.navButton,
-            (currentIndex >= jobs.length - 1 || showUndoModal) && styles.navButtonDisabled,
-          ]}
-          onPress={handleNextJob}
-          disabled={currentIndex >= jobs.length - 1 || showUndoModal || isCardNavigating}
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={28}
-            color={currentIndex >= jobs.length - 1 || showUndoModal ? '#9ca3af' : '#fff'}
-          />
-        </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  styles.approveButton,
+                  approveDisabled && styles.actionButtonDisabled,
+                ]}
+                onPress={handleApprove}
+                disabled={approveDisabled}
+              >
+                <Ionicons name="checkmark" size={28} color={approveDisabled ? '#9ca3af' : '#fff'} />
+              </TouchableOpacity>
+            </>
+          )
+        })()}
       </View>
 
       <Modal visible={showUndoModal} transparent={true} animationType="fade" onRequestClose={handleUndoAction}>
@@ -651,11 +726,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           <Card style={[styles.undoCard, { backgroundColor: colors.card }]}> 
             <CardContent style={styles.undoCardContent}>
               <Text style={[styles.undoTitle, { color: colors.foreground }]}>
-                {undoActionType === 'reject' ? 'Job Rejected!' : 'Job Accepted!'}
+                Job Rejected!
               </Text>
               <Text style={[styles.undoDescription, { color: colors.mutedForeground }]}> 
-                {undoJob?.title} at {undoJob?.company}{' '}
-                {undoActionType === 'reject' ? 'marked as rejected' : 'marked as accepted'}
+                {undoJob?.title} at {undoJob?.company} marked as rejected
               </Text>
 
               <View style={styles.timerContainer}>
@@ -706,6 +780,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           </Card>
         </View>
       </Modal>
+
     </SafeAreaView>
   )
 }
@@ -867,6 +942,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#334155',
   },
   navButtonDisabled: {
+    backgroundColor: '#e5e7eb',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  rejectButton: {
+    backgroundColor: '#ef4444',
+  },
+  approveButton: {
+    backgroundColor: '#10b981',
+  },
+  actionButtonDisabled: {
     backgroundColor: '#e5e7eb',
     shadowOpacity: 0,
     elevation: 0,

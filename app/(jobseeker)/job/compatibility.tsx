@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/theme';
-import { jobsApi, type CompatibilityScore, type Job } from '@/services/api';
+import { applicationsApi, jobsApi, type CompatibilityScore, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -224,14 +224,24 @@ export default function CompatibilityScreen() {
       return;
     }
     setLoading(true);
+    const startedAt = Date.now();
     try {
       const [s, j] = await Promise.all([
         jobsApi.getCompatibility(jobId),
         jobsApi.getJob(jobId).catch(() => null),
       ]);
+      // Guarantee the "Analysing..." screen is visible for at least 2s, even
+      // when the response comes back from cache in <100 ms.
+      const elapsed = Date.now() - startedAt;
+      const MIN_LOADING_MS = 2000;
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADING_MS - elapsed));
+      }
       setScore(s);
       setJob(j);
+      setLoading(false);
     } catch (err: any) {
+      setLoading(false);
       Alert.alert(
         'Error',
         err?.message || 'Could not load compatibility score.',
@@ -240,8 +250,6 @@ export default function CompatibilityScreen() {
           { text: 'Retry', onPress: load },
         ]
       );
-    } finally {
-      setLoading(false);
     }
   }, [jobId, router]);
 
@@ -253,18 +261,41 @@ export default function CompatibilityScreen() {
     if (!jobId || applying) return;
     setApplying(true);
     try {
-      await jobsApi.swipe(jobId, 'like');
+      // Use the real apply pipeline (cover letter + quiz check) — same as
+      // a right-swipe from the swipe screen.
+      const result = await applicationsApi.apply(jobId);
+
+      if (result.requires_quiz && result.quiz) {
+        // Quiz path — route directly to the pre-screening quiz.
+        router.replace({
+          pathname: '/(jobseeker)/job/pre-screening-quiz',
+          params: {
+            applicationId: String(result.application_id),
+            jobTitle: job?.title ?? 'Pre-Screening Quiz',
+            quizData: JSON.stringify(result.quiz),
+            skillMatch: JSON.stringify(result.skill_match),
+          },
+        } as any);
+        return;
+      }
+
+      // No-quiz path — submitted popup.
+      const coverNote = result.cover_letter
+        ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
+        : '';
       Alert.alert(
         'Application Submitted',
-        'Your interest has been recorded for this role.',
+        `Your application for ${job?.title ?? 'this role'} has been sent.${coverNote}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('already')) {
-        Alert.alert('Already Applied', 'You have already swiped on this job.');
+      const msg = String(err?.message || '');
+      if (msg.toLowerCase().includes('already applied')) {
+        Alert.alert('Already Applied', 'You have already applied to this job.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
       } else {
-        Alert.alert('Error', msg || 'Could not submit application.');
+        Alert.alert('Apply Failed', msg || 'Could not submit application.');
       }
     } finally {
       setApplying(false);
