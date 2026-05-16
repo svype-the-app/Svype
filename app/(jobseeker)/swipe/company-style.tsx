@@ -120,6 +120,12 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const approveRef = useRef<() => void>(() => {})
   const rejectRef = useRef<() => void>(() => {})
 
+  // Same stale-closure problem applies to the panResponder's gate function,
+  // which reads isScrolling / isCardNavigating / isApplying. Those values
+  // are captured at first render (all false) and never see updates. This
+  // ref holds the latest values and is re-pointed every render below.
+  const gateRef = useRef({ isScrolling: false, isCardNavigating: false, isApplying: false })
+
   useEffect(() => {
     const loadSwipeJobs = async () => {
       setLoading(true)
@@ -222,8 +228,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, { dx, dy }) => {
+        const flags = gateRef.current
         const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
-        return isHorizontalSwipe && !isScrolling && !isCardNavigating && !isApplying
+        return isHorizontalSwipe && !flags.isScrolling && !flags.isCardNavigating && !flags.isApplying
       },
       onPanResponderGrant: () => {
         setIsScrolling(false)
@@ -384,12 +391,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   }
 
-  // Keep the panResponder's call-points pointed at the latest handlers.
-  // Runs after every render so the once-built panResponder never invokes
-  // a stale closure that captured the first-render empty `jobs` array.
+  // Keep the panResponder's call-points + gate flags pointed at the latest
+  // values. Runs after every render so the once-built panResponder never
+  // invokes a stale closure that captured the first-render state.
   useEffect(() => {
     approveRef.current = handleApprove
     rejectRef.current = handleReject
+    gateRef.current = { isScrolling, isCardNavigating, isApplying }
   })
 
   const formatSalary = (min?: number, max?: number) => {
