@@ -103,9 +103,22 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const progressAnim = useRef(new Animated.Value(0)).current
   const [isScrolling, setIsScrolling] = useState(false)
-  const [isCardNavigating, setIsCardNavigating] = useState(false)
+  // Holdover from the prev/next nav buttons (removed in 218081f). Kept as a
+  // permanent `false` so the existing gates / disabled-checks / opacity
+  // styles that reference it still compile. Safe to delete entirely along
+  // with its remaining references the next time this file gets touched.
+  const [isCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isApplying, setIsApplying] = useState(false)
+
+  // The panResponder is built once via useRef, so its release handler would
+  // otherwise close over first-render versions of handleApprove/handleReject
+  // (which captured jobs=[] before the load effect ran, so its !approvedJob
+  // guard always tripped → card stuck mid-swipe). These refs are re-pointed
+  // to the latest handlers on every render so the panResponder always calls
+  // the current versions.
+  const approveRef = useRef<() => void>(() => {})
+  const rejectRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const loadSwipeJobs = async () => {
@@ -231,9 +244,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         const isLeftSwipe = dx < -SWIPE_THRESHOLD || isQuickLeftFlick
 
         if (isRightSwipe) {
-          handleApprove()
+          approveRef.current()
         } else if (isLeftSwipe) {
-          handleReject()
+          rejectRef.current()
         } else {
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
@@ -352,61 +365,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     finalizeSwipeAction()
   }
 
-  const animateCardNavigation = (direction: 'next' | 'previous') => {
-    if (isCardNavigating) return
-
-    setIsCardNavigating(true)
-    if (navigationUnlockTimerRef.current) clearTimeout(navigationUnlockTimerRef.current)
-    navigationUnlockTimerRef.current = setTimeout(() => {
-      setIsCardNavigating(false)
-    }, 800)
-
-    const outgoingX = direction === 'next' ? -SCREEN_WIDTH : SCREEN_WIDTH
-    const incomingX = direction === 'next' ? SCREEN_WIDTH : -SCREEN_WIDTH
-
-    Animated.timing(pan.x, {
-      toValue: outgoingX,
-      duration: 220,
-      useNativeDriver: false,
-    }).start(() => {
-      setCurrentIndex((prev) =>
-        direction === 'next' ? Math.min(jobs.length - 1, prev + 1) : Math.max(0, prev - 1)
-      )
-
-      pan.setValue({ x: incomingX, y: 0 })
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 0, animated: false })
-      }
-
-      requestAnimationFrame(() => {
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          friction: 7,
-          tension: 70,
-        }).start(() => {
-          if (navigationUnlockTimerRef.current) {
-            clearTimeout(navigationUnlockTimerRef.current)
-            navigationUnlockTimerRef.current = null
-          }
-          setIsCardNavigating(false)
-        })
-      })
-    })
-  }
-
-  const handlePreviousJob = async () => {
-    if (showUndoModal || isCardNavigating || currentIndex <= 0) return
-    await Haptics.selectionAsync()
-    animateCardNavigation('previous')
-  }
-
-  const handleNextJob = async () => {
-    if (showUndoModal || isCardNavigating || currentIndex >= jobs.length - 1) return
-    await Haptics.selectionAsync()
-    animateCardNavigation('next')
-  }
-
   const handleReject = async () => {
     const rejectedJob = jobs[currentIndex]
     if (!rejectedJob) return
@@ -425,6 +383,14 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       }).start()
     })
   }
+
+  // Keep the panResponder's call-points pointed at the latest handlers.
+  // Runs after every render so the once-built panResponder never invokes
+  // a stale closure that captured the first-render empty `jobs` array.
+  useEffect(() => {
+    approveRef.current = handleApprove
+    rejectRef.current = handleReject
+  })
 
   const formatSalary = (min?: number, max?: number) => {
     if (!min && !max) return 'Salary not specified'

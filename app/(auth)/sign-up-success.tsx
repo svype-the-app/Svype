@@ -9,7 +9,6 @@ import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native'
 
 const AI_ROUTE = '/(onboarding)/job-seeker-onboarding';
 const MANUAL_ROUTE = '/(onboarding)/onboarding-choice';
-const SKIP_ROUTE = '/(jobseeker)/chat';
 const COMPANY_ROUTE = '/(company)/profile/profile-preview?mode=onboarding';
 
 export default function SignUpSuccessScreen() {
@@ -29,9 +28,9 @@ export default function SignUpSuccessScreen() {
     resolve();
   }, []);
 
-  // Company flow is unchanged — keeps its dedicated single-CTA card.
+  const greeting = `Welcome${firstName ? `, ${firstName}` : ''}.`;
+
   if (isCompanyUser) {
-    const greeting = `Welcome${firstName ? `, ${firstName}` : ''}.`;
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.content}>
@@ -49,8 +48,7 @@ export default function SignUpSuccessScreen() {
                 Your company profile
               </Text>
               <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-                Tell candidates who you are. You&apos;ll be ready to post jobs and review
-                applicants in a few minutes.
+                Tell candidates who you are. You&apos;ll be ready to post jobs and review applicants in a few minutes.
               </Text>
               <Button size="lg" onPress={() => router.push(COMPANY_ROUTE as any)} style={styles.cta}>
                 Get started
@@ -62,58 +60,47 @@ export default function SignUpSuccessScreen() {
     );
   }
 
-  const welcomeTitle = `Welcome to SVYPE${firstName ? `, ${firstName}` : ''}!`;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={[styles.appTitle, { color: colors.primary }]}>SVYPE</Text>
         </View>
+        <Text style={[styles.headline, { color: colors.foreground }]}>{greeting}</Text>
+        <Text style={[styles.subhead, { color: colors.mutedForeground }]}>
+          Let&apos;s set up your profile.
+        </Text>
 
         <Card>
-          <CardContent style={styles.successCard}>
-            <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
-              <Ionicons name="checkmark" size={36} color={colors.background} />
-            </View>
-
-            <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>
-              {welcomeTitle}
+          <CardContent>
+            <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+              RECOMMENDED  ·  2 MIN
             </Text>
-            <Text style={[styles.welcomeSubtitle, { color: colors.mutedForeground }]}>
-              Your account has been created. Let&apos;s build your profile with our AI assistant.
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+              Chat with Svyper
             </Text>
-
-            <Button
-              size="lg"
-              onPress={() => router.push(MANUAL_ROUTE as any)}
-              style={styles.ctaButton}
-            >
-              Manual Onboarding
+            <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
+              Tell us about yourself in a quick chat. We&apos;ll handle the rest, including the stuff that never makes it onto a resume.
+            </Text>
+            <Button size="lg" onPress={() => router.push(AI_ROUTE as any)} style={styles.cta}>
+              Start chat
             </Button>
-
-            <Button
-              size="lg"
-              onPress={() => router.push(AI_ROUTE as any)}
-              style={styles.ctaButton}
-            >
-              ✨ AI Onboarding
-            </Button>
-
-            <Pressable
-              onPress={() => router.replace(SKIP_ROUTE as any)}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.skipPressable,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={[styles.skipText, { color: colors.mutedForeground }]}>
-                Skip for now
-              </Text>
-            </Pressable>
           </CardContent>
         </Card>
+
+        <Pressable
+          onPress={() => router.push(MANUAL_ROUTE as any)}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.manualLink,
+            pressed && { backgroundColor: colors.muted },
+          ]}
+        >
+          <Text style={[styles.manualLinkText, { color: colors.mutedForeground }]}>
+            Or import from LinkedIn  ·  upload your CV
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground} />
+        </Pressable>
       </View>
     </View>
   );
@@ -150,6 +137,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 28,
   },
+  meta: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: 14,
+  },
   cardTitle: {
     fontSize: 22,
     fontWeight: '700',
@@ -164,42 +157,20 @@ const styles = StyleSheet.create({
   cta: {
     width: '100%',
   },
-  successCard: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    gap: 14,
-  },
-  checkCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  manualLink: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    gap: 8,
+    alignSelf: 'center',
   },
-  welcomeTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  welcomeSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  ctaButton: {
-    width: '100%',
-  },
-  skipPressable: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginTop: 2,
-  },
-  skipText: {
-    fontSize: 14,
+  manualLinkText: {
+    fontSize: 13,
     fontWeight: '500',
-    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });
