@@ -309,6 +309,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         if (scrollViewRef.current) {
           scrollViewRef.current.scrollTo({ y: 0, animated: false })
         }
+        // Release the gate as soon as the card is gone, NOT when the network
+        // call resolves. The apply request continues in the background; the
+        // success/failure alert will fire whenever it fires.
+        setIsApplying(false)
       })
     })
 
@@ -349,8 +353,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         // We can't easily reinsert the card here because the animation
         // callback may already have removed it. The error is surfaced.
       }
-    } finally {
-      setIsApplying(false)
     }
   }
 
