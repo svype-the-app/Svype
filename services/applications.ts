@@ -75,6 +75,23 @@ export interface ApplicantCard {
   applicant: ApplicantCardApplicant;
 }
 
+export interface ApplicantCompatibilityReport {
+  overall_score: number;
+  skills_match: number;
+  experience_match: number;
+  role_fit: number;
+  strengths: string[];
+  gaps: string[];
+  verdict: string;
+  personality_analysis: {
+    summary: string;
+    workplace_fit: string;
+  };
+  quiz_analysis: {
+    assessment: string;
+  } | null;
+}
+
 export const applicationsApi = {
   // Jobseeker — existing API kept for compatibility with legacy callers.
   async getApplications(): Promise<Application[]> {
@@ -110,6 +127,17 @@ export const applicationsApi = {
     await apiClient.post<unknown>(
       `/applications/${applicationId}/update_status/`,
       { status },
+    );
+  },
+
+  async getAICompatibility(
+    applicationId: number
+  ): Promise<ApplicantCompatibilityReport> {
+    return apiClient.post<ApplicantCompatibilityReport>(
+      '/ai/applicant-compatibility/',
+      {
+        application_id: applicationId,
+      }
     );
   },
 };

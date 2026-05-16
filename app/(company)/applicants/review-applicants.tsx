@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme'
 import {
   applicationsApi,
   type ApplicantCard,
+  type ApplicantCompatibilityReport,
   type Job,
   jobsApi,
 } from '@/services/api'
@@ -26,7 +27,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
@@ -37,6 +38,7 @@ export default function ReviewApplicantsScreen() {
   const params = useLocalSearchParams<{ jobId?: string; jobTitle?: string }>()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
 
   const paramJobId = Number(params.jobId)
   const paramJobTitle = (params.jobTitle as string) || ''
@@ -75,9 +77,52 @@ export default function ReviewApplicantsScreen() {
   const [isCardNavigating, setIsCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // The panResponder is built once via useRef, so its release handler would
+  // otherwise close over first-render versions of handleApprove/handleReject
+  // (which captured applicants=[] before the load effect ran, so its
+  // !approvedApplicant guard always tripped → card stuck mid-swipe).
+  // These refs are re-pointed to the latest handlers + gate flags on every
+  // render so the panResponder always calls the current versions.
+  const approveRef = useRef<() => void>(() => {})
+  const rejectRef = useRef<() => void>(() => {})
+  const gateRef = useRef({ isScrolling: false, isCardNavigating: false })
+
   // Cover letter modal
   const [coverModalText, setCoverModalText] = useState<string | null>(null)
   const [coverModalName, setCoverModalName] = useState<string>('')
+
+  // AI compatibility modal state (UI added in a later step — logic only for now).
+  const [showCompatibilityModal, setShowCompatibilityModal] = useState(false)
+  const [compatibilityReport, setCompatibilityReport] =
+    useState<ApplicantCompatibilityReport | null>(null)
+  const [compatibilityLoading, setCompatibilityLoading] = useState(false)
+  const [compatibilityError, setCompatibilityError] = useState<string | null>(null)
+  // Memo-cache keyed by application_id so re-opening the modal for the same
+  // applicant doesn't re-hit the LLM.
+  const compatibilityCacheRef = useRef<Record<number, ApplicantCompatibilityReport>>({})
+
+  // Shared fetch logic. Used by the purple button's onPress AND by the retry
+  // button in the error state (which must not close/reopen the modal).
+  const loadCompatibility = async (appId: number) => {
+    if (compatibilityCacheRef.current[appId]) {
+      setCompatibilityReport(compatibilityCacheRef.current[appId])
+      setCompatibilityLoading(false)
+      return
+    }
+    setCompatibilityReport(null)
+    setCompatibilityLoading(true)
+    try {
+      const report = await applicationsApi.getAICompatibility(appId)
+      compatibilityCacheRef.current[appId] = report
+      setCompatibilityReport(report)
+    } catch (err: any) {
+      setCompatibilityError(
+        err?.message ?? 'Could not generate analysis. Please try again.'
+      )
+    } finally {
+      setCompatibilityLoading(false)
+    }
+  }
 
   // Back arrow: pop route if we came in with a URL param; otherwise return
   // to the picker so the user can choose another job.
@@ -105,6 +150,11 @@ export default function ReviewApplicantsScreen() {
         if (remainingLen <= 0) return 0
         return Math.min(prev, remainingLen - 1)
       })
+
+      // Drop any cached AI compatibility report for the removed applicant.
+      if (compatibilityCacheRef.current[target.application_id]) {
+        delete compatibilityCacheRef.current[target.application_id]
+      }
     }
 
     setShowUndoModal(false)
@@ -214,8 +264,9 @@ export default function ReviewApplicantsScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, { dx, dy }) => {
+        const flags = gateRef.current
         const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
-        return isHorizontalSwipe && !isScrolling && !isCardNavigating
+        return isHorizontalSwipe && !flags.isScrolling && !flags.isCardNavigating
       },
       onPanResponderGrant: () => {
         setIsScrolling(false)
@@ -236,9 +287,9 @@ export default function ReviewApplicantsScreen() {
         const isLeftSwipe = dx < -SWIPE_THRESHOLD || isQuickLeftFlick
 
         if (isRightSwipe) {
-          handleApprove()
+          approveRef.current()
         } else if (isLeftSwipe) {
-          handleReject()
+          rejectRef.current()
         } else {
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
@@ -370,6 +421,15 @@ export default function ReviewApplicantsScreen() {
       }).start()
     })
   }
+
+  // Keep the panResponder's call-points + gate flags pointed at the latest
+  // values. Runs after every render so the once-built panResponder never
+  // invokes a stale closure that captured the first-render state.
+  useEffect(() => {
+    approveRef.current = handleApprove
+    rejectRef.current = handleReject
+    gateRef.current = { isScrolling, isCardNavigating }
+  })
 
   const formatAppliedAt = (iso: string) => {
     try {
@@ -839,7 +899,11 @@ export default function ReviewApplicantsScreen() {
               <TouchableOpacity
                 style={[styles.actionButton, styles.filterButton]}
                 onPress={() => {
-                  // AI Filter logic to be implemented
+                  const appId = currentApplicant?.application_id
+                  if (!appId) return
+                  setShowCompatibilityModal(true)
+                  setCompatibilityError(null)
+                  loadCompatibility(appId)
                 }}
               >
                 <View style={styles.filterIconWrap}>
@@ -963,6 +1027,274 @@ export default function ReviewApplicantsScreen() {
             </CardContent>
           </Card>
         </View>
+      </Modal>
+
+      {/* AI Compatibility Report modal */}
+      <Modal
+        visible={showCompatibilityModal}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setShowCompatibilityModal(false)}
+      >
+        {/*
+          RN Modal renders in its own React tree, so the outer
+          SafeAreaProvider context isn't reachable from inside. Mount a fresh
+          provider here so SafeAreaView gets correct insets and pads under the
+          status bar properly.
+        */}
+        <SafeAreaProvider>
+          <SafeAreaView
+            edges={['top', 'bottom']}
+            style={[styles.compatContainer, { backgroundColor: colors.background }]}
+          >
+          <View
+            style={[
+              styles.compatHeader,
+              { borderBottomColor: colors.border },
+            ]}
+          >
+            <View style={{ width: 40 }} />
+            <View style={styles.compatHeaderTextWrap}>
+              <Text style={[styles.compatHeaderTitle, { color: colors.foreground }]} numberOfLines={1}>
+                AI Compatibility Report
+              </Text>
+              {!!currentApplicant?.applicant.full_name && (
+                <Text style={[styles.compatHeaderSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {currentApplicant?.applicant.full_name}
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowCompatibilityModal(false)}
+              hitSlop={8}
+              style={styles.compatCloseBtn}
+            >
+              <Ionicons name="close" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          {compatibilityLoading ? (
+            <View style={styles.compatCenter}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.compatLoadingText, { color: colors.mutedForeground }]}>
+                Analyzing applicant profile…
+              </Text>
+            </View>
+          ) : compatibilityError ? (
+            <View style={styles.compatCenter}>
+              <Card style={[styles.compatErrorCard, { backgroundColor: colors.card }]}>
+                <CardContent>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={36}
+                    color={colors.mutedForeground}
+                    style={{ alignSelf: 'center', marginBottom: 8 }}
+                  />
+                  <Text style={[styles.compatErrorTitle, { color: colors.foreground }]}>
+                    Analysis Failed
+                  </Text>
+                  <Text style={[styles.compatErrorMsg, { color: colors.mutedForeground }]}>
+                    {compatibilityError}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const appId = currentApplicant?.application_id
+                      if (!appId) return
+                      setCompatibilityError(null)
+                      loadCompatibility(appId)
+                    }}
+                    style={[styles.compatRetryBtn, { backgroundColor: colors.primary }]}
+                  >
+                    <Text style={styles.compatRetryText}>Try Again</Text>
+                  </TouchableOpacity>
+                </CardContent>
+              </Card>
+            </View>
+          ) : compatibilityReport ? (
+            <ScrollView contentContainerStyle={styles.compatScroll}>
+              {/* ── Section 1 — Overall Score ─────────────────────────── */}
+              {(() => {
+                const score = compatibilityReport.overall_score
+                const color =
+                  score >= 75 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444'
+                return (
+                  <View style={styles.compatOverallWrap}>
+                    <View style={[styles.compatScoreCircle, { borderColor: color }]}>
+                      <Text style={[styles.compatScoreNum, { color }]}>{score}</Text>
+                      <Text style={[styles.compatScoreOutOf, { color: colors.mutedForeground }]}>
+                        / 100
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.compatVerdict, { color: colors.mutedForeground }]}
+                    >
+                      {compatibilityReport.verdict}
+                    </Text>
+                  </View>
+                )
+              })()}
+
+              {/* ── Section 2 — Score Breakdown ────────────────────────── */}
+              <View style={styles.compatSection}>
+                <Text style={[styles.compatSectionTitle, { color: colors.foreground }]}>
+                  Score Breakdown
+                </Text>
+                {(
+                  [
+                    ['Skills Match', compatibilityReport.skills_match],
+                    ['Experience Match', compatibilityReport.experience_match],
+                    ['Role Fit', compatibilityReport.role_fit],
+                  ] as const
+                ).map(([label, value]) => {
+                  const color =
+                    value >= 75 ? '#10b981' : value >= 50 ? '#f59e0b' : '#ef4444'
+                  return (
+                    <View key={label} style={styles.compatBreakdownRow}>
+                      <Text
+                        style={[styles.compatBreakdownLabel, { color: colors.foreground }]}
+                      >
+                        {label}
+                      </Text>
+                      <View
+                        style={[
+                          styles.compatBarTrack,
+                          { backgroundColor: colors.secondary },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.compatBarFill,
+                            { width: `${Math.max(0, Math.min(100, value))}%`, backgroundColor: color },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.compatBreakdownPct, { color }]}>{value}%</Text>
+                    </View>
+                  )
+                })}
+              </View>
+
+              {/* ── Section 3 — Strengths & Gaps ───────────────────────── */}
+              <View style={styles.compatSection}>
+                <Text style={[styles.compatSectionTitle, { color: colors.foreground }]}>
+                  Strengths & Gaps
+                </Text>
+
+                <View style={styles.compatListBlock}>
+                  <View style={styles.compatListHeader}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                    <Text style={[styles.compatListHeaderText, { color: '#10b981' }]}>
+                      Strengths
+                    </Text>
+                  </View>
+                  {compatibilityReport.strengths.length === 0 ? (
+                    <Text style={[styles.compatItemText, { color: colors.mutedForeground }]}>
+                      None highlighted.
+                    </Text>
+                  ) : (
+                    compatibilityReport.strengths.map((s, i) => (
+                      <View key={i} style={styles.compatItemRow}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={14}
+                          color="#10b981"
+                          style={{ marginTop: 3 }}
+                        />
+                        <Text style={[styles.compatItemText, { color: colors.foreground }]}>
+                          {s}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                <View style={[styles.compatListBlock, { marginTop: 16 }]}>
+                  <View style={styles.compatListHeader}>
+                    <Ionicons name="alert-circle" size={18} color="#f59e0b" />
+                    <Text style={[styles.compatListHeaderText, { color: '#f59e0b' }]}>
+                      Gaps
+                    </Text>
+                  </View>
+                  {compatibilityReport.gaps.length === 0 ? (
+                    <Text style={[styles.compatItemText, { color: colors.mutedForeground }]}>
+                      No significant gaps identified.
+                    </Text>
+                  ) : (
+                    compatibilityReport.gaps.map((g, i) => (
+                      <View key={i} style={styles.compatItemRow}>
+                        <Ionicons
+                          name="alert-circle"
+                          size={14}
+                          color="#f59e0b"
+                          style={{ marginTop: 3 }}
+                        />
+                        <Text style={[styles.compatItemText, { color: colors.foreground }]}>
+                          {g}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </View>
+
+              {/* ── Section 4 — Personality Profile ────────────────────── */}
+              <View style={styles.compatSection}>
+                <View style={styles.compatListHeader}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={20}
+                    color={colors.foreground}
+                  />
+                  <Text style={[styles.compatSectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                    Personality Profile
+                  </Text>
+                </View>
+                <Text style={[styles.compatBodyText, { color: colors.mutedForeground, marginTop: 8 }]}>
+                  {compatibilityReport.personality_analysis.summary}
+                </Text>
+                {!!compatibilityReport.personality_analysis.workplace_fit && (
+                  <View
+                    style={[
+                      styles.compatTintedBox,
+                      {
+                        backgroundColor: colors.primary + '12',
+                        borderColor: colors.primary + '30',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.compatBodyText, { color: colors.foreground }]}>
+                      {compatibilityReport.personality_analysis.workplace_fit}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* ── Section 5 — Quiz Performance (conditional) ─────────── */}
+              {compatibilityReport.quiz_analysis !== null && (
+                <View style={styles.compatSection}>
+                  <View style={styles.compatListHeader}>
+                    <Ionicons name="trophy-outline" size={20} color={colors.foreground} />
+                    <Text style={[styles.compatSectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                      Quiz Performance
+                    </Text>
+                    {currentApplicant?.quiz_score !== null &&
+                      currentApplicant?.quiz_score !== undefined && (
+                        <View style={[styles.compatScorePill, { backgroundColor: '#7c3aed' }]}>
+                          <Text style={styles.compatScorePillText}>
+                            {currentApplicant.quiz_score}%
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                  <Text style={[styles.compatBodyText, { color: colors.mutedForeground, marginTop: 8 }]}>
+                    {compatibilityReport.quiz_analysis.assessment}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          ) : null}
+          </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
     </SafeAreaView>
   )
@@ -1210,4 +1542,121 @@ const styles = StyleSheet.create({
   pickerTitle: { fontSize: 16, fontWeight: '700' },
   pickerSubtitle: { fontSize: 12, marginTop: 2 },
   pickerCount: { fontSize: 13, fontWeight: '700', marginTop: 6 },
+
+  // ─── AI Compatibility Report modal ─────────────────────────────────────
+  compatContainer: { flex: 1 },
+  compatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  compatHeaderTextWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  compatHeaderTitle: { fontSize: 17, fontWeight: '700' },
+  compatHeaderSubtitle: { fontSize: 13, marginTop: 4 },
+  compatCloseBtn: { width: 40, alignItems: 'flex-end', paddingVertical: 4 },
+
+  compatCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 32,
+    gap: 16,
+  },
+  compatLoadingText: { fontSize: 14, marginTop: 8, textAlign: 'center' },
+
+  compatErrorCard: { width: '100%', maxWidth: 360 },
+  compatErrorTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  compatErrorMsg: { fontSize: 13, textAlign: 'center', marginBottom: 20, lineHeight: 19 },
+  compatRetryBtn: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  compatRetryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  compatScroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
+
+  // Overall score
+  compatOverallWrap: { alignItems: 'center', marginBottom: 32 },
+  compatScoreCircle: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  compatScoreNum: { fontSize: 32, fontWeight: '800', lineHeight: 36 },
+  compatScoreOutOf: { fontSize: 11, marginTop: 0 },
+  compatVerdict: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    lineHeight: 21,
+  },
+
+  // Sections
+  compatSection: { marginBottom: 32 },
+  compatSectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 16 },
+
+  // Breakdown bars
+  compatBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  compatBreakdownLabel: { width: 150, fontSize: 13, fontWeight: '600' },
+  compatBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginHorizontal: 12,
+  },
+  compatBarFill: { height: '100%', borderRadius: 4 },
+  compatBreakdownPct: { width: 44, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+
+  // Lists (strengths / gaps / section headers with icons)
+  compatListBlock: {},
+  compatListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  compatListHeaderText: { fontSize: 14, fontWeight: '700' },
+  compatItemRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingLeft: 4,
+    marginBottom: 10,
+  },
+  compatItemText: { flex: 1, fontSize: 13, lineHeight: 20 },
+
+  // Personality body + tinted box
+  compatBodyText: { fontSize: 13, lineHeight: 20 },
+  compatTintedBox: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 16,
+  },
+
+  // Quiz pill (inline next to section title)
+  compatScorePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginLeft: 'auto',
+  },
+  compatScorePillText: { color: '#fff', fontWeight: '700', fontSize: 12 },
 })

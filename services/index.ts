@@ -17,6 +17,7 @@ export type {
   QuizFeedbackItem,
   ApplicantCard,
   ApplicantCardApplicant,
+  ApplicantCompatibilityReport,
 } from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';
