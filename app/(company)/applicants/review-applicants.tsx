@@ -36,13 +36,20 @@ const FLICK_VELOCITY_THRESHOLD = 0.45
 
 export default function ReviewApplicantsScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ jobId?: string; jobTitle?: string }>()
+  const params = useLocalSearchParams<{
+    jobId?: string
+    jobTitle?: string
+    shortlistRunId?: string
+    shortlistMode?: string
+  }>()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
   const insets = useSafeAreaInsets()
 
   const paramJobId = Number(params.jobId)
   const paramJobTitle = (params.jobTitle as string) || ''
+  const paramShortlistRunId = params.shortlistRunId ? Number(params.shortlistRunId) : null
+  const isShortlistMode = params.shortlistMode === 'true'
 
   // When the screen is opened from the bottom tab there is no jobId param,
   // so we first show a job picker. Selecting a job populates selectedJob
@@ -102,6 +109,31 @@ export default function ReviewApplicantsScreen() {
   // applicant doesn't re-hit the LLM.
   const compatibilityCacheRef = useRef<Record<number, ApplicantCompatibilityReport>>({})
 
+  // Shortlist button state
+  const [shortlistLoading, setShortlistLoading] = useState(false)
+
+  const handleShortlistPress = async () => {
+    if (!jobId || shortlistLoading) return
+    setShortlistLoading(true)
+    try {
+      const history = await applicationsApi.getShortlistHistory(jobId)
+      if (history.length === 0) {
+        const runDetail = await applicationsApi.runShortlist(jobId)
+        router.push(
+          `/(company)/applicants/review-applicants?jobId=${jobId}&jobTitle=${encodeURIComponent(jobTitle)}&shortlistRunId=${runDetail.id}&shortlistMode=true` as any
+        )
+      } else {
+        router.push(
+          `/(company)/applicants/shortlist-history?jobId=${jobId}&jobTitle=${encodeURIComponent(jobTitle)}` as any
+        )
+      }
+    } catch {
+      // Silently ignore — button returns to idle
+    } finally {
+      setShortlistLoading(false)
+    }
+  }
+
   // Shared fetch logic. Used by the purple button's onPress AND by the retry
   // button in the error state (which must not close/reopen the modal).
   const loadCompatibility = async (appId: number) => {
@@ -125,9 +157,14 @@ export default function ReviewApplicantsScreen() {
     }
   }
 
-  // Back arrow: pop route if we came in with a URL param; otherwise return
-  // to the picker so the user can choose another job.
+  // Back arrow: in shortlist mode go to history; otherwise pop route or return to picker.
   const handleBack = () => {
+    if (isShortlistMode) {
+      router.push(
+        `/(company)/applicants/shortlist-history?jobId=${paramJobId}&jobTitle=${encodeURIComponent(paramJobTitle)}` as any
+      )
+      return
+    }
     const cameViaUrl = Number.isFinite(paramJobId) && paramJobId > 0
     if (selectedJob && !cameViaUrl) {
       setSelectedJob(null)
@@ -168,7 +205,7 @@ export default function ReviewApplicantsScreen() {
     }
   }
 
-  // ── Load applicants for the selected job ───────────────────────────────
+  // ── Load applicants for the selected job (normal or shortlist mode) ────
   useEffect(() => {
     let cancelled = false
     if (!jobId) {
@@ -178,8 +215,12 @@ export default function ReviewApplicantsScreen() {
     }
     setLoading(true)
     setError(null)
-    applicationsApi
-      .getApplicants(jobId)
+
+    const fetchPromise = isShortlistMode && paramShortlistRunId
+      ? applicationsApi.getShortlistRun(jobId, paramShortlistRunId).then((d) => d.applicants)
+      : applicationsApi.getApplicants(jobId)
+
+    fetchPromise
       .then((data) => {
         if (cancelled) return
         setApplicants(data)
@@ -195,7 +236,7 @@ export default function ReviewApplicantsScreen() {
     return () => {
       cancelled = true
     }
-  }, [jobId])
+  }, [jobId, isShortlistMode, paramShortlistRunId])
 
   // ── Picker mode: load the company's jobs to choose from ────────────────
   useEffect(() => {
@@ -653,14 +694,20 @@ export default function ReviewApplicantsScreen() {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack}>
-          <Ionicons name="chevron-back" size={28} color={colors.foreground} />
+          <Ionicons name="chevron-back" size={28} color={isShortlistMode ? '#8b5cf6' : colors.foreground} />
         </TouchableOpacity>
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {jobTitle}
-          </Text>
+          {isShortlistMode ? (
+            <Text style={[styles.headerTitle, { color: '#8b5cf6' }]} numberOfLines={1}>
+              Shortlisted Applicants
+            </Text>
+          ) : (
+            <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+              {jobTitle}
+            </Text>
+          )}
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-            {applicants.length} remaining
+            {isShortlistMode ? `AI-ranked • ${applicants.length} applicants` : `${applicants.length} remaining`}
           </Text>
         </View>
       </View>
@@ -930,6 +977,25 @@ export default function ReviewApplicantsScreen() {
                   </View>
                 </View>
               </TouchableOpacity>
+
+              {!isShortlistMode && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.shortlistButton, shortlistLoading && { opacity: 0.65 }]}
+                  onPress={handleShortlistPress}
+                  disabled={shortlistLoading}
+                >
+                  {shortlistLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <View style={styles.filterIconWrap}>
+                      <Ionicons name="people" size={22} color="#fff" />
+                      <View style={[styles.filterSparkleBadge, { backgroundColor: '#6ee7b7' }]}>
+                        <Ionicons name="sparkles" size={12} color="#fff" />
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={[
@@ -1436,6 +1502,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#8b5cf6',
     borderWidth: 0,
     shadowColor: '#a855f7',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  shortlistButton: {
+    backgroundColor: '#059669',
+    borderWidth: 0,
+    shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 10,

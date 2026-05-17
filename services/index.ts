@@ -19,6 +19,8 @@ export type {
   ApplicantCardApplicant,
   ApplicantCompatibilityReport,
   ApplicantCompatibilityHistoryItem,
+  ShortlistRun,
+  ShortlistRunDetail,
 } from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';

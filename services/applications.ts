@@ -104,6 +104,17 @@ export interface ApplicantCompatibilityHistoryItem {
   computed_at: string;
 }
 
+export interface ShortlistRun {
+  id: number;
+  job_id: number;
+  applicant_count: number;
+  created_at: string;
+}
+
+export interface ShortlistRunDetail extends ShortlistRun {
+  applicants: ApplicantCard[];
+}
+
 export const applicationsApi = {
   // Jobseeker — existing API kept for compatibility with legacy callers.
   async getApplications(): Promise<Application[]> {
@@ -158,5 +169,17 @@ export const applicationsApi = {
       ? `/ai/applicant-compatibility/history/?job_id=${jobId}`
       : '/ai/applicant-compatibility/history/';
     return apiClient.get<ApplicantCompatibilityHistoryItem[]>(url);
+  },
+
+  async runShortlist(jobId: number): Promise<ShortlistRunDetail> {
+    return apiClient.post<ShortlistRunDetail>(`/jobs/${jobId}/shortlist/`, {});
+  },
+
+  async getShortlistHistory(jobId: number): Promise<ShortlistRun[]> {
+    return apiClient.get<ShortlistRun[]>(`/jobs/${jobId}/shortlist/history/`);
+  },
+
+  async getShortlistRun(jobId: number, runId: number): Promise<ShortlistRunDetail> {
+    return apiClient.get<ShortlistRunDetail>(`/jobs/${jobId}/shortlist/${runId}/`);
   },
 };
