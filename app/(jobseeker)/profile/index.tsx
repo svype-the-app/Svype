@@ -369,24 +369,6 @@ export default function ProfileScreen() {
                 colors={colors}
               />
               <MenuItem
-                icon={<Ionicons name="create-outline" size={20} color={colors.primary} />}
-                label="Generate Cover Letter"
-                onPress={() => router.push('/(jobseeker)/ai-tools/generate-cover-letter')}
-                colors={colors}
-              />
-              <MenuItem
-                icon={<Ionicons name="ribbon-outline" size={20} color="#f59e0b" />}
-                label="Skills Assessment"
-                onPress={() => router.push('/(jobseeker)/ai-tools/skills-assessment')}
-                colors={colors}
-              />
-              <MenuItem
-                icon={<Ionicons name="sparkles-outline" size={20} color="#a855f7" />}
-                label="Interview Preparation"
-                onPress={() => router.push('/(jobseeker)/ai-tools/interview-prep')}
-                colors={colors}
-              />
-              <MenuItem
                 icon={<Ionicons name="bookmark-outline" size={20} color="#3b82f6" />}
                 label="Saved Jobs"
                 onPress={() => router.push('/(jobseeker)/saved')}
@@ -412,12 +394,6 @@ export default function ProfileScreen() {
                 icon={<Ionicons name="person-outline" size={20} color={colors.foreground} />}
                 label="Edit Personal Info"
                 onPress={() => router.push('/(jobseeker)/profile/profile-preview?mode=personal')}
-                colors={colors}
-              />
-              <MenuItem
-                icon={<Ionicons name="document-outline" size={20} color={colors.foreground} />}
-                label="Resume & Portfolio"
-                onPress={() => router.push('/(jobseeker)/profile/resume')}
                 colors={colors}
               />
               <MenuItem

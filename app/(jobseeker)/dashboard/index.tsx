@@ -155,30 +155,7 @@ export default function DashboardScreen() {
             </View>
           )}
 
-          {/* Quick Actions */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={[styles.quickActionButton, { borderColor: colors.border }]}
-              onPress={() => router.push('/(jobseeker)/ai-tools/generate-cv')}
-            >
-              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
-              <Text style={[styles.quickActionText, { color: colors.foreground }]}>
-                Generate CV
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickActionButton, { borderColor: colors.border }]}
-              onPress={() => router.push('/(jobseeker)/ai-tools/generate-cover-letter')}
-            >
-              <Ionicons name="create-outline" size={20} color={colors.primary} />
-              <Text style={[styles.quickActionText, { color: colors.foreground }]}>
-                Cover Letter
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Tabs */}
+          {/* Tabs */}
         <View style={[styles.tabsContainer, { backgroundColor: colors.muted }]}>
           <TouchableOpacity
             style={[
@@ -400,22 +377,6 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 10,
     marginTop: 2,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  quickActionButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    gap: 8,
-  },
-  quickActionText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   tabsContainer: {
     flexDirection: 'row',
