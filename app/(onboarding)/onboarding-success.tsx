@@ -1,26 +1,37 @@
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 /**
- * Shown after the essential onboarding chat finishes.
- * Two ideas the user lands on here:
- *   1. They can preview their profile now.
- *   2. They can come back to the chat anytime to share more so AI knows them better.
+ * Shown once after essential onboarding finishes.
+ * Transitions user state to 'active' on mount so this screen never re-triggers.
+ * - Primary: generate resume → navigate to generate-cv screen
+ * - Secondary: keep chatting → return to chat with a hint message injected
  */
 export default function OnboardingSuccessScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const handlePreview = () => {
-    router.replace('/(jobseeker)/profile' as any);
+  // Transition to active state as soon as this screen is seen.
+  // After this, the backend will no longer return next_route = onboarding-success.
+  useEffect(() => {
+    authApi.updateState('active').catch(() => {
+      // Ignore if transition already happened or fails silently
+    });
+  }, []);
+
+  const handleGenerateResume = () => {
+    router.replace('/(jobseeker)/ai-tools/generate-cv' as any);
   };
 
   const handleBackToChat = () => {
-    router.replace('/(onboarding)/job-seeker-onboarding' as any);
+    // Pass a flag so the chat screen injects a hint message about CV generation
+    router.replace('/(onboarding)/job-seeker-onboarding?cv_hint=1' as any);
   };
 
   return (
@@ -31,29 +42,30 @@ export default function OnboardingSuccessScreen() {
         </View>
 
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Your essentials are in!
+          Your profile is ready!
         </Text>
 
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Nice work. The basics are saved — you can preview your profile now.
+          Your essentials are saved. Generate a tailored AI resume now, or keep
+          chatting to improve your job matches.
         </Text>
 
         <View style={[styles.tipCard, { backgroundColor: colors.muted + '40', borderColor: colors.border }]}>
           <Ionicons name="sparkles" size={20} color={colors.primary} />
           <View style={styles.tipText}>
             <Text style={[styles.tipTitle, { color: colors.foreground }]}>
-              Want better job matches?
+              AI-powered resume
             </Text>
             <Text style={[styles.tipBody, { color: colors.mutedForeground }]}>
-              Come back to the AI chat anytime. The more you share — past roles,
-              preferences, what you're looking for — the better we can match you.
+              We'll use everything you shared to generate a professional resume
+              tailored to your experience and goals.
             </Text>
           </View>
         </View>
 
-        <Button onPress={handlePreview} style={styles.primaryButton}>
-          <Ionicons name="eye-outline" size={18} color="#fff" />
-          <Text style={styles.primaryButtonText}>Click here for profile preview</Text>
+        <Button onPress={handleGenerateResume} style={styles.primaryButton}>
+          <Ionicons name="document-text-outline" size={18} color="#fff" />
+          <Text style={styles.primaryButtonText}>Generate My Resume</Text>
         </Button>
 
         <Button variant="outline" onPress={handleBackToChat} style={styles.secondaryButton}>

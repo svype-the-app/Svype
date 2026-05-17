@@ -2,7 +2,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { aiOnboardingApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -14,6 +14,7 @@ interface Message {
 
 export default function JobSeekerOnboardingScreen() {
   const router = useRouter();
+  const { cv_hint } = useLocalSearchParams<{ cv_hint?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const scrollViewRef = useRef<ScrollView>(null);
@@ -42,7 +43,18 @@ export default function JobSeekerOnboardingScreen() {
       try {
         const start = await aiOnboardingApi.startSession();
         setSessionId(start.session_id);
-        setMessages(toUiMessages(start.messages));
+        const loadedMessages = toUiMessages(start.messages);
+
+        // If returning from onboarding-success via "Keep chatting", inject a hint
+        if (cv_hint === '1') {
+          loadedMessages.push({
+            id: loadedMessages.length,
+            type: 'bot',
+            content: "You can generate your AI resume anytime from the AI Tools section in your profile. Feel free to keep sharing more about yourself — the more I know, the better I can tailor your matches! 🎯",
+          });
+        }
+
+        setMessages(loadedMessages);
         setTotalFields(start.total_fields);
         setCompletedFields(start.completed_fields);
 
