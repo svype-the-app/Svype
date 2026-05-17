@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
-import { Application, aiChatApi, applicationsApi } from '@/services/api';
+import { useApplications } from '@/lib/applications-context';
+import { aiChatApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,9 +24,7 @@ export default function DashboardScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
   const { setHasUnreadAiMsg } = useChatUnread();
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const { applications, initialLoading, loadError, refreshing, refresh } = useApplications();
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
 
   // Trigger the AI welcome message exactly once per app session — runs only
@@ -42,40 +41,6 @@ export default function DashboardScreen() {
       }
     })();
   }, [setHasUnreadAiMsg]);
-
-  // Refetch applications every time the Dashboard tab gains focus, so
-  // approving a job from the swipe tab is reflected immediately when the
-  // user comes back. The `cancelled` flag prevents a stale in-flight fetch
-  // from overwriting fresher data if the user rapidly toggles tabs.
-  const loadApplications = useCallback((cancelled: { current: boolean }) => {
-    setLoading(true);
-    setLoadError(false);
-
-    applicationsApi
-      .getApplications()
-      .then((apps) => {
-        if (cancelled.current) return;
-        setApplications(apps);
-        setLoadError(false);
-      })
-      .catch((error) => {
-        if (cancelled.current) return;
-        console.log('Failed to load applications:', error);
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (cancelled.current) return;
-        setLoading(false);
-      });
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      const cancelled = { current: false };
-      loadApplications(cancelled);
-      return () => { cancelled.current = true; };
-    }, [loadApplications])
-  );
 
   const ACTIVE_STATUSES = ['applied', 'shortlisted', 'interview', 'offered'];
   const CLOSED_STATUSES = ['rejected', 'withdrawn'];
@@ -145,7 +110,17 @@ export default function DashboardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -260,7 +235,7 @@ export default function DashboardScreen() {
 
         {/* Applications List */}
         <View style={styles.listContainer}>
-          {loading ? (
+          {initialLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
           ) : loadError ? (
             <View style={styles.emptyState}>
@@ -272,7 +247,7 @@ export default function DashboardScreen() {
                 Couldn't connect to the server. Check your connection and try again.
               </Text>
               <Button
-                onPress={() => loadApplications({ current: false })}
+                onPress={refresh}
                 style={styles.emptyButton}
               >
                 Retry

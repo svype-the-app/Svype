@@ -1,3 +1,4 @@
+import { ApplicationsProvider } from '@/lib/applications-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
@@ -163,9 +164,11 @@ function JobSeekerTabs() {
 export default function JobSeekerLayout() {
   return (
     <ChatUnreadProvider>
-      <CheckInPoller />
-      <SwipeCacheWarmer />
-      <JobSeekerTabs />
+      <ApplicationsProvider>
+        <CheckInPoller />
+        <SwipeCacheWarmer />
+        <JobSeekerTabs />
+      </ApplicationsProvider>
     </ChatUnreadProvider>
   );
 }

@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
+import { useApplications } from '@/lib/applications-context'
 import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -106,6 +107,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
   const router = useRouter()
+  const { invalidate: invalidateApplications } = useApplications()
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [jobs, setJobs] = useState<SwipeJob[]>([])
@@ -350,6 +352,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     // when both the animation and the network call have finished.
     try {
       const result = await applicationsApi.apply(approvedJob.id)
+      // Silently refresh the applications cache so the Dashboard reflects
+      // the new application without any visible loading on that screen.
+      invalidateApplications()
       if (result.requires_quiz && result.quiz) {
         router.push({
           pathname: '/(jobseeker)/job/pre-screening-quiz',
