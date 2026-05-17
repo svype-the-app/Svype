@@ -668,7 +668,7 @@ export default function ReviewApplicantsScreen() {
         <View style={[styles.sectionHint, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
           <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
           <Text style={[styles.sectionHintText, { color: colors.primary }]}>
-            Swipe right to accept • left to reject • use Previous/Next buttons to browse
+            Swipe right to accept • left to reject • ‹ › to browse
           </Text>
           <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
             <Ionicons name="close" size={16} color={colors.primary} />
@@ -881,19 +881,20 @@ export default function ReviewApplicantsScreen() {
       <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
         {(() => {
           const noApplicants = applicants.length === 0
-          const disabled = noApplicants || showUndoModal || isCardNavigating
+          const disabledPrev = noApplicants || showUndoModal || isCardNavigating || currentIndex <= 0
+          const disabledNext = noApplicants || showUndoModal || isCardNavigating || currentIndex >= applicants.length - 1
           return (
             <>
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.rejectButton,
-                  disabled && styles.actionButtonDisabled,
+                  styles.navButton,
+                  disabledPrev && styles.navButtonDisabled,
                 ]}
-                onPress={handleReject}
-                disabled={disabled}
+                onPress={handlePreviousApplicant}
+                disabled={disabledPrev}
               >
-                <Ionicons name="close" size={28} color={disabled ? '#9ca3af' : '#fff'} />
+                <Ionicons name="chevron-back" size={28} color={disabledPrev ? '#9ca3af' : '#fff'} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -917,13 +918,13 @@ export default function ReviewApplicantsScreen() {
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.approveButton,
-                  disabled && styles.actionButtonDisabled,
+                  styles.navButton,
+                  disabledNext && styles.navButtonDisabled,
                 ]}
-                onPress={handleApprove}
-                disabled={disabled}
+                onPress={handleNextApplicant}
+                disabled={disabledNext}
               >
-                <Ionicons name="checkmark" size={28} color={disabled ? '#9ca3af' : '#fff'} />
+                <Ionicons name="chevron-forward" size={28} color={disabledNext ? '#9ca3af' : '#fff'} />
               </TouchableOpacity>
             </>
           )

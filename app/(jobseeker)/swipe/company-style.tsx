@@ -398,6 +398,22 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   }
 
+  const handleGoToPrev = () => {
+    if (currentIndex <= 0 || jobs.length === 0) return
+    Haptics.selectionAsync().catch(() => {})
+    pan.setValue({ x: 0, y: 0 })
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    setCurrentIndex((prev) => prev - 1)
+  }
+
+  const handleGoToNext = () => {
+    if (currentIndex >= jobs.length - 1 || jobs.length === 0) return
+    Haptics.selectionAsync().catch(() => {})
+    pan.setValue({ x: 0, y: 0 })
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    setCurrentIndex((prev) => prev + 1)
+  }
+
   // Keep the panResponder's call-points + gate flags pointed at the latest
   // values. Runs after every render so the once-built panResponder never
   // invokes a stale closure that captured the first-render state.
@@ -658,20 +674,21 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
         {(() => {
           const noJobs = jobs.length === 0
-          const rejectDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
-          const approveDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
+          const navDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
+          const prevDisabled = navDisabled || currentIndex <= 0
+          const nextDisabled = navDisabled || currentIndex >= jobs.length - 1
           return (
             <>
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.rejectButton,
-                  rejectDisabled && styles.actionButtonDisabled,
+                  styles.navButton,
+                  prevDisabled && styles.navButtonDisabled,
                 ]}
-                onPress={handleReject}
-                disabled={rejectDisabled}
+                onPress={handleGoToPrev}
+                disabled={prevDisabled}
               >
-                <Ionicons name="close" size={28} color={rejectDisabled ? '#9ca3af' : '#fff'} />
+                <Ionicons name="chevron-back" size={28} color={prevDisabled ? '#9ca3af' : '#fff'} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -689,13 +706,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.approveButton,
-                  approveDisabled && styles.actionButtonDisabled,
+                  styles.navButton,
+                  nextDisabled && styles.navButtonDisabled,
                 ]}
-                onPress={handleApprove}
-                disabled={approveDisabled}
+                onPress={handleGoToNext}
+                disabled={nextDisabled}
               >
-                <Ionicons name="checkmark" size={28} color={approveDisabled ? '#9ca3af' : '#fff'} />
+                <Ionicons name="chevron-forward" size={28} color={nextDisabled ? '#9ca3af' : '#fff'} />
               </TouchableOpacity>
             </>
           )

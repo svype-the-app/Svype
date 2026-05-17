@@ -265,6 +265,33 @@ function LegacySwipeScreen() {
     }
   };
 
+  // Navigation arrows: browse without applying or discarding.
+  // "Next" rotates the current card to the back of the deck.
+  // "Prev" restores the last discarded card to the front.
+  const handleGoNext = () => {
+    if (jobs.length <= 1) return;
+    Haptics.selectionAsync();
+    setShowDetails(false);
+    setJobs(prev => [...prev.slice(1), prev[0]]);
+    translateX.value = 0;
+    translateY.value = 0;
+  };
+
+  const handleGoPrev = () => {
+    if (!lastDiscarded) return;
+    Haptics.selectionAsync();
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    setShowDetails(false);
+    setJobs(prev => [lastDiscarded!, ...prev]);
+    setLastDiscarded(null);
+    setShowUndo(false);
+    translateX.value = 0;
+    translateY.value = 0;
+  };
+
   const formatSalary = (min: number, max: number) => {
     return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
   };
@@ -496,10 +523,15 @@ function LegacySwipeScreen() {
                 {/* Action Buttons */}
                 <View style={styles.actions}>
                   <Pressable
-                    style={[styles.actionButton, { borderColor: '#ef4444' + '33' }]}
-                    onPress={handleDiscard}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: '#334155', borderWidth: 0 },
+                      !lastDiscarded && { backgroundColor: '#e5e7eb' },
+                    ]}
+                    onPress={handleGoPrev}
+                    disabled={!lastDiscarded}
                   >
-                    <Ionicons name="close" size={24} color="#ef4444" />
+                    <Ionicons name="chevron-back" size={24} color={lastDiscarded ? '#fff' : '#9ca3af'} />
                   </Pressable>
                   <Pressable
                     style={[styles.actionButton, { borderColor: colors.border }]}
@@ -518,10 +550,15 @@ function LegacySwipeScreen() {
                     <Ionicons name="sparkles" size={28} color="white" />
                   </Pressable>
                   <Pressable
-                    style={[styles.actionButton, { backgroundColor: '#10b981', borderWidth: 0 }]}
-                    onPress={handleApply}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: '#334155', borderWidth: 0 },
+                      jobs.length <= 1 && { backgroundColor: '#e5e7eb' },
+                    ]}
+                    onPress={handleGoNext}
+                    disabled={jobs.length <= 1}
                   >
-                    <Ionicons name="checkmark" size={24} color="#fff" />
+                    <Ionicons name="chevron-forward" size={24} color={jobs.length > 1 ? '#fff' : '#9ca3af'} />
                   </Pressable>
                 </View>
               </CardContent>
@@ -531,7 +568,7 @@ function LegacySwipeScreen() {
 
         {/* Swipe Hints */}
         <Text style={[styles.swipeInstructions, { color: colors.mutedForeground }]}>
-          ← Pass • ↑ Details • ✦ AI • Apply →
+          ‹ Browse • ↑ Details • ✦ AI • Browse ›
         </Text>
       </View>
 
