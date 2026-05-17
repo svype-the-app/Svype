@@ -125,14 +125,12 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={[styles.pageTitle, { color: colors.foreground }]}>Applications</Text>
-            <Button
-              variant="outline"
-              onPress={() => router.push('/(jobseeker)/swipe')}
-              style={styles.findJobsButton}
+            <TouchableOpacity
+              disabled
+              style={[styles.notifButton, { borderColor: colors.border }]}
             >
-              <Ionicons name="sparkles" size={16} color={colors.primary} />
-              <Text style={[styles.findJobsText, { color: colors.foreground }]}>Find Jobs</Text>
-            </Button>
+              <Ionicons name="notifications-outline" size={22} color={colors.mutedForeground} />
+            </TouchableOpacity>
           </View>
 
           {/* Stats Overview */}
@@ -350,15 +348,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
-  findJobsButton: {
-    flexDirection: 'row',
+  notifButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-  },
-  findJobsText: {
-    fontSize: 14,
-    fontWeight: '600',
+    justifyContent: 'center',
   },
   statsContainer: {
     flexDirection: 'row',

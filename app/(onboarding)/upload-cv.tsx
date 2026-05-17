@@ -22,7 +22,7 @@ export default function UploadCVScreen() {
       console.log('Could not update state, continuing anyway');
     }
     
-    router.push('/(jobseeker)/profile/profile-preview' as any);
+    router.push('/(onboarding)/profile-preview' as any);
   };
 
   const handleSkip = async () => {
@@ -33,7 +33,7 @@ export default function UploadCVScreen() {
       console.log('Could not update state, continuing anyway');
     }
     
-    router.push('/(jobseeker)/profile/profile-preview' as any);
+    router.push('/(onboarding)/profile-preview' as any);
   };
 
   return (

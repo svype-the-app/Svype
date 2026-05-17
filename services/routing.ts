@@ -16,7 +16,7 @@ export function getRouteForUserState(user: User): string {
         : '/(onboarding)/job-seeker-onboarding';
 
     case 'profile_preview':
-      return '/(jobseeker)/profile/profile-preview';
+      return '/(onboarding)/profile-preview';
 
     case 'data_collection':
       return '/(jobseeker)/dashboard';

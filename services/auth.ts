@@ -190,7 +190,13 @@ export const authApi = {
   },
 
   async updateState(state: UserState): Promise<{ user: User; message: string }> {
-    return apiClient.post('/auth/update-state/', { state });
+    const response = await apiClient.post<{ user: User; message: string }>('/auth/update-state/', { state });
+    try {
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.user));
+    } catch (storageError) {
+      console.warn('Failed to persist updated user state:', storageError);
+    }
+    return response;
   },
 
   async uploadAvatar(fileUri: string, fileName: string): Promise<User> {

@@ -4,8 +4,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
 import { aiChatApi, authApi, jobsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import { Tabs, useRouter, useSegments } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { AppState, View } from 'react-native';
 
 // How often to re-check the AI check-in cadence while the user is inside
@@ -66,7 +66,7 @@ function ProfilePreviewGuard() {
       try {
         const user = await authApi.getStoredUser();
         if (!cancelled && user?.user_state === 'profile_preview') {
-          router.replace('/(jobseeker)/profile/profile-preview' as any);
+          router.replace('/(onboarding)/profile-preview' as any);
         }
       } catch {
         // Silently ignore — don't block rendering on a storage read failure.
@@ -134,17 +134,46 @@ function ChatTabIcon({ color, focused }: { color: string; focused: boolean }) {
 
 function JobSeekerTabs() {
   const colorScheme = useColorScheme();
+  const segments = useSegments();
+  const [userState, setUserState] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUserState = async () => {
+      try {
+        const user = await authApi.getStoredUser();
+        if (!cancelled) {
+          setUserState(user?.user_state ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          setUserState(null);
+        }
+      }
+    };
+
+    loadUserState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [segments]);
+
+  const hideTabBar = userState === 'profile_preview';
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].primary,
         headerShown: false,
-        tabBarStyle: {
-          paddingBottom: 10,
-          paddingTop: 8,
-          height: 60,
-        },
+        tabBarStyle: hideTabBar
+          ? { display: 'none' }
+          : {
+              paddingBottom: 10,
+              paddingTop: 8,
+              height: 60,
+            },
       }}>
       <Tabs.Screen
         name="swipe"
@@ -200,13 +229,11 @@ function JobSeekerTabs() {
 
 export default function JobSeekerLayout() {
   return (
-    <ChatUnreadProvider>
-      <ApplicationsProvider>
-        <ProfilePreviewGuard />
-        <CheckInPoller />
-        <SwipeCacheWarmer />
-        <JobSeekerTabs />
-      </ApplicationsProvider>
-    </ChatUnreadProvider>
+    <ApplicationsProvider>
+      <ProfilePreviewGuard />
+      <CheckInPoller />
+      <SwipeCacheWarmer />
+      <JobSeekerTabs />
+    </ApplicationsProvider>
   );
 }

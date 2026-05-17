@@ -3,7 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord, WorkExperienceEntry, EducationEntry } from '@/services/api';
+import { useChatUnread } from '@/lib/chat-unread-context';
+import { aiChatApi, authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord, WorkExperienceEntry, EducationEntry } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -57,6 +58,7 @@ export default function ProfilePreviewScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { setHasUnreadAiMsg } = useChatUnread();
 
   const isEditMode = params.mode === 'edit';
   const isPersonalInfoMode = params.mode === 'personal';
@@ -293,7 +295,7 @@ export default function ProfilePreviewScreen() {
       setIsSaving(true);
       await saveDraftToDatabase();
       await authApi.updateState('data_collection');
-      router.replace('/(jobseeker)/dashboard' as any);
+      router.replace('/(jobseeker)/profile' as any);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message || 'Unable to save profile changes.');
     } finally {

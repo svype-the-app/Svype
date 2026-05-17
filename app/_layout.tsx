@@ -4,9 +4,11 @@ import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ChatUnreadProvider } from '@/lib/chat-unread-context';
 import { authApi } from '@/services/api';
 import { apiClient } from '@/services/client';
 import { getRouteForUserState } from '@/services/routing';
@@ -71,29 +73,47 @@ export default function RootLayout() {
   }, [navState?.key, authChecked, pendingRoute, router]);
 
   useEffect(() => {
-    if (fontsLoaded && authChecked) {
+    if (fontsLoaded && authChecked && !pendingRoute) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, authChecked]);
+  }, [fontsLoaded, authChecked, pendingRoute]);
 
   if (!fontsLoaded || !authChecked) {
     return null;
   }
 
   return (
+    <ChatUnreadProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen name="(jobseeker)" />
-        <Stack.Screen name="(company)" />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="github-webview" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="github-callback" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      <View style={styles.root}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(onboarding)" />
+          <Stack.Screen name="(jobseeker)" />
+          <Stack.Screen name="(company)" />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="github-webview" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="github-callback" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        {pendingRoute ? (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: colorScheme === 'dark' ? '#000' : '#fff' },
+            ]}
+          />
+        ) : null}
+      </View>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
+    </ChatUnreadProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

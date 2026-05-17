@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { aiOnboardingApi } from '@/services/api';
+import { aiOnboardingApi, authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -131,8 +131,13 @@ export default function JobSeekerOnboardingScreen() {
     }
   };
 
-  const handleSkip = () => {
-    router.push('/(jobseeker)/profile/profile-preview?mode=edit' as any);
+  const handleSkip = async () => {
+    try {
+      await authApi.updateState('profile_preview');
+    } catch {
+      // Non-blocking: route anyway so the user can continue the flow.
+    }
+    router.push('/(onboarding)/profile-preview' as any);
   };
 
   return (
