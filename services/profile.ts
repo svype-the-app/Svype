@@ -29,6 +29,18 @@ export const profileApi = {
     return apiClient.post<EducationEntry>('/education-entries/', data);
   },
 
+  async deleteWorkExperience(id: number): Promise<void> {
+    return apiClient.delete<void>(`/work-experiences/${id}/`);
+  },
+
+  async deleteEducation(id: number): Promise<void> {
+    return apiClient.delete<void>(`/education-entries/${id}/`);
+  },
+
+  async deleteResume(id: number): Promise<void> {
+    return apiClient.delete<void>(`/resumes/${id}/`);
+  },
+
   async getResumes(): Promise<ResumeRecord[]> {
     return apiClient.get<ResumeRecord[]>('/resumes/');
   },

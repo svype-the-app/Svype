@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { ResumeRecord } from './types';
 
 export type CvTemplate = 'modern' | 'classic' | 'creative' | 'minimal';
 
@@ -43,5 +44,9 @@ export const cvApi = {
 
   async generateCv(params: { template: CvTemplate }): Promise<CvGenerateResponse> {
     return apiClient.postAI<CvGenerateResponse>('/cv/generate/', { template: params.template });
+  },
+
+  async saveAsResume(cv_url: string): Promise<ResumeRecord> {
+    return apiClient.post<ResumeRecord>('/cv/save_as_resume/', { cv_url });
   },
 };

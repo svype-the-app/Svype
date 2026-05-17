@@ -84,6 +84,8 @@ export default function ProfilePreviewScreen() {
   const [newEdu, setNewEdu] = useState({ institution: '', field_of_study: '', start_year: '', end_year: '' });
   const [pendingExperiences, setPendingExperiences] = useState<{ job_title: string; company: string; duration: string }[]>([]);
   const [pendingEducation, setPendingEducation] = useState<{ institution: string; field_of_study: string; start_year: string; end_year: string }[]>([]);
+  const [removedExpIds, setRemovedExpIds] = useState<number[]>([]);
+  const [removedEduIds, setRemovedEduIds] = useState<number[]>([]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -187,6 +189,16 @@ export default function ProfilePreviewScreen() {
     setHasResume(resumeItems.length > 0 || Boolean(updatedCompletion?.filled?.resume));
   };
 
+  const removeSavedExperience = (id: number) => {
+    setWorkExperiences((prev) => prev.filter((e) => e.id !== id));
+    setRemovedExpIds((prev) => [...prev, id]);
+  };
+
+  const removeSavedEducation = (id: number) => {
+    setEducationEntries((prev) => prev.filter((e) => e.id !== id));
+    setRemovedEduIds((prev) => [...prev, id]);
+  };
+
   const addPendingExperience = () => {
     const { job_title, company, duration } = newExp;
     if (!job_title.trim() || !company.trim() || !duration.trim()) return;
@@ -222,6 +234,12 @@ export default function ProfilePreviewScreen() {
 
   const saveDraftToDatabase = async () => {
     await profileApi.updateProfile(getProfileUpdatePayload());
+    for (const id of removedExpIds) {
+      await profileApi.deleteWorkExperience(id);
+    }
+    for (const id of removedEduIds) {
+      await profileApi.deleteEducation(id);
+    }
     for (const exp of pendingExperiences) {
       await profileApi.addWorkExperience({
         job_title: exp.job_title,
@@ -237,12 +255,14 @@ export default function ProfilePreviewScreen() {
         end_year: parseInt(edu.end_year, 10),
       });
     }
-    if (pendingExperiences.length > 0 || pendingEducation.length > 0) {
+    if (removedExpIds.length > 0 || removedEduIds.length > 0 || pendingExperiences.length > 0 || pendingEducation.length > 0) {
       const user = await authApi.getMe();
       setWorkExperiences(user.profile?.work_experiences || []);
       setEducationEntries(user.profile?.education_entries || []);
       setPendingExperiences([]);
       setPendingEducation([]);
+      setRemovedExpIds([]);
+      setRemovedEduIds([]);
     }
   };
 
@@ -281,6 +301,21 @@ export default function ProfilePreviewScreen() {
     }
   };
 
+  const handleDeleteResume = async () => {
+    if (!resumes.length) return;
+    try {
+      setIsUploadingResume(true);
+      await profileApi.deleteResume(resumes[0].id);
+      setResumes([]);
+      setHasResume(false);
+      await refreshCompletionAndResumes();
+    } catch (error: any) {
+      Alert.alert('Delete failed', error?.message || 'Unable to delete resume.');
+    } finally {
+      setIsUploadingResume(false);
+    }
+  };
+
   const handleResumeUpload = async () => {
     try {
       setIsUploadingResume(true);
@@ -292,6 +327,11 @@ export default function ProfilePreviewScreen() {
 
       if (result.canceled || !result.assets?.length) {
         return;
+      }
+
+      // Delete existing resume first (replace flow)
+      if (resumes.length > 0) {
+        await profileApi.deleteResume(resumes[0].id);
       }
 
       const file = result.assets[0];
@@ -515,6 +555,9 @@ export default function ProfilePreviewScreen() {
                     <Text style={[styles.savedTagText, { color: colors.foreground }]}>
                       {exp.duration != null ? `${exp.duration} year${exp.duration !== 1 ? 's' : ''} as ` : ''}{exp.job_title} at {exp.company}
                     </Text>
+                    <TouchableOpacity onPress={() => removeSavedExperience(exp.id)}>
+                      <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
+                    </TouchableOpacity>
                   </View>
                 ))}
                 {pendingExperiences.map((exp, index) => (
@@ -570,6 +613,9 @@ export default function ProfilePreviewScreen() {
                     <Text style={[styles.savedTagText, { color: colors.foreground }]}>
                       {edu.field_of_study || edu.degree || 'Degree'} from {edu.institution}
                     </Text>
+                    <TouchableOpacity onPress={() => removeSavedEducation(edu.id)}>
+                      <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
+                    </TouchableOpacity>
                   </View>
                 ))}
                 {pendingEducation.map((edu, index) => (
@@ -630,7 +676,7 @@ export default function ProfilePreviewScreen() {
           <CardContent style={styles.cardContent}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Resume (PDF)</Text>
             {hasResume ? (
-              <View style={[styles.resumeUploaded, { backgroundColor: colors.muted }]}> 
+              <View style={[styles.resumeUploaded, { backgroundColor: colors.muted }]}>
                 <Ionicons name="document-text" size={24} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.resumeText, { color: colors.foreground }]}>Resume uploaded</Text>
@@ -643,23 +689,56 @@ export default function ProfilePreviewScreen() {
                 <Ionicons name="checkmark-circle" size={20} color="#10b981" />
               </View>
             ) : (
-              <View style={[styles.emptySection, { borderColor: colors.border }]}> 
+              <View style={[styles.emptySection, { borderColor: colors.border }]}>
                 <Text style={[styles.emptySectionText, { color: colors.mutedForeground }]}>No resume uploaded yet</Text>
               </View>
             )}
 
-            <Button variant="outline" onPress={handleResumeUpload} disabled={isUploadingResume}>
-              <View style={styles.buttonContent}>
-                {isUploadingResume ? (
-                  <ActivityIndicator size="small" color={colors.foreground} />
-                ) : (
-                  <Ionicons name="cloud-upload-outline" size={18} color={colors.foreground} />
-                )}
-                <Text style={[styles.buttonText, { color: colors.foreground }]}>
-                  {isUploadingResume ? 'Uploading...' : 'Upload PDF Resume'}
-                </Text>
+            {hasResume ? (
+              <View style={styles.resumeActions}>
+                <Button
+                  variant="outline"
+                  onPress={handleDeleteResume}
+                  disabled={isUploadingResume}
+                  style={[styles.resumeActionButton, { borderColor: '#ef4444' }]}
+                >
+                  <View style={styles.buttonContent}>
+                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    <Text style={[styles.buttonText, { color: '#ef4444' }]}>Delete</Text>
+                  </View>
+                </Button>
+                <Button
+                  variant="outline"
+                  onPress={handleResumeUpload}
+                  disabled={isUploadingResume}
+                  style={styles.resumeActionButton}
+                >
+                  <View style={styles.buttonContent}>
+                    {isUploadingResume ? (
+                      <ActivityIndicator size="small" color={colors.foreground} />
+                    ) : (
+                      <Ionicons name="cloud-upload-outline" size={16} color={colors.foreground} />
+                    )}
+                    <Text style={[styles.buttonText, { color: colors.foreground }]}>
+                      {isUploadingResume ? 'Uploading...' : 'Upload New'}
+                    </Text>
+                  </View>
+                </Button>
               </View>
-            </Button>
+            ) : (
+              <Button variant="outline" onPress={handleResumeUpload} disabled={isUploadingResume}>
+                <View style={styles.buttonContent}>
+                  {isUploadingResume ? (
+                    <ActivityIndicator size="small" color={colors.foreground} />
+                  ) : (
+                    <Ionicons name="cloud-upload-outline" size={18} color={colors.foreground} />
+                  )}
+                  <Text style={[styles.buttonText, { color: colors.foreground }]}>
+                    {isUploadingResume ? 'Uploading...' : 'Upload PDF Resume'}
+                  </Text>
+                </View>
+              </Button>
+            )}
           </CardContent>
         </Card>
       </ScrollView>
@@ -866,6 +945,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    maxWidth: '100%',
   },
   pendingChip: {
     borderStyle: 'dashed',
@@ -878,13 +958,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     backgroundColor: '#10b98118',
+    maxWidth: '100%',
   },
   savedTagText: {
     fontSize: 13,
     fontWeight: '500',
+    flexShrink: 1,
   },
   chipText: {
     fontSize: 13,
+    flexShrink: 1,
   },
   inlineInputRow: {
     flexDirection: 'row',
@@ -905,6 +988,14 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 12,
+  },
+  resumeActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  resumeActionButton: {
+    flex: 1,
   },
   resumeText: {
     fontSize: 14,

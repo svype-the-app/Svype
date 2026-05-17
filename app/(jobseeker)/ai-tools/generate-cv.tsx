@@ -24,6 +24,8 @@ export default function GenerateCVScreen() {
   const [selectedTemplate, setSelectedTemplate] = useState<CvTemplate>(initialTemplate);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGenerated, setIsGenerated] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'customize' | 'preview'>('customize');
   const [cvUrl, setCvUrl] = useState<string | null>(null);
   const [cvSections, setCvSections] = useState<CvSections | null>(null);
@@ -44,6 +46,7 @@ export default function GenerateCVScreen() {
       setCvUrl(result.cv_url);
       setCvSections(result.sections);
       setIsGenerated(true);
+      setIsSaved(false);
       setActiveTab('preview');
     } catch (error: any) {
       const msg = error?.message || 'Failed to generate CV. Please try again.';
@@ -69,6 +72,20 @@ export default function GenerateCVScreen() {
       await Linking.openURL(cvUrl);
     } catch {
       Alert.alert('Error', 'Could not share the CV.');
+    }
+  };
+
+  const handleSaveAsResume = async () => {
+    if (!cvUrl) return;
+    setIsSaving(true);
+    try {
+      await cvApi.saveAsResume(cvUrl);
+      setIsSaved(true);
+      Alert.alert('Saved', 'Your CV has been saved as a resume in your profile.');
+    } catch (error: any) {
+      Alert.alert('Save failed', error?.message || 'Could not save CV as resume. Try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -312,6 +329,28 @@ export default function GenerateCVScreen() {
                   <Text style={styles.downloadButtonText}>Download PDF</Text>
                 </Button>
               </View>
+              <Button
+                onPress={handleSaveAsResume}
+                disabled={isSaving || isSaved}
+                style={[styles.saveResumeButton, isSaved && { backgroundColor: '#10b981' }]}
+              >
+                {isSaving ? (
+                  <>
+                    <ActivityIndicator size="small" color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.downloadButtonText}>Saving...</Text>
+                  </>
+                ) : isSaved ? (
+                  <>
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.downloadButtonText}>Saved to Profile</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={16} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.downloadButtonText}>Save as Resume</Text>
+                  </>
+                )}
+              </Button>
             </>
           )}
         </View>
@@ -625,5 +664,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  saveResumeButton: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
 });
