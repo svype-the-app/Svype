@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  Linking,
   Modal,
   PanResponder,
   ScrollView,
@@ -817,6 +818,21 @@ export default function ReviewApplicantsScreen() {
                   </View>
                 )}
 
+                {/* Resume */}
+                {!!currentApplicant.resume_url && (
+                  <View style={styles.bioSection}>
+                    <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Resume</Text>
+                    <TouchableOpacity
+                      style={[styles.resumeRow, { borderColor: colors.border, backgroundColor: colors.muted + '40' }]}
+                      onPress={() => Linking.openURL(currentApplicant.resume_url!)}
+                    >
+                      <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+                      <Text style={[styles.resumeRowText, { color: colors.primary }]}>View / Download Resume</Text>
+                      <Ionicons name="open-outline" size={15} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {/* Bio */}
                 <View style={styles.bioSection}>
                   <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>About</Text>
@@ -1368,6 +1384,8 @@ const styles = StyleSheet.create({
   bioSection: { marginHorizontal: 16, marginBottom: 16 },
   bioText: { fontSize: 14, lineHeight: 21 },
   readMore: { fontSize: 13, fontWeight: '700', marginTop: 6 },
+  resumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, marginTop: 6 },
+  resumeRowText: { flex: 1, fontSize: 14, fontWeight: '600' },
   swipeHint: {
     textAlign: 'center',
     fontSize: 12,

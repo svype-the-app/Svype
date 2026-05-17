@@ -1,7 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/theme';
 import { applicationsApi, jobsApi, type CompatibilityScore, type Job } from '@/services/api';
+import { authApi, profileApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -257,16 +259,13 @@ export default function CompatibilityScreen() {
     load();
   }, [load]);
 
-  const handleApply = async () => {
-    if (!jobId || applying) return;
+  const proceedWithApply = useCallback(async () => {
+    if (!jobId) return;
     setApplying(true);
     try {
-      // Use the real apply pipeline (cover letter + quiz check) — same as
-      // a right-swipe from the swipe screen.
       const result = await applicationsApi.apply(jobId);
 
       if (result.requires_quiz && result.quiz) {
-        // Quiz path — route directly to the pre-screening quiz.
         router.replace({
           pathname: '/(jobseeker)/job/pre-screening-quiz',
           params: {
@@ -279,7 +278,6 @@ export default function CompatibilityScreen() {
         return;
       }
 
-      // No-quiz path — submitted popup.
       const coverNote = result.cover_letter
         ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
         : '';
@@ -300,6 +298,64 @@ export default function CompatibilityScreen() {
     } finally {
       setApplying(false);
     }
+  }, [jobId, job, router]);
+
+  const handleUploadResume = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const file = result.assets[0];
+      await profileApi.uploadResume(file.uri, file.name || 'resume.pdf', file.size || 0);
+      Alert.alert(
+        'Resume uploaded',
+        'Your resume was saved. Apply now?',
+        [
+          { text: 'Apply Now', onPress: proceedWithApply },
+          { text: 'Later', style: 'cancel' },
+        ]
+      );
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.message || 'Could not upload resume.');
+    }
+  }, [proceedWithApply]);
+
+  const handleApply = async () => {
+    if (!jobId || applying) return;
+    setApplying(true);
+    try {
+      const resumes = await profileApi.getResumes();
+      if (resumes.length === 0) {
+        setApplying(false);
+        const me = await authApi.getMe();
+        Alert.alert(
+          'Resume Required',
+          'You need a resume to apply for this job.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Upload Resume', onPress: handleUploadResume },
+            {
+              text: 'Generate AI Resume',
+              onPress: () => {
+                if (me.user_state === 'active') {
+                  router.push('/(jobseeker)/ai-tools/generate-cv' as any);
+                } else {
+                  router.push('/(onboarding)/job-seeker-onboarding' as any);
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+    } catch {
+      // If preflight check fails, let the backend enforce the resume requirement
+    }
+    setApplying(false);
+    await proceedWithApply();
   };
 
   const handleSave = async () => {

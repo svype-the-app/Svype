@@ -694,6 +694,12 @@ export default function ProfilePreviewScreen() {
               </View>
             )}
 
+            {!hasResume && (
+              <Text style={styles.resumeRequiredNote}>
+                ⚠️ A resume is required to apply for jobs.
+              </Text>
+            )}
+
             {hasResume ? (
               <View style={styles.resumeActions}>
                 <Button
@@ -996,6 +1002,12 @@ const styles = StyleSheet.create({
   },
   resumeActionButton: {
     flex: 1,
+  },
+  resumeRequiredNote: {
+    fontSize: 12,
+    color: '#f59e0b',
+    marginTop: 6,
+    textAlign: 'center',
   },
   resumeText: {
     fontSize: 14,
