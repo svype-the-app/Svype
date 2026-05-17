@@ -154,8 +154,9 @@ export default function DashboardScreen() {
               </View>
             </View>
           )}
+        </View>
 
-          {/* Tabs */}
+        {/* Tabs */}
         <View style={[styles.tabsContainer, { backgroundColor: colors.muted }]}>
           <TouchableOpacity
             style={[
