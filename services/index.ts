@@ -3,7 +3,7 @@ export { apiClient, resolveMediaUrl, API_BASE_URL, MEDIA_BASE_URL } from './clie
 export * from './types';
 export { authApi } from './auth';
 export { jobsApi } from './jobs';
-export type { CompatibilityScore, CompatibilityBreakdown } from './jobs';
+export type { CompatibilityScore, CompatibilityBreakdown, CompatibilityHistoryItem } from './jobs';
 export { profileApi } from './profile';
 export { companyApi } from './company';
 export { applicationsApi } from './applications';
@@ -18,6 +18,7 @@ export type {
   ApplicantCard,
   ApplicantCardApplicant,
   ApplicantCompatibilityReport,
+  ApplicantCompatibilityHistoryItem,
 } from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';

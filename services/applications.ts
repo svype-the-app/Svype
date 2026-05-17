@@ -93,6 +93,17 @@ export interface ApplicantCompatibilityReport {
   } | null;
 }
 
+export interface ApplicantCompatibilityHistoryItem {
+  application_id: number;
+  job_id: number;
+  job_title: string;
+  applicant_name: string;
+  applicant_email: string;
+  overall_score: number;
+  report: ApplicantCompatibilityReport;
+  computed_at: string;
+}
+
 export const applicationsApi = {
   // Jobseeker — existing API kept for compatibility with legacy callers.
   async getApplications(): Promise<Application[]> {
@@ -140,5 +151,12 @@ export const applicationsApi = {
         application_id: applicationId,
       }
     );
+  },
+
+  async getCompatibilityHistory(jobId?: number): Promise<ApplicantCompatibilityHistoryItem[]> {
+    const url = jobId
+      ? `/ai/applicant-compatibility/history/?job_id=${jobId}`
+      : '/ai/applicant-compatibility/history/';
+    return apiClient.get<ApplicantCompatibilityHistoryItem[]>(url);
   },
 };

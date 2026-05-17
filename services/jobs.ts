@@ -21,6 +21,13 @@ export interface CompatibilityScore {
   computed_at: string;
 }
 
+export interface CompatibilityHistoryItem extends CompatibilityScore {
+  job_title: string;
+  company_name: string;
+  job_location: string;
+  job_type: string;
+}
+
 export const jobsApi = {
   async getJobs(): Promise<Job[]> {
     return apiClient.get<Job[]>('/jobs/');
@@ -92,6 +99,10 @@ export const jobsApi = {
 
   async getCompatibility(jobId: number): Promise<CompatibilityScore> {
     return apiClient.get<CompatibilityScore>(`/jobs/${jobId}/compatibility/`);
+  },
+
+  async getCompatibilityHistory(): Promise<CompatibilityHistoryItem[]> {
+    return apiClient.get<CompatibilityHistoryItem[]>('/jobs/compatibility/history/');
   },
 
   async saveJob(jobId: number): Promise<{ id: number; job: number }> {

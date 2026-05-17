@@ -198,10 +198,10 @@ export default function CompanyDashboard() {
           <Button
             variant="outline"
             style={[styles.actionButton, { borderColor: '#3b82f6' }]}
-            onPress={() => router.push('/(company)/applicants/interview-results/1')}
+            onPress={() => router.push('/(company)/applicants/compatibility-history')}
           >
-            <Ionicons name="document-text-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>PreScreening Results</Text>
+            <Ionicons name="analytics-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>AI Compatibility History</Text>
           </Button>
         </View>
 

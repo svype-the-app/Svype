@@ -125,12 +125,20 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={[styles.pageTitle, { color: colors.foreground }]}>Applications</Text>
-            <TouchableOpacity
-              disabled
-              style={[styles.notifButton, { borderColor: colors.border }]}
-            >
-              <Ionicons name="notifications-outline" size={22} color={colors.mutedForeground} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => router.push('/(jobseeker)/compatibility-history' as any)}
+                style={[styles.notifButton, { borderColor: colors.border }]}
+              >
+                <Ionicons name="analytics-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled
+                style={[styles.notifButton, { borderColor: colors.border }]}
+              >
+                <Ionicons name="notifications-outline" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Stats Overview */}
@@ -347,6 +355,11 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
   },
   notifButton: {
     width: 38,
