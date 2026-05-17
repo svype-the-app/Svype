@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Colors } from '@/constants/theme';
 import { authApi } from '@/services/api';
+import { getRouteForUserState } from '@/services/routing';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -32,12 +33,9 @@ export default function LoginScreen() {
       // Call login API
       const response = await authApi.login(email, password);
 
-      // Always land on the role's home screen after login (swipe for jobseekers,
-      // dashboard for companies) — bypass the user_state-based routing so
-      // returning users go straight to their main feed.
-      const route = response.user.user_type === 'company'
-        ? '/(company)/dashboard'
-        : '/(jobseeker)/swipe';
+      // Route based on user state so users in profile_preview / data_collection
+      // land on the correct screen rather than being dropped into the swipe feed.
+      const route = getRouteForUserState(response.user);
       router.replace(route as any);
     } catch (error: any) {
       // Handle errors
@@ -60,14 +58,10 @@ export default function LoginScreen() {
     try {
       const result = await authApi.loginWithGithub();
 
-      if (result.is_new || result.user_state === 'new') {
-        router.replace('/(onboarding)/onboarding-chat' as any);
-      } else {
-        const route = result.user_type === 'company'
-          ? '/(company)/dashboard'
-          : '/(jobseeker)/swipe';
-        router.replace(route as any);
-      }
+      const route = (result.is_new || result.user_state === 'new')
+        ? '/(onboarding)/job-seeker-onboarding'
+        : getRouteForUserState(result);
+      router.replace(route as any);
     } catch (error: any) {
       Alert.alert('GitHub Login Failed', error.message || 'Please try again.');
     } finally {

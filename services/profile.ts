@@ -1,6 +1,6 @@
 import { apiClient, API_BASE_URL, REQUEST_TIMEOUT_MS } from './client';
 import { authApi } from './auth';
-import type { JobSeekerProfile, ResumeRecord } from './types';
+import type { JobSeekerProfile, ResumeRecord, WorkExperienceEntry, EducationEntry } from './types';
 
 export const profileApi = {
   async getProfile(): Promise<JobSeekerProfile> {
@@ -9,6 +9,24 @@ export const profileApi = {
 
   async updateProfile(data: Partial<JobSeekerProfile>): Promise<JobSeekerProfile> {
     return apiClient.patch<JobSeekerProfile>('/profiles/me/', data);
+  },
+
+  async addWorkExperience(data: {
+    job_title: string;
+    company: string;
+    duration: number;
+    employment_type?: string;
+  }): Promise<WorkExperienceEntry> {
+    return apiClient.post<WorkExperienceEntry>('/work-experiences/', data);
+  },
+
+  async addEducation(data: {
+    institution: string;
+    field_of_study: string;
+    start_year: number;
+    end_year: number;
+  }): Promise<EducationEntry> {
+    return apiClient.post<EducationEntry>('/education-entries/', data);
   },
 
   async getResumes(): Promise<ResumeRecord[]> {

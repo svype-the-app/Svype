@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord } from '@/services/api';
+import { authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord, WorkExperienceEntry, EducationEntry } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -28,8 +28,6 @@ type ProfileDraft = {
   headline: string;
   about: string;
   location: string;
-  experience: string;
-  education: string;
   skills: string[];
   completion: ProfileCompletion | null;
 };
@@ -41,8 +39,6 @@ const createEmptyDraft = (): ProfileDraft => ({
   headline: '',
   about: '',
   location: '',
-  experience: '',
-  education: '',
   skills: [],
   completion: null,
 });
@@ -78,9 +74,16 @@ export default function ProfilePreviewScreen() {
   const [newSkill, setNewSkill] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [hasResume, setHasResume] = useState(false);
+  const [workExperiences, setWorkExperiences] = useState<WorkExperienceEntry[]>([]);
+  const [educationEntries, setEducationEntries] = useState<EducationEntry[]>([]);
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [originalDraft, setOriginalDraft] = useState<ProfileDraft>(createEmptyDraft());
   const [draft, setDraft] = useState<ProfileDraft>(createEmptyDraft());
+
+  const [newExp, setNewExp] = useState({ job_title: '', company: '', duration: '' });
+  const [newEdu, setNewEdu] = useState({ institution: '', field_of_study: '', start_year: '', end_year: '' });
+  const [pendingExperiences, setPendingExperiences] = useState<{ job_title: string; company: string; duration: string }[]>([]);
+  const [pendingEducation, setPendingEducation] = useState<{ institution: string; field_of_study: string; start_year: string; end_year: string }[]>([]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -99,8 +102,6 @@ export default function ProfilePreviewScreen() {
           headline: profile?.headline || '',
           about: profile?.about || '',
           location: profile?.location || '',
-          experience: profile?.experience || '',
-          education: profile?.education || '',
           skills: profile?.skills || [],
           completion: profile?.completion || null,
         };
@@ -110,6 +111,8 @@ export default function ProfilePreviewScreen() {
         setAvatarUrl(resolveMediaUrl(user.avatar));
         setResumes(resumeItems);
         setHasResume(resumeItems.length > 0 || Boolean(profile?.completion?.filled?.resume));
+        setWorkExperiences(profile?.work_experiences || []);
+        setEducationEntries(profile?.education_entries || []);
       } catch (error) {
         console.log('Could not fetch profile preview data:', error);
         Alert.alert('Session expired', 'Please log in again.');
@@ -184,6 +187,28 @@ export default function ProfilePreviewScreen() {
     setHasResume(resumeItems.length > 0 || Boolean(updatedCompletion?.filled?.resume));
   };
 
+  const addPendingExperience = () => {
+    const { job_title, company, duration } = newExp;
+    if (!job_title.trim() || !company.trim() || !duration.trim()) return;
+    setPendingExperiences((prev) => [...prev, { job_title: job_title.trim(), company: company.trim(), duration: duration.trim() }]);
+    setNewExp({ job_title: '', company: '', duration: '' });
+  };
+
+  const removePendingExperience = (index: number) => {
+    setPendingExperiences((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addPendingEducation = () => {
+    const { institution, field_of_study, start_year, end_year } = newEdu;
+    if (!institution.trim() || !field_of_study.trim() || !start_year.trim() || !end_year.trim()) return;
+    setPendingEducation((prev) => [...prev, { institution: institution.trim(), field_of_study: field_of_study.trim(), start_year: start_year.trim(), end_year: end_year.trim() }]);
+    setNewEdu({ institution: '', field_of_study: '', start_year: '', end_year: '' });
+  };
+
+  const removePendingEducation = (index: number) => {
+    setPendingEducation((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const getProfileUpdatePayload = () => {
     return {
       full_name: draft.name.trim() || originalDraft.name,
@@ -191,16 +216,34 @@ export default function ProfilePreviewScreen() {
       headline: draft.headline.trim(),
       about: draft.about.trim(),
       location: draft.location.trim(),
-      experience: draft.experience.trim(),
-      education: draft.education.trim(),
       skills: toNormalizedList(draft.skills),
-      // Keep legacy fields in sync where older screens still read them.
-      career_goals: draft.education.trim(),
     };
   };
 
   const saveDraftToDatabase = async () => {
     await profileApi.updateProfile(getProfileUpdatePayload());
+    for (const exp of pendingExperiences) {
+      await profileApi.addWorkExperience({
+        job_title: exp.job_title,
+        company: exp.company,
+        duration: parseInt(exp.duration, 10),
+      });
+    }
+    for (const edu of pendingEducation) {
+      await profileApi.addEducation({
+        institution: edu.institution,
+        field_of_study: edu.field_of_study,
+        start_year: parseInt(edu.start_year, 10),
+        end_year: parseInt(edu.end_year, 10),
+      });
+    }
+    if (pendingExperiences.length > 0 || pendingEducation.length > 0) {
+      const user = await authApi.getMe();
+      setWorkExperiences(user.profile?.work_experiences || []);
+      setEducationEntries(user.profile?.education_entries || []);
+      setPendingExperiences([]);
+      setPendingEducation([]);
+    }
   };
 
   const handleSave = async () => {
@@ -229,8 +272,8 @@ export default function ProfilePreviewScreen() {
     try {
       setIsSaving(true);
       await saveDraftToDatabase();
-      await authApi.updateState('active');
-      router.replace('/(jobseeker)/swipe' as any);
+      await authApi.updateState('data_collection');
+      router.replace('/(jobseeker)/dashboard' as any);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message || 'Unable to save profile changes.');
     } finally {
@@ -437,8 +480,9 @@ export default function ProfilePreviewScreen() {
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Skills</Text>
             <View style={styles.chipContainer}>
               {draft.skills.map((skill) => (
-                <View key={skill} style={[styles.chip, { borderColor: colors.border, backgroundColor: colors.background }]}> 
-                  <Text style={[styles.chipText, { color: colors.foreground }]}>{skill}</Text>
+                <View key={skill} style={styles.savedTag}>
+                  <Ionicons name="checkmark-circle" size={13} color="#10b981" />
+                  <Text style={[styles.savedTagText, { color: colors.foreground }]}>{skill}</Text>
                   <TouchableOpacity onPress={() => removeSkill(skill)}>
                     <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
                   </TouchableOpacity>
@@ -462,24 +506,123 @@ export default function ProfilePreviewScreen() {
 
         <Card>
           <CardContent style={styles.cardContent}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Experience</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Work Experience</Text>
+            {(workExperiences.length > 0 || pendingExperiences.length > 0) && (
+              <View style={styles.chipContainer}>
+                {workExperiences.map((exp) => (
+                  <View key={exp.id} style={[styles.savedTag]}>
+                    <Ionicons name="checkmark-circle" size={13} color="#10b981" />
+                    <Text style={[styles.savedTagText, { color: colors.foreground }]}>
+                      {exp.duration != null ? `${exp.duration} year${exp.duration !== 1 ? 's' : ''} as ` : ''}{exp.job_title} at {exp.company}
+                    </Text>
+                  </View>
+                ))}
+                {pendingExperiences.map((exp, index) => (
+                  <View key={`pending-exp-${index}`} style={[styles.chip, styles.pendingChip, { borderColor: colors.primary, backgroundColor: colors.background }]}>
+                    <Text style={[styles.chipText, { color: colors.foreground }]}>
+                      {exp.duration} year{parseInt(exp.duration, 10) !== 1 ? 's' : ''} as {exp.job_title} at {exp.company}
+                    </Text>
+                    <TouchableOpacity onPress={() => removePendingExperience(index)}>
+                      <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
             <TextInput
-              value={draft.experience}
-              onChangeText={(value) => setDraft((prev) => ({ ...prev, experience: value }))}
-              placeholder="e.g. 3 years in frontend development"
+              value={newExp.job_title}
+              onChangeText={(v) => setNewExp((prev) => ({ ...prev, job_title: v }))}
+              placeholder="Job title"
               placeholderTextColor={colors.mutedForeground}
               style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
             />
-
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Education</Text>
             <TextInput
-              value={draft.education}
-              onChangeText={(value) => setDraft((prev) => ({ ...prev, education: value }))}
-              placeholder="e.g. BSc in Computer Science, University of Malaya"
+              value={newExp.company}
+              onChangeText={(v) => setNewExp((prev) => ({ ...prev, company: v }))}
+              placeholder="Company"
               placeholderTextColor={colors.mutedForeground}
-              multiline
-              style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
             />
+            <View style={styles.inlineInputRow}>
+              <TextInput
+                value={newExp.duration}
+                onChangeText={(v) => setNewExp((prev) => ({ ...prev, duration: v.replace(/[^0-9]/g, '') }))}
+                placeholder="Duration (years)"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="number-pad"
+                style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              />
+              <Button
+                variant="outline"
+                onPress={addPendingExperience}
+                disabled={!newExp.job_title.trim() || !newExp.company.trim() || !newExp.duration.trim()}
+              >
+                <Text style={{ color: colors.foreground }}>Add</Text>
+              </Button>
+            </View>
+
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Education</Text>
+            {(educationEntries.length > 0 || pendingEducation.length > 0) && (
+              <View style={styles.chipContainer}>
+                {educationEntries.map((edu) => (
+                  <View key={edu.id} style={[styles.savedTag]}>
+                    <Ionicons name="checkmark-circle" size={13} color="#10b981" />
+                    <Text style={[styles.savedTagText, { color: colors.foreground }]}>
+                      {edu.field_of_study || edu.degree || 'Degree'} from {edu.institution}
+                    </Text>
+                  </View>
+                ))}
+                {pendingEducation.map((edu, index) => (
+                  <View key={`pending-edu-${index}`} style={[styles.chip, styles.pendingChip, { borderColor: colors.primary, backgroundColor: colors.background }]}>
+                    <Text style={[styles.chipText, { color: colors.foreground }]}>
+                      {edu.field_of_study} from {edu.institution}
+                    </Text>
+                    <TouchableOpacity onPress={() => removePendingEducation(index)}>
+                      <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+            <TextInput
+              value={newEdu.institution}
+              onChangeText={(v) => setNewEdu((prev) => ({ ...prev, institution: v }))}
+              placeholder="Institute"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            />
+            <TextInput
+              value={newEdu.field_of_study}
+              onChangeText={(v) => setNewEdu((prev) => ({ ...prev, field_of_study: v }))}
+              placeholder="Program / Field of Study"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            />
+            <View style={styles.inlineInputRow}>
+              <TextInput
+                value={newEdu.start_year}
+                onChangeText={(v) => setNewEdu((prev) => ({ ...prev, start_year: v.replace(/[^0-9]/g, '') }))}
+                placeholder="Start year"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="number-pad"
+                style={[styles.inlineInput, { flex: 1, color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              />
+              <TextInput
+                value={newEdu.end_year}
+                onChangeText={(v) => setNewEdu((prev) => ({ ...prev, end_year: v.replace(/[^0-9]/g, '') }))}
+                placeholder="End year"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="number-pad"
+                style={[styles.inlineInput, { flex: 1, color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              />
+              <Button
+                variant="outline"
+                onPress={addPendingEducation}
+                disabled={!newEdu.institution.trim() || !newEdu.field_of_study.trim() || !newEdu.start_year.trim() || !newEdu.end_year.trim()}
+              >
+                <Text style={{ color: colors.foreground }}>Add</Text>
+              </Button>
+            </View>
           </CardContent>
         </Card>
 
@@ -724,6 +867,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  pendingChip: {
+    borderStyle: 'dashed',
+  },
+  savedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: '#10b98118',
+  },
+  savedTagText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   chipText: {
     fontSize: 13,
   },
@@ -764,6 +923,29 @@ const styles = StyleSheet.create({
   },
   emptySectionText: {
     fontSize: 13,
+    textAlign: 'center',
+  },
+  entryCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    gap: 3,
+  },
+  entryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  entrySubtitle: {
+    fontSize: 13,
+  },
+  entryMeta: {
+    fontSize: 12,
+  },
+  entryDescription: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 18,
   },
   aiProfileButton: {
     backgroundColor: '#7c3aed',

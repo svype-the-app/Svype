@@ -2,9 +2,9 @@ import { ApplicationsProvider } from '@/lib/applications-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
-import { aiChatApi, jobsApi } from '@/services/api';
+import { aiChatApi, authApi, jobsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { AppState, View } from 'react-native';
 
@@ -47,6 +47,43 @@ function CheckInPoller() {
       appStateSub.remove();
     };
   }, [setHasUnreadAiMsg]);
+
+  return null;
+}
+
+/**
+ * Prevents users in 'profile_preview' state from accessing any tab other than
+ * the profile preview screen. Redirects back on mount and whenever the app
+ * returns from the background.
+ */
+function ProfilePreviewGuard() {
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const user = await authApi.getStoredUser();
+        if (!cancelled && user?.user_state === 'profile_preview') {
+          router.replace('/(jobseeker)/profile/profile-preview' as any);
+        }
+      } catch {
+        // Silently ignore — don't block rendering on a storage read failure.
+      }
+    };
+
+    check();
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') check();
+    });
+
+    return () => {
+      cancelled = true;
+      appStateSub.remove();
+    };
+  }, [router]);
 
   return null;
 }
@@ -165,6 +202,7 @@ export default function JobSeekerLayout() {
   return (
     <ChatUnreadProvider>
       <ApplicationsProvider>
+        <ProfilePreviewGuard />
         <CheckInPoller />
         <SwipeCacheWarmer />
         <JobSeekerTabs />

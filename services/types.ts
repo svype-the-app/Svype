@@ -2,6 +2,7 @@
 export type UserState = 
   | 'new'
   | 'profile_preview'
+  | 'data_collection'
   | 'active'
   | 'suspended'
   | 'deactivated';
@@ -48,6 +49,30 @@ export interface ProfileCompletion {
   };
 }
 
+export interface WorkExperienceEntry {
+  id: number;
+  job_title: string;
+  company: string;
+  duration: number | null;
+  is_current: boolean;
+  description: string;
+  location: string;
+  employment_type: string;
+  order: number;
+}
+
+export interface EducationEntry {
+  id: number;
+  institution: string;
+  degree: string;
+  field_of_study: string;
+  start_year: number | null;
+  end_year: number | null;
+  is_ongoing: boolean;
+  grade: string;
+  order: number;
+}
+
 export interface JobSeekerProfile {
   id: number;
   full_name: string;
@@ -71,6 +96,8 @@ export interface JobSeekerProfile {
   ai_checkin_frequency?: 'every_5_mins' | 'daily' | 'every_3_days' | 'weekly' | 'never';
   last_ai_checkin_at?: string | null;
   completion?: ProfileCompletion;
+  work_experiences?: WorkExperienceEntry[];
+  education_entries?: EducationEntry[];
 }
 
 export interface CompanyCompletion {
