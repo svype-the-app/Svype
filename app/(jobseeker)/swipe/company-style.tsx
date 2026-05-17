@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -130,6 +131,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const [isCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isApplying, setIsApplying] = useState(false)
+  // Tracks whether the 2.5s minimum spinner has elapsed
+  const [minDelayDone, setMinDelayDone] = useState(false)
 
   // The panResponder is built once via useRef, so its release handler would
   // otherwise close over first-render versions of handleApprove/handleReject
@@ -146,23 +149,32 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // ref holds the latest values and is re-pointed every render below.
   const gateRef = useRef({ isScrolling: false, isCardNavigating: false, isApplying: false })
 
-  useEffect(() => {
-    const loadSwipeJobs = async () => {
-      setLoading(true)
-      setLoadError(null)
+  const loadSwipeJobs = async () => {
+    setLoading(true)
+    setMinDelayDone(false)
+    setLoadError(null)
 
-      try {
-        const apiJobs = await jobsApi.getSwipeJobs()
-        const mappedJobs = apiJobs.map(mapApiJobToSwipeJob)
-        setJobs(mappedJobs)
-        setCurrentIndex(0)
-      } catch (error: any) {
-        setLoadError(error?.message || 'Could not load jobs. Please try again.')
-      } finally {
-        setLoading(false)
-      }
+    // Minimum 2.5 s spinner — pure UX, runs in parallel with the API call
+    const minDelay = new Promise<void>((resolve) => setTimeout(resolve, 2500))
+
+    try {
+      const [apiJobs] = await Promise.all([
+        jobsApi.getSwipeJobs(),
+        minDelay,
+      ])
+      const mappedJobs = apiJobs.map(mapApiJobToSwipeJob)
+      setJobs(mappedJobs)
+      setCurrentIndex(0)
+    } catch (error: any) {
+      await minDelay  // always honour the minimum delay, even on error
+      setLoadError(error?.message || 'Could not load jobs. Please try again.')
+    } finally {
+      setMinDelayDone(true)
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadSwipeJobs()
   }, [])
 
@@ -432,15 +444,17 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
-        <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
           </View>
         </View>
-
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>Loading jobs...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.emptyDescription, { color: colors.mutedForeground, marginTop: 16 }]}>
+            Finding your best matches…
+          </Text>
         </View>
       </SafeAreaView>
     )
@@ -448,19 +462,23 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   if (loadError) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
-        <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
           </View>
         </View>
-
         <View style={styles.emptyContainer}>
           <Card style={{ width: '100%', maxWidth: 320 }}>
             <CardContent style={styles.emptyContent}>
-              <Ionicons name="cloud-offline-outline" size={56} color={colors.mutedForeground} style={{ marginBottom: 8 }} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t Load Jobs</Text>
-              <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>{loadError}</Text>
+              <Ionicons name="cloud-offline-outline" size={56} color={colors.mutedForeground} style={{ marginBottom: 12 }} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load Jobs</Text>
+              <Text style={[styles.emptyDescription, { color: colors.mutedForeground, textAlign: 'center', marginBottom: 16 }]}>
+                Couldn&apos;t connect to the server. Check your connection and try again.
+              </Text>
+              <Button onPress={loadSwipeJobs} style={{ width: '100%' }}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+              </Button>
             </CardContent>
           </Card>
         </View>

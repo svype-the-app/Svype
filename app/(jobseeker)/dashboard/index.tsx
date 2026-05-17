@@ -25,6 +25,7 @@ export default function DashboardScreen() {
   const { setHasUnreadAiMsg } = useChatUnread();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
 
   // Trigger the AI welcome message exactly once per app session — runs only
@@ -46,31 +47,34 @@ export default function DashboardScreen() {
   // approving a job from the swipe tab is reflected immediately when the
   // user comes back. The `cancelled` flag prevents a stale in-flight fetch
   // from overwriting fresher data if the user rapidly toggles tabs.
+  const loadApplications = useCallback((cancelled: { current: boolean }) => {
+    setLoading(true);
+    setLoadError(false);
+
+    applicationsApi
+      .getApplications()
+      .then((apps) => {
+        if (cancelled.current) return;
+        setApplications(apps);
+        setLoadError(false);
+      })
+      .catch((error) => {
+        if (cancelled.current) return;
+        console.log('Failed to load applications:', error);
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (cancelled.current) return;
+        setLoading(false);
+      });
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      setLoading(true);
-
-      applicationsApi
-        .getApplications()
-        .then((apps) => {
-          if (cancelled) return;
-          setApplications(apps);
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          console.log('Failed to load applications:', error);
-          setApplications([]);
-        })
-        .finally(() => {
-          if (cancelled) return;
-          setLoading(false);
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }, [])
+      const cancelled = { current: false };
+      loadApplications(cancelled);
+      return () => { cancelled.current = true; };
+    }, [loadApplications])
   );
 
   const ACTIVE_STATUSES = ['applied', 'shortlisted', 'interview', 'offered'];
@@ -258,6 +262,22 @@ export default function DashboardScreen() {
         <View style={styles.listContainer}>
           {loading ? (
             <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+          ) : loadError ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={64} color={colors.mutedForeground} />
+              <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>
+                Failed to Load Applications
+              </Text>
+              <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>
+                Couldn't connect to the server. Check your connection and try again.
+              </Text>
+              <Button
+                onPress={() => loadApplications({ current: false })}
+                style={styles.emptyButton}
+              >
+                Retry
+              </Button>
+            </View>
           ) : filteredApplications.length > 0 ? (
             filteredApplications.map((app) => (
               <TouchableOpacity

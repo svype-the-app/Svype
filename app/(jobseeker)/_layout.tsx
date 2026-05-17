@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
-import { aiChatApi } from '@/services/api';
+import { aiChatApi, jobsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -46,6 +46,26 @@ function CheckInPoller() {
       appStateSub.remove();
     };
   }, [setHasUnreadAiMsg]);
+
+  return null;
+}
+
+/**
+ * Fires a fire-and-forget warm request so the backend starts pre-ranking
+ * jobs immediately when the jobseeker section loads — before the user
+ * even taps the Swipe tab. Also re-warms whenever the app comes back
+ * to the foreground (session resume scenario).
+ */
+function SwipeCacheWarmer() {
+  useEffect(() => {
+    jobsApi.warmSwipeCache();
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') jobsApi.warmSwipeCache();
+    });
+
+    return () => appStateSub.remove();
+  }, []);
 
   return null;
 }
@@ -144,6 +164,7 @@ export default function JobSeekerLayout() {
   return (
     <ChatUnreadProvider>
       <CheckInPoller />
+      <SwipeCacheWarmer />
       <JobSeekerTabs />
     </ChatUnreadProvider>
   );

@@ -42,12 +42,9 @@ export default function ProfileScreen() {
   const [applicationCount, setApplicationCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
+  const fetchProfile = useCallback(async () => {
     try {
-      const [user, apps] = await Promise.all([
-        authApi.getMe(),
-        applicationsApi.getApplications(),
-      ]);
+      const user = await authApi.getMe();
 
       const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
       const initials = fullName
@@ -72,35 +69,47 @@ export default function ProfileScreen() {
         interests: user.profile?.interests || [],
         completion: user.profile?.completion || null,
       });
-
-      setApplicationCount(apps.length);
     } catch (error) {
       console.log('Could not fetch user profile:', error);
-      setProfile({
-        fullName: 'User',
-        email: '',
-        initials: 'U',
-        avatarUrl: undefined,
-        professionalSummary: '',
-        careerGoals: '',
-        lifeGoals: '',
-        interests: [],
-        completion: null,
-      });
-      setApplicationCount(0);
+      // Only fall back to empty if we have nothing cached yet
+      if (!profile) {
+        setProfile({
+          fullName: 'User',
+          email: '',
+          initials: 'U',
+          avatarUrl: undefined,
+          professionalSummary: '',
+          careerGoals: '',
+          lifeGoals: '',
+          interests: [],
+          completion: null,
+        });
+      }
     } finally {
       setLoading(false);
+    }
+  }, [profile]);
+
+  // Load application count independently — never blocks or replaces profile data.
+  const fetchApplicationCount = useCallback(async () => {
+    try {
+      const apps = await applicationsApi.getApplications();
+      setApplicationCount(apps.length);
+    } catch {
+      // Non-critical — keep whatever count is already shown
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchProfile();
+    fetchApplicationCount();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [fetchData])
+      fetchProfile();
+      fetchApplicationCount();
+    }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const getCompletionColor = (percentage: number) => {

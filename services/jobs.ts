@@ -75,6 +75,17 @@ export const jobsApi = {
     return apiClient.get<Job[]>('/jobs/swipe/');
   },
 
+  /** Fire-and-forget: asks the backend to pre-rank jobs in the background.
+   *  Returns immediately (202). Call on app-load so the cache is warm
+   *  before the user navigates to the swipe screen. */
+  async warmSwipeCache(): Promise<void> {
+    try {
+      await apiClient.post('/jobs/warm/', {});
+    } catch {
+      // Non-critical — silently ignore if the server is unreachable
+    }
+  },
+
   async swipe(jobId: number, action: 'like' | 'dislike'): Promise<void> {
     await apiClient.post('/swipe/', { job: jobId, action });
   },
