@@ -199,6 +199,7 @@ export interface Notification {
   type: string;
   title: string;
   description: string;
+  related_object_id: number | null;
   is_read: boolean;
   created_at: string;
 }

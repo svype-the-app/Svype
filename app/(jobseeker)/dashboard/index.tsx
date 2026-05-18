@@ -4,10 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
 import { useApplications } from '@/lib/applications-context';
-import { aiChatApi } from '@/services/api';
+import { aiChatApi, notificationsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -26,6 +26,22 @@ export default function DashboardScreen() {
   const { setHasUnreadAiMsg } = useChatUnread();
   const { applications, initialLoading, loadError, refreshing, refresh } = useApplications();
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const notifs = await notificationsApi.getNotifications();
+      setUnreadCount(notifs.filter((n) => !n.is_read).length);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadCount();
+    }, [fetchUnreadCount])
+  );
 
   // Trigger the AI welcome message exactly once per app session — runs only
   // on initial mount, not on every Dashboard focus.
@@ -125,20 +141,28 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={[styles.pageTitle, { color: colors.foreground }]}>Applications</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={() => router.push('/(jobseeker)/compatibility-history' as any)}
-                style={[styles.notifButton, { borderColor: colors.border }]}
-              >
-                <Ionicons name="analytics-outline" size={20} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                disabled
-                style={[styles.notifButton, { borderColor: colors.border }]}
-              >
-                <Ionicons name="notifications-outline" size={22} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/(jobseeker)/dashboard/notifications' as any)}
+              style={[
+                styles.notifButton,
+                unreadCount > 0
+                  ? { backgroundColor: '#22c55e', borderColor: '#22c55e' }
+                  : { borderColor: colors.border },
+              ]}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color={unreadCount > 0 ? '#fff' : colors.mutedForeground}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Stats Overview */}
@@ -160,6 +184,27 @@ export default function DashboardScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* Quick Action Buttons */}
+        <View style={styles.quickActions}>
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: colors.primary }]}
+            onPress={() => router.push('/(jobseeker)/dashboard/compatibility-history' as any)}
+          >
+            <Ionicons name="analytics-outline" size={20} color={colors.primary} style={styles.actionIcon} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Compatibility History</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: '#22c55e' }]}
+            onPress={() => router.push('/(jobseeker)/dashboard/accepted-jobs' as any)}
+          >
+            <Ionicons name="checkmark-circle-outline" size={20} color="#22c55e" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonText, { color: '#22c55e' }]}>Accepted Applications</Text>
+          </Button>
         </View>
 
         {/* Tabs */}
@@ -242,6 +287,7 @@ export default function DashboardScreen() {
               <TouchableOpacity
                 key={app.id}
                 onPress={() => router.push(`/(jobseeker)/dashboard/${app.id}` as any)}
+                activeOpacity={0.8}
               >
                 <Card style={styles.applicationCard}>
                   <CardContent style={styles.cardContent}>
@@ -356,11 +402,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
   notifButton: {
     width: 38,
     height: 38,
@@ -368,6 +409,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: '45%',
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    marginRight: 8,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',

@@ -1,14 +1,15 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
-import { Application, applicationsApi } from '@/services/api';
+import { applicationsApi } from '@/services/api';
+import type { Application } from '@/services/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,700 +17,274 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Backend statuses are lowercase: 'applied' | 'shortlisted' | 'interview' |
-// 'offered' | 'rejected' | 'withdrawn'. Helper used for both display + as a
-// stable internal key.
-const formatStatus = (s: string) =>
-  s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+function getStatusColor(status: string) {
+  switch (status.toLowerCase()) {
+    case 'applied': return '#3b82f6';
+    case 'shortlisted': return '#22c55e';
+    case 'interview': return '#f59e0b';
+    case 'offered': return '#22c55e';
+    case 'rejected':
+    case 'withdrawn': return '#ef4444';
+    default: return '#8b5cf6';
+  }
+}
 
 export default function ApplicationDetailScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const appId = Number(id);
+
   const [application, setApplication] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'notes'>('overview');
+
+  // Withdraw modal
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [timer, setTimer] = useState(5);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const appId = Number(params.id);
-    if (!Number.isFinite(appId)) {
-      setLoading(false);
-      return;
-    }
-    applicationsApi
-      .getApplication(appId)
+    applicationsApi.getApplication(appId)
       .then(setApplication)
-      .catch(() => setApplication(null))
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, [params.id]);
+  }, [appId]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.notFoundContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </View>
-    );
-  }
+  const startWithdrawTimer = () => {
+    setShowWithdrawModal(true);
+    setTimer(5);
+    progressAnim.setValue(0);
+    Animated.timing(progressAnim, { toValue: 1, duration: 5000, useNativeDriver: false }).start();
+    timerRef.current = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          doWithdraw();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
-  if (!application) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.notFoundContainer}>
-          <Text style={[styles.notFoundText, { color: colors.mutedForeground }]}>
-            Application not found
-          </Text>
-          <Button variant="outline" onPress={() => router.back()} style={styles.backButtonNotFound}>
-            <Text>Go Back</Text>
-          </Button>
-        </View>
-      </View>
-    );
-  }
+  const cancelWithdraw = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    progressAnim.stopAnimation();
+    setShowWithdrawModal(false);
+    setTimer(5);
+  };
 
-  const { job, status, applied_at } = application;
+  const doWithdraw = async () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setWithdrawing(true);
+    try {
+      await applicationsApi.updateStatus(appId, 'withdrawn');
+      setShowWithdrawModal(false);
+      router.back();
+    } catch {
+      setWithdrawing(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   const formatSalary = (min?: number, max?: number) => {
-    if (min == null && max == null) return 'Salary not specified';
-    if (min == null) return `Up to £${Math.round((max as number) / 1000)}k`;
-    if (max == null) return `From £${Math.round(min / 1000)}k`;
-    return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
+    if (typeof min !== 'number' || typeof max !== 'number') return null;
+    return `£${(min / 1000).toFixed(0)}k – £${(max / 1000).toFixed(0)}k`;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
 
-  const getStatusColor = (s: string) => {
-    switch (s.toLowerCase()) {
-      case 'applied':
-        return '#3b82f6';
-      case 'shortlisted':
-        return '#a855f7';
-      case 'interview':
-        return '#f59e0b';
-      case 'offered':
-        return '#22c55e';
-      case 'rejected':
-      case 'withdrawn':
-        return '#ef4444';
-      default:
-        return colors.muted;
-    }
-  };
-
-  // Reconstructed timeline. The 'applied' step is real (uses the row's
-  // applied_at). The later steps are placeholders using fake offsets — they'll
-  // be replaced with actual status-change timestamps once the backend tracks
-  // those (pass B work). For now they at least reflect the current status.
-  const timeline = [
-    { status: 'applied', date: applied_at, description: 'Application submitted' },
-    ...(status === 'shortlisted' || status === 'interview'
-      ? [
-          {
-            status: 'shortlisted',
-            date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            description: 'Shortlisted for review',
-          },
-        ]
-      : []),
-    ...(status === 'interview'
-      ? [
-          {
-            status: 'interview',
-            date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-            description: 'Interview scheduled',
-          },
-        ]
-      : []),
-    ...(status === 'rejected'
-      ? [
-          {
-            status: 'rejected',
-            date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-            description: 'Application not selected',
-          },
-        ]
-      : []),
-  ];
+  const canWithdraw = application && !['rejected', 'withdrawn'].includes(application.status.toLowerCase());
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-              Application Details
-            </Text>
-            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-              Track your progress
-            </Text>
-          </View>
-        </View>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Application Detail</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Job Card */}
-        <Card>
-          <CardContent style={styles.jobCard}>
-            <View style={styles.jobHeader}>
-              <Avatar
-                size={64}
-                style={{
-                  backgroundColor: colors.primary,
-                  borderWidth: 2,
-                  borderColor: colors.border,
-                }}
-              >
-                <AvatarFallback>
-                  <Text style={[styles.avatarText, { color: colors.primaryForeground }]}>
-                    {(job.company_name || '?').charAt(0)}
-                  </Text>
-                </AvatarFallback>
-              </Avatar>
-              <View style={styles.jobInfo}>
-                <Text style={[styles.jobTitle, { color: colors.foreground }]}>{job.title}</Text>
-                <Text style={[styles.companyName, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {job.company_name}
-                </Text>
-              </View>
-              <Badge
-                style={{ backgroundColor: getStatusColor(status) + '20' }}
-                textStyle={{ color: getStatusColor(status) }}
-              >
-                <Text>{formatStatus(status)}</Text>
-              </Badge>
-            </View>
-            <View style={styles.badgesRow}>
-              <Badge variant="outline">
-                <Ionicons name="location-outline" size={12} color={colors.foreground} />
-                <Text>{job.location}</Text>
-              </Badge>
-              <Badge variant="outline">
-                <Ionicons name="briefcase-outline" size={12} color={colors.foreground} />
-                <Text>{job.job_type}</Text>
-              </Badge>
-              <Badge variant="outline">
-                <Ionicons name="cash-outline" size={12} color={colors.foreground} />
-                <Text>{formatSalary(job.salary_min, job.salary_max)}</Text>
-              </Badge>
-            </View>
-          </CardContent>
-        </Card>
-
-        {/* Tabs */}
-        <View style={[styles.tabsContainer, { backgroundColor: colors.muted }]}>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              activeTab === 'overview' && [styles.activeTab, { backgroundColor: colors.background }],
-            ]}
-            onPress={() => setActiveTab('overview')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: colors.foreground },
-                activeTab === 'overview' && styles.activeTabText,
-              ]}
-            >
-              Overview
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              activeTab === 'timeline' && [styles.activeTab, { backgroundColor: colors.background }],
-            ]}
-            onPress={() => setActiveTab('timeline')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: colors.foreground },
-                activeTab === 'timeline' && styles.activeTabText,
-              ]}
-            >
-              Timeline
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              activeTab === 'notes' && [styles.activeTab, { backgroundColor: colors.background }],
-            ]}
-            onPress={() => setActiveTab('notes')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: colors.foreground },
-                activeTab === 'notes' && styles.activeTabText,
-              ]}
-            >
-              Notes
-            </Text>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
-
-        {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <View style={styles.tabContent}>
-            <Card>
-              <CardContent style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Application Information
-                </Text>
-                <View style={styles.infoRows}>
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
-                      Applied On
-                    </Text>
-                    <Text style={[styles.infoValue, { color: colors.foreground }]}>
-                      {formatDate(applied_at)}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Status</Text>
-                    <Badge
-                      style={{ backgroundColor: getStatusColor(status) + '20' }}
-                      textStyle={{ color: getStatusColor(status) }}
-                    >
-                      <Text>{formatStatus(status)}</Text>
-                    </Badge>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
-                      Application ID
-                    </Text>
-                    <Text style={[styles.infoValue, { color: colors.foreground, fontFamily: 'monospace' }]}>
-                      #{application.id}
-                    </Text>
-                  </View>
-                </View>
-              </CardContent>
-            </Card>
-
-            {/* description and requirements are NOT part of the Application
-                response's nested job (only the light Job fields are embedded).
-                Render these sections only when present — keeps the screen
-                stable instead of crashing on undefined.map. */}
-            {job.description ? (
-              <Card>
-                <CardContent style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                    Job Description
-                  </Text>
-                  <Text style={[styles.description, { color: colors.mutedForeground }]}>
-                    {job.description}
-                  </Text>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {Array.isArray(job.requirements) && job.requirements.length > 0 ? (
-              <Card>
-                <CardContent style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Requirements</Text>
-                  <View style={styles.requirements}>
-                    {job.requirements.map((req, index) => (
-                      <View key={index} style={styles.requirementItem}>
-                        <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                        <Text style={[styles.requirementText, { color: colors.mutedForeground }]}>
-                          {req}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </CardContent>
-              </Card>
-            ) : null}
-          </View>
-        )}
-
-        {activeTab === 'timeline' && (
-          <View style={styles.tabContent}>
-            <Card>
-              <CardContent style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Application Timeline
-                </Text>
-                <View style={styles.timeline}>
-                  {timeline.map((item, index) => (
-                    <View key={index} style={styles.timelineItem}>
-                      <View style={styles.timelineLeft}>
-                        <View
-                          style={[
-                            styles.timelineIcon,
-                            { backgroundColor: getStatusColor(item.status) + '20' },
-                          ]}
-                        >
-                          {item.status === 'applied' && (
-                            <Ionicons name="document-text" size={20} color={getStatusColor(item.status)} />
-                          )}
-                          {item.status === 'shortlisted' && (
-                            <Ionicons name="trending-up" size={20} color={getStatusColor(item.status)} />
-                          )}
-                          {item.status === 'interview' && (
-                            <Ionicons name="calendar" size={20} color={getStatusColor(item.status)} />
-                          )}
-                          {item.status === 'rejected' && (
-                            <Ionicons name="close-circle" size={20} color={getStatusColor(item.status)} />
-                          )}
-                        </View>
-                        {index < timeline.length - 1 && (
-                          <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-                        )}
-                      </View>
-                      <View style={styles.timelineRight}>
-                        <Text style={[styles.timelineTitle, { color: colors.foreground }]}>
-                          {item.description}
-                        </Text>
-                        <View style={styles.timelineDate}>
-                          <Ionicons name="time-outline" size={14} color={colors.mutedForeground} />
-                          <Text style={[styles.timelineText, { color: colors.mutedForeground }]}>
-                            {formatDate(item.date)}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </CardContent>
-            </Card>
-
-            {status === 'interview' && (
-              <Card style={[styles.interviewCard, { borderColor: '#f59e0b40' }]}>
-                <CardContent style={styles.section}>
-                  <View style={styles.interviewContent}>
-                    <Ionicons name="calendar" size={20} color="#f59e0b" />
-                    <View style={styles.interviewText}>
-                      <Text style={[styles.interviewTitle, { color: colors.foreground }]}>
-                        Upcoming Interview
-                      </Text>
-                      <Text style={[styles.interviewDate, { color: colors.mutedForeground }]}>
-                        Scheduled for January 5, 2026 at 2:00 PM
-                      </Text>
-                      <Button style={styles.interviewButton}>
-                        <Text style={{ color: colors.primaryForeground }}>View Interview Details</Text>
-                        <Ionicons name="open-outline" size={16} color={colors.primaryForeground} />
-                      </Button>
-                    </View>
-                  </View>
-                </CardContent>
-              </Card>
-            )}
-          </View>
-        )}
-
-        {activeTab === 'notes' && (
-          <View style={styles.tabContent}>
-            <Card>
-              <CardContent style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Application Notes
-                </Text>
-                <View style={styles.notes}>
-                  <View style={[styles.noteItem, { backgroundColor: colors.muted }]}>
-                    <View style={styles.noteHeader}>
-                      <Ionicons name="chatbox-outline" size={16} color={colors.mutedForeground} />
-                      <Text style={[styles.noteTitle, { color: colors.foreground }]}>
-                        Initial Submission
-                      </Text>
-                    </View>
-                    <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
-                      Submitted application with updated CV highlighting React and TypeScript experience
-                    </Text>
-                    <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>
-                      {formatDate(applied_at)}
-                    </Text>
-                  </View>
-                  <Button variant="outline" style={styles.addNoteButton}>
-                    <Ionicons name="add-circle-outline" size={16} color={colors.foreground} />
-                    <Text style={{ color: colors.foreground }}>Add Note</Text>
-                  </Button>
-                </View>
-              </CardContent>
-            </Card>
-          </View>
-        )}
-
-        {/* Actions */}
-        <Card>
-          <CardContent style={styles.actionsCard}>
-            <View style={styles.actions}>
-              <Button
-                variant="outline"
-                style={styles.actionButton}
-                onPress={() => router.push(`/(jobseeker)/job/${job.id}` as any)}
-              >
-                <Ionicons name="document-text-outline" size={16} color={colors.foreground} />
-                <Text style={{ color: colors.foreground }}>View Job</Text>
-              </Button>
-              <Button variant="outline" style={styles.actionButton}>
-                <Ionicons name="chatbox-outline" size={16} color={colors.foreground} />
-                <Text style={{ color: colors.foreground }}>Contact</Text>
-              </Button>
+      ) : !application ? (
+        <View style={styles.centered}>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Not found</Text>
+        </View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Status banner */}
+            <View style={[styles.statusBanner, { backgroundColor: getStatusColor(application.status) + '18', borderColor: getStatusColor(application.status) + '40' }]}>
+              <Ionicons name="information-circle-outline" size={18} color={getStatusColor(application.status)} />
+              <Text style={[styles.statusText, { color: getStatusColor(application.status) }]}>
+                {application.status.toUpperCase()}
+              </Text>
             </View>
-          </CardContent>
-        </Card>
-      </ScrollView>
-    </View>
+
+            <Card style={styles.card}>
+              <CardContent style={styles.cardContent}>
+                <Text style={[styles.jobTitle, { color: colors.foreground }]}>{application.job.title}</Text>
+                <Text style={[styles.companyName, { color: colors.mutedForeground }]}>{application.job.company_name}</Text>
+
+                <View style={styles.metaGrid}>
+                  {!!application.job.location && (
+                    <View style={styles.metaRow}>
+                      <Ionicons name="location-outline" size={15} color={colors.mutedForeground} />
+                      <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{application.job.location}</Text>
+                    </View>
+                  )}
+                  {!!application.job.job_type && (
+                    <View style={styles.metaRow}>
+                      <Ionicons name="briefcase-outline" size={15} color={colors.mutedForeground} />
+                      <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{application.job.job_type}</Text>
+                    </View>
+                  )}
+                  {!!formatSalary(application.job.salary_min, application.job.salary_max) && (
+                    <View style={styles.metaRow}>
+                      <Ionicons name="cash-outline" size={15} color={colors.mutedForeground} />
+                      <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+                        {formatSalary(application.job.salary_min, application.job.salary_max)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.metaRow}>
+                    <Ionicons name="time-outline" size={15} color={colors.mutedForeground} />
+                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+                      Applied {formatDate(application.applied_at)}
+                    </Text>
+                  </View>
+                </View>
+
+                {!!application.job.description && (
+                  <View style={styles.descSection}>
+                    <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Description</Text>
+                    <Text style={[styles.descText, { color: colors.mutedForeground }]}>{application.job.description}</Text>
+                  </View>
+                )}
+              </CardContent>
+            </Card>
+          </ScrollView>
+
+          {canWithdraw && (
+            <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+              <TouchableOpacity
+                style={[styles.withdrawBtn, { borderColor: '#ef4444' }]}
+                onPress={startWithdrawTimer}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+                <Text style={styles.withdrawBtnText}>Withdraw Application</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+
+      {/* Withdraw countdown modal */}
+      <Modal visible={showWithdrawModal} transparent animationType="fade" onRequestClose={cancelWithdraw}>
+        <View style={styles.modalOverlay}>
+          <Card style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <CardContent style={styles.modalContent}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Withdraw Application?</Text>
+              <Text style={[styles.modalDesc, { color: colors.mutedForeground }]}>
+                This will remove your application. This cannot be undone.
+              </Text>
+              <View style={styles.timerWrap}>
+                <Animated.View
+                  style={[styles.timerRing, {
+                    transform: [{
+                      rotate: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg'],
+                      }),
+                    }],
+                  }]}
+                >
+                  <View style={[styles.timerRingInner, { borderColor: '#ef4444' }]} />
+                </Animated.View>
+                <View style={[styles.timerCenter, { backgroundColor: colors.card }]}>
+                  <Text style={styles.timerText}>{timer}s</Text>
+                </View>
+              </View>
+              <View style={styles.modalBtns}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.muted }]}
+                  onPress={cancelWithdraw}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={doWithdraw}
+                  disabled={withdrawing}
+                >
+                  {withdrawing
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={[styles.modalBtnText, { color: '#fff' }]}>Withdraw</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </CardContent>
+          </Card>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: 40,
-  },
+  container: { flex: 1 },
   header: {
-    borderBottomWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  headerTitle: { fontSize: 18, fontWeight: '700' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '700' },
+  scrollContent: { padding: 16, gap: 12, paddingBottom: 24 },
+  statusBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
   },
-  backButton: {
-    padding: 4,
+  statusText: { fontSize: 13, fontWeight: '700' },
+  card: {},
+  cardContent: { padding: 16 },
+  jobTitle: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  companyName: { fontSize: 15, marginBottom: 16 },
+  metaGrid: { gap: 8, marginBottom: 16 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { fontSize: 14 },
+  descSection: { borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 14 },
+  sectionLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  descText: { fontSize: 14, lineHeight: 21 },
+  footer: { padding: 16, borderTopWidth: 1 },
+  withdrawBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: 12, borderWidth: 1.5,
   },
-  headerText: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    gap: 12,
-  },
-  notFoundContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  notFoundText: {
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  backButtonNotFound: {
-    marginTop: 8,
-  },
-  jobCard: {
-    padding: 20,
-  },
-  jobHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  jobInfo: {
-    flex: 1,
-  },
-  jobTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  companyName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    padding: 4,
-    borderRadius: 16,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  activeTab: {},
-  tabText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    fontWeight: '700',
-  },
-  tabContent: {
-    gap: 12,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 16,
-  },
-  infoRows: {
-    gap: 12,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 14,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  requirements: {
-    gap: 12,
-  },
-  requirementItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  requirementText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  timeline: {
-    gap: 16,
-  },
-  timelineItem: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  timelineLeft: {
-    alignItems: 'center',
-  },
-  timelineIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    marginTop: 8,
-  },
-  timelineRight: {
-    flex: 1,
-    paddingBottom: 8,
-  },
-  timelineTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  timelineDate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timelineText: {
-    fontSize: 12,
-  },
-  interviewCard: {
-    borderWidth: 1,
-  },
-  interviewContent: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  interviewText: {
-    flex: 1,
-    gap: 8,
-  },
-  interviewTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  interviewDate: {
-    fontSize: 12,
-  },
-  interviewButton: {
-    flexDirection: 'row',
-    gap: 6,
-    alignSelf: 'flex-start',
-  },
-  notes: {
-    gap: 12,
-  },
-  noteItem: {
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  noteTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  noteText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  noteDate: {
-    fontSize: 11,
-  },
-  addNoteButton: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionsCard: {
-    padding: 16,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-  },
+  withdrawBtnText: { color: '#ef4444', fontSize: 15, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  modalCard: { width: '100%', maxWidth: 320 },
+  modalContent: { alignItems: 'center', gap: 12, padding: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalDesc: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  timerWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  timerRing: { position: 'absolute', width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+  timerRingInner: { width: 120, height: 120, borderRadius: 60, borderWidth: 5 },
+  timerCenter: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  timerText: { fontSize: 32, fontWeight: '700', color: '#ef4444' },
+  modalBtns: { flexDirection: 'row', gap: 12, width: '100%' },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  modalBtnText: { fontSize: 14, fontWeight: '600' },
 });

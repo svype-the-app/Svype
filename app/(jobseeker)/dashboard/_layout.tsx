@@ -5,6 +5,10 @@ export default function DashboardLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
+      <Stack.Screen name="notifications" />
+      <Stack.Screen name="accepted-jobs" />
+      <Stack.Screen name="compatibility-history" />
+      <Stack.Screen name="accepted-chat/[applicationId]" />
     </Stack>
   );
 }

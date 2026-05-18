@@ -21,6 +21,8 @@ export type {
   ApplicantCompatibilityHistoryItem,
   ShortlistRun,
   ShortlistRunDetail,
+  AcceptedApplicantMessage,
+  AcceptedApplicant,
 } from './applications';
 export { notificationsApi } from './notifications';
 export { aiChatApi } from './ai-chat';

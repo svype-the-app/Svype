@@ -203,6 +203,15 @@ export default function CompanyDashboard() {
             <Ionicons name="analytics-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
             <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>AI Compatibility History</Text>
           </Button>
+
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: '#22c55e' }]}
+            onPress={() => router.push('/(company)/applicants/accepted-applicants')}
+          >
+            <Ionicons name="people-outline" size={20} color="#22c55e" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonTextOutline, { color: '#22c55e' }]}>Accepted Applicants</Text>
+          </Button>
         </View>
 
         <View style={styles.jobsSection}>

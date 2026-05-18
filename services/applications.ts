@@ -104,6 +104,20 @@ export interface ApplicantCompatibilityHistoryItem {
   computed_at: string;
 }
 
+export interface AcceptedApplicantMessage {
+  id: number;
+  content: string;
+  sent_at: string;
+}
+
+export interface AcceptedApplicant {
+  application_id: number;
+  applicant_name: string;
+  applicant_email: string;
+  job_title: string;
+  accepted_at: string;
+}
+
 export interface ShortlistRun {
   id: number;
   job_id: number;
@@ -181,5 +195,17 @@ export const applicationsApi = {
 
   async getShortlistRun(jobId: number, runId: number): Promise<ShortlistRunDetail> {
     return apiClient.get<ShortlistRunDetail>(`/jobs/${jobId}/shortlist/${runId}/`);
+  },
+
+  async getApplicationMessages(applicationId: number): Promise<AcceptedApplicantMessage[]> {
+    return apiClient.get<AcceptedApplicantMessage[]>(`/applications/${applicationId}/messages/`);
+  },
+
+  async sendApplicationMessage(applicationId: number, content: string): Promise<AcceptedApplicantMessage> {
+    return apiClient.post<AcceptedApplicantMessage>(`/applications/${applicationId}/messages/`, { content });
+  },
+
+  async getAcceptedApplicants(): Promise<AcceptedApplicant[]> {
+    return apiClient.get<AcceptedApplicant[]>('/jobs/accepted-applicants/');
   },
 };

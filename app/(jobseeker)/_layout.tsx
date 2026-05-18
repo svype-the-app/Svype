@@ -218,7 +218,6 @@ function JobSeekerTabs() {
       {/* Hidden routes - accessible but not in tab bar */}
       <Tabs.Screen name="job" options={{ href: null }} />
       <Tabs.Screen name="saved" options={{ href: null }} />
-      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="ai-tools" options={{ href: null }} />
       <Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="github-connect" options={{ href: null }} />
