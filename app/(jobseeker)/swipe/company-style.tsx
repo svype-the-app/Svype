@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
 import { useApplications } from '@/lib/applications-context'
 import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
+import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
@@ -136,6 +137,18 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // Tracks whether the 2.5s minimum spinner has elapsed
   const [minDelayDone, setMinDelayDone] = useState(false)
 
+  const slideAnim = useRef(new Animated.Value(0)).current
+
+  const triggerSlideIn = (fromRight = true) => {
+    slideAnim.setValue(fromRight ? SCREEN_WIDTH : -SCREEN_WIDTH)
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 100,
+    }).start()
+  }
+
   // The panResponder is built once via useRef, so its release handler would
   // otherwise close over first-render versions of handleApprove/handleReject
   // (which captured jobs=[] before the load effect ran, so its !approvedJob
@@ -211,6 +224,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     setUndoJob(null)
     setUndoActionType(null)
     pan.setValue({ x: 0, y: 0 })
+    triggerSlideIn(true)
 
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ y: 0, animated: false })
@@ -265,6 +279,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         return isHorizontalSwipe && !flags.isScrolling && !flags.isCardNavigating && !flags.isApplying
       },
       onPanResponderGrant: () => {
+        slideAnim.stopAnimation()
+        slideAnim.setValue(0)
         setIsScrolling(false)
         pan.setOffset({
           x: (pan.x as any)._value,
@@ -341,6 +357,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         if (scrollViewRef.current) {
           scrollViewRef.current.scrollTo({ y: 0, animated: false })
         }
+        triggerSlideIn(true)
         // Release the gate as soon as the card is gone, NOT when the network
         // call resolves. The apply request continues in the background; the
         // success/failure alert will fire whenever it fires.
@@ -421,6 +438,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     pan.setValue({ x: 0, y: 0 })
     scrollViewRef.current?.scrollTo({ y: 0, animated: false })
     setCurrentIndex((prev) => prev - 1)
+    triggerSlideIn(false)
   }
 
   const handleGoToNext = () => {
@@ -429,6 +447,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     pan.setValue({ x: 0, y: 0 })
     scrollViewRef.current?.scrollTo({ y: 0, animated: false })
     setCurrentIndex((prev) => prev + 1)
+    triggerSlideIn(true)
   }
 
   // Keep the panResponder's call-points + gate flags pointed at the latest
@@ -564,10 +583,19 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         </View>
       )}
 
-      <View style={[styles.cardContainer, { backgroundColor: colors.background }]}> 
+      <View style={[styles.cardContainer, { backgroundColor: colors.background }]}>
+        <Animated.View
+          style={{ width: '100%', height: '100%', transform: [{ translateX: slideAnim }] }}
+          pointerEvents="box-none"
+        >
         <Animated.View style={[animatedCardStyle, { width: '100%', height: '100%' }]} {...panResponder.panHandlers}>
           <Card style={[styles.jobCard, { backgroundColor: colors.card }]}> 
             <CardContent style={styles.cardContent}>
+              <View style={styles.cardTimestampWrapper} pointerEvents="none">
+                <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                  {formatRelativeTime(currentJob.posted_at)}
+                </Text>
+              </View>
               <ScrollView
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={true}
@@ -608,7 +636,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
                 >
                   <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Employment</Text>
                   <Text style={[styles.appliedForTitle, { color: colors.cardForeground }]}>{currentJob.type}</Text>
-                  <Text style={[styles.appliedAt, { color: colors.mutedForeground }]}>Posted: {new Date(currentJob.posted_at).toLocaleDateString()}</Text>
+                  <Text style={[styles.appliedAt, { color: colors.mutedForeground }]}>Posted {formatRelativeTime(currentJob.posted_at)}</Text>
                 </View>
 
                 <View style={styles.infoGrid}>
@@ -691,6 +719,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <Ionicons name="close" size={48} color="#fff" />
             </View>
           </Animated.View>
+        </Animated.View>
         </Animated.View>
       </View>
 
@@ -918,6 +947,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginHorizontal: 16,
   },
+  cardTimestampWrapper: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
+  cardTimestamp: { fontSize: 11 },
   sectionHint: {
     marginHorizontal: 16,
     marginTop: 12,

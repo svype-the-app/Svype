@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { applicationsApi } from '@/services/api';
 import type { AcceptedApplicant } from '@/services/applications';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -25,36 +26,30 @@ export default function AcceptedApplicantsScreen() {
   const [applicants, setApplicants] = useState<AcceptedApplicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+    setLoadError(false);
     try {
       const data = await applicationsApi.getAcceptedApplicants();
       setApplicants(data);
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return d.toLocaleDateString();
-  };
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.push('/(company)/dashboard' as any)} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Accepted Applicants</Text>
@@ -75,6 +70,15 @@ export default function AcceptedApplicantsScreen() {
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : loadError ? (
+          <View style={styles.centered}>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
+            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+              <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : applicants.length === 0 ? (
           <View style={styles.centered}>
@@ -103,14 +107,16 @@ export default function AcceptedApplicantsScreen() {
                       </Text>
                     </View>
                     <View style={styles.info}>
-                      <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-                        {item.applicant_name || item.applicant_email}
-                      </Text>
+                      <View style={styles.infoHeader}>
+                        <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+                          {item.applicant_name || item.applicant_email}
+                        </Text>
+                        <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                          {formatRelativeTime(item.accepted_at)}
+                        </Text>
+                      </View>
                       <Text style={[styles.jobTitle, { color: colors.mutedForeground }]} numberOfLines={1}>
                         {item.job_title}
-                      </Text>
-                      <Text style={[styles.date, { color: colors.mutedForeground }]}>
-                        Accepted {formatDate(item.accepted_at)}
                       </Text>
                     </View>
                     <View style={styles.actionHint}>
@@ -139,14 +145,17 @@ const styles = StyleSheet.create({
   centered: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },
   emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
+  retryText: { fontSize: 14, fontWeight: '600' },
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
   card: { marginBottom: 0 },
   cardContent: { padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   avatarText: { fontSize: 20, fontWeight: '700' },
   info: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  infoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  name: { fontSize: 15, fontWeight: '700', flex: 1, marginRight: 4 },
   jobTitle: { fontSize: 13, marginBottom: 2 },
-  date: { fontSize: 11 },
+  cardTimestamp: { fontSize: 11 },
   actionHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

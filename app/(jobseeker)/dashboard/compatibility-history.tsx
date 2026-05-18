@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { jobsApi, type CompatibilityHistoryItem } from '@/services/api';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -47,16 +48,6 @@ export default function CompatibilityHistoryScreen() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return d.toLocaleDateString();
-  };
 
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
@@ -148,7 +139,7 @@ export default function CompatibilityHistoryScreen() {
 
                     <View style={styles.cardFooter}>
                       <Text style={[styles.dateText, { color: colors.mutedForeground }]}>
-                        Checked {formatDate(item.computed_at)}
+                        Checked {formatRelativeTime(item.computed_at)}
                       </Text>
                       <View style={styles.viewRow}>
                         <Text style={[styles.viewText, { color: colors.primary }]}>View details</Text>

@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { notificationsApi } from '@/services/api';
 import type { Notification } from '@/services/types';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -34,37 +35,23 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+    setLoadError(false);
     try {
       const data = await notificationsApi.getNotifications();
       setNotifications(data);
       const unread = data.filter((n) => !n.is_read);
       await Promise.all(unread.map((n) => notificationsApi.markAsRead(n.id).catch(() => {})));
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    const now = new Date();
-    const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return d.toLocaleDateString();
-  };
 
   const handleTap = (notif: Notification) => {
     if (
@@ -100,6 +87,15 @@ export default function NotificationsScreen() {
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
+        ) : loadError ? (
+          <View style={styles.centered}>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
+            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+              <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : notifications.length === 0 ? (
           <View style={styles.centered}>
             <Ionicons name="notifications-off-outline" size={64} color={colors.mutedForeground} />
@@ -132,7 +128,7 @@ export default function NotificationsScreen() {
                       </Text>
                       <View style={styles.footer}>
                         <Text style={[styles.date, { color: colors.mutedForeground }]}>
-                          {formatDate(notif.created_at)}
+                          {formatRelativeTime(notif.created_at)}
                         </Text>
                         {tappable && (
                           <View style={styles.viewRow}>
@@ -170,6 +166,8 @@ const styles = StyleSheet.create({
   centered: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },
   emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
+  retryText: { fontSize: 14, fontWeight: '600' },
   card: { marginBottom: 0 },
   cardContent: { padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

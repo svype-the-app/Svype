@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Colors } from '@/constants/theme';
 import { authApi } from '@/services/api';
 import { getRouteForUserState } from '@/services/routing';
@@ -53,22 +52,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGithubLogin = async () => {
-    setIsLoading(true);
-    try {
-      const result = await authApi.loginWithGithub();
-
-      const route = (result.is_new || result.user_state === 'new')
-        ? '/(onboarding)/job-seeker-onboarding'
-        : getRouteForUserState(result);
-      router.replace(route as any);
-    } catch (error: any) {
-      Alert.alert('GitHub Login Failed', error.message || 'Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -91,37 +74,6 @@ export default function LoginScreen() {
               <Text style={[styles.cardDescription, { color: colors.mutedForeground }]}>
                 Enter your email below to login to your account
               </Text>
-            </View>
-
-            {/* OAuth Buttons */}
-            <View style={styles.oauthContainer}>
-              <Button
-                variant="outline"
-                onPress={() => handleOAuthLogin('linkedin')}
-                style={styles.oauthButton}
-              >
-                <Ionicons name="logo-linkedin" size={16} color={colors.foreground} />
-                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>LinkedIn</Text>
-              </Button>
-              <Button
-                variant="outline"
-                onPress={handleGithubLogin}
-                style={styles.oauthButton}
-                disabled={isLoading}
-              >
-                <Ionicons name="logo-github" size={16} color={colors.foreground} />
-                <Text style={[styles.oauthButtonText, { color: colors.foreground }]}>GitHub</Text>
-              </Button>
-            </View>
-
-            {/* Separator */}
-            <View style={styles.separatorContainer}>
-              <Separator />
-              <View style={[styles.separatorTextContainer, { backgroundColor: colors.card }]}>
-                <Text style={[styles.separatorText, { color: colors.mutedForeground }]}>
-                  Or continue with email
-                </Text>
-              </View>
             </View>
 
             {/* Email Field */}
@@ -237,37 +189,6 @@ const styles = StyleSheet.create({
   },
   cardDescription: {
     fontSize: 14,
-  },
-  oauthContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  oauthButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 44,
-  },
-  oauthButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  separatorContainer: {
-    position: 'relative',
-    marginBottom: 24,
-  },
-  separatorTextContainer: {
-    position: 'absolute',
-    top: -10,
-    left: '50%',
-    transform: [{ translateX: -80 }],
-    paddingHorizontal: 8,
-  },
-  separatorText: {
-    fontSize: 12,
   },
   field: {
     marginBottom: 24,

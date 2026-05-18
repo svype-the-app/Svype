@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
 import { applicationsApi, type ShortlistRun } from '@/services/api'
+import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
@@ -75,15 +76,6 @@ export default function ShortlistHistoryScreen() {
     )
   }
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    const now = new Date()
-    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays < 7) return `${diffDays} days ago`
-    return d.toLocaleDateString()
-  }
 
   // "Run Again" is available when: no runs yet, OR current applicant count > last run's count
   const lastRun = history[0]
@@ -191,11 +183,11 @@ export default function ShortlistHistoryScreen() {
                           <Ionicons name="sparkles" size={14} color="#8b5cf6" />
                           <Text style={[styles.runBadgeText, { color: '#8b5cf6' }]}>Run #{history.length - index}</Text>
                         </View>
-                        <Text style={[styles.runDate, { color: colors.mutedForeground }]}>
-                          {formatDate(run.created_at)}
-                        </Text>
                       </View>
                       <View style={styles.cardRight}>
+                        <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                          {formatRelativeTime(run.created_at)}
+                        </Text>
                         <Text style={[styles.applicantCount, { color: colors.foreground }]}>
                           {run.applicant_count}
                         </Text>
@@ -268,6 +260,7 @@ const styles = StyleSheet.create({
   runBadgeText: { fontSize: 12, fontWeight: '700' },
   runDate: { fontSize: 12 },
   cardRight: { alignItems: 'center' },
+  cardTimestamp: { fontSize: 11, marginBottom: 4 },
   applicantCount: { fontSize: 28, fontWeight: '800' },
   applicantCountLabel: { fontSize: 11 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 2 },

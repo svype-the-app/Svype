@@ -73,6 +73,7 @@ export interface ApplicantCard {
   quiz_score: number | null;
   cover_letter: string;
   resume_url: string | null;
+  cv_url: string | null;
   applicant: ApplicantCardApplicant;
 }
 

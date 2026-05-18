@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authApi, jobsApi, type Job } from '@/services/api';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -20,12 +21,14 @@ export default function CompanyDashboard() {
   const [companyName, setCompanyName] = useState('Company');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedJobForActions, setSelectedJobForActions] = useState<Job | null>(null);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const fetchDashboardData = useCallback(async () => {
+    setLoadError(false);
     try {
       const [me, myJobs] = await Promise.all([
         authApi.getMe(),
@@ -34,8 +37,8 @@ export default function CompanyDashboard() {
 
       setCompanyName(me.company?.name || 'Company');
       setJobs(myJobs);
-    } catch (error) {
-      console.error('Failed to load company dashboard data:', error);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -75,16 +78,6 @@ export default function CompanyDashboard() {
     };
   }, [jobs]);
 
-  const formatPostedDate = (postedAt: string) => {
-    const posted = new Date(postedAt);
-    const now = new Date();
-    const diffMs = now.getTime() - posted.getTime();
-    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-
-    if (diffDays === 0) return 'today';
-    if (diffDays === 1) return '1 day ago';
-    return `${diffDays} days ago`;
-  };
 
   const handleDeleteJob = useCallback(
     async (jobId: number) => {
@@ -188,15 +181,6 @@ export default function CompanyDashboard() {
         <View style={styles.quickActions}>
           <Button
             variant="outline"
-            style={[styles.actionButton, { borderColor: '#a855f7' }]}
-            onPress={() => router.push('/(company)/applicants/ai-shortlist')}
-          >
-            <Ionicons name="sparkles" size={20} color="#a855f7" style={styles.actionIcon} />
-            <Text style={[styles.actionButtonTextOutline, { color: '#a855f7' }]}>AI Shortlist History</Text>
-          </Button>
-
-          <Button
-            variant="outline"
             style={[styles.actionButton, { borderColor: '#3b82f6' }]}
             onPress={() => router.push('/(company)/applicants/compatibility-history')}
           >
@@ -221,6 +205,15 @@ export default function CompanyDashboard() {
               <View style={styles.centeredState}>
                 <ActivityIndicator color={colors.primary} />
                 <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>Loading jobs...</Text>
+              </View>
+            ) : loadError ? (
+              <View style={styles.centeredState}>
+                <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>Failed to Load</Text>
+                <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
+                <TouchableOpacity onPress={() => fetchDashboardData()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+                  <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
+                </TouchableOpacity>
               </View>
             ) : jobs.length === 0 ? (
               <View style={styles.centeredState}>
@@ -265,7 +258,7 @@ export default function CompanyDashboard() {
                           </Text>
                         </View>
                         <Text style={[styles.jobMetaText, { color: colors.mutedForeground }]}> 
-                          Posted {formatPostedDate(job.posted_at)}
+                          Posted {formatRelativeTime(job.posted_at)}
                         </Text>
                       </View>
                     </View>
@@ -611,6 +604,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
+  retryText: { fontSize: 14, fontWeight: '600' },
   jobCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',

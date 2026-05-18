@@ -5,6 +5,7 @@ import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
 import { useApplications } from '@/lib/applications-context';
 import { aiChatApi, notificationsApi } from '@/services/api';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -65,18 +66,6 @@ export default function DashboardScreen() {
     return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 14) return '1 week ago';
-    return date.toLocaleDateString();
-  };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -300,19 +289,24 @@ export default function DashboardScreen() {
                           {app.job.company_name}
                         </Text>
                       </View>
-                      <Badge
-                        style={{
-                          backgroundColor: getStatusColor(app.status) + '20',
-                        }}
-                        textStyle={{ color: getStatusColor(app.status) }}
-                      >
-                        <Ionicons
-                          name={getStatusIcon(app.status) as any}
-                          size={12}
-                          color={getStatusColor(app.status)}
-                        />
-                        <Text>{app.status.toUpperCase()}</Text>
-                      </Badge>
+                      <View style={styles.cardHeaderRight}>
+                        <Badge
+                          style={{
+                            backgroundColor: getStatusColor(app.status) + '20',
+                          }}
+                          textStyle={{ color: getStatusColor(app.status) }}
+                        >
+                          <Ionicons
+                            name={getStatusIcon(app.status) as any}
+                            size={12}
+                            color={getStatusColor(app.status)}
+                          />
+                          <Text>{app.status.toUpperCase()}</Text>
+                        </Badge>
+                        <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                          {formatRelativeTime(app.applied_at)}
+                        </Text>
+                      </View>
                     </View>
 
                     <Text
@@ -347,12 +341,6 @@ export default function DashboardScreen() {
                           numberOfLines={1}
                         >
                           {app.job.location}
-                        </Text>
-                      </View>
-                      <View style={styles.footerItem}>
-                        <Ionicons name="time-outline" size={14} color={colors.mutedForeground} />
-                        <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-                          Applied {formatDate(app.applied_at)}
                         </Text>
                       </View>
                     </View>
@@ -513,6 +501,8 @@ const styles = StyleSheet.create({
   cardHeaderLeft: {
     flex: 1,
   },
+  cardHeaderRight: { alignItems: 'flex-end', gap: 4 },
+  cardTimestamp: { fontSize: 11 },
   jobTitle: {
     fontSize: 16,
     fontWeight: '700',

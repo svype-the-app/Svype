@@ -10,6 +10,7 @@ import {
   type Job,
   jobsApi,
 } from '@/services/api'
+import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -473,19 +474,6 @@ export default function ReviewApplicantsScreen() {
     gateRef.current = { isScrolling, isCardNavigating }
   })
 
-  const formatAppliedAt = (iso: string) => {
-    try {
-      const d = new Date(iso)
-      const now = new Date()
-      const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
-      if (diffDays === 0) return 'Applied today'
-      if (diffDays === 1) return 'Applied yesterday'
-      if (diffDays < 7) return `Applied ${diffDays} days ago`
-      return `Applied ${d.toLocaleDateString()}`
-    } catch {
-      return iso
-    }
-  }
 
   // ── PICKER MODE ────────────────────────────────────────────────────────
   if (!selectedJob) {
@@ -732,6 +720,11 @@ export default function ReviewApplicantsScreen() {
         >
           <Card style={[styles.applicantCard, { backgroundColor: colors.card }]}>
             <CardContent style={styles.cardContent}>
+              <View style={styles.cardTimestampWrapper} pointerEvents="none">
+                <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                  {formatRelativeTime(currentApplicant.applied_at)}
+                </Text>
+              </View>
               <ScrollView
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={true}
@@ -781,7 +774,7 @@ export default function ReviewApplicantsScreen() {
                   <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Applied for</Text>
                   <Text style={[styles.appliedForTitle, { color: colors.cardForeground }]}>{jobTitle}</Text>
                   <Text style={[styles.appliedAt, { color: colors.mutedForeground }]}>
-                    {formatAppliedAt(currentApplicant.applied_at)}
+                    Applied {formatRelativeTime(currentApplicant.applied_at)}
                   </Text>
                 </View>
 
@@ -866,17 +859,29 @@ export default function ReviewApplicantsScreen() {
                 )}
 
                 {/* Resume */}
-                {!!currentApplicant.resume_url && (
+                {(!!currentApplicant.resume_url || !!currentApplicant.cv_url) && (
                   <View style={styles.bioSection}>
                     <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Resume</Text>
-                    <TouchableOpacity
-                      style={[styles.resumeRow, { borderColor: colors.border, backgroundColor: colors.muted + '40' }]}
-                      onPress={() => Linking.openURL(currentApplicant.resume_url!)}
-                    >
-                      <Ionicons name="document-text-outline" size={18} color={colors.primary} />
-                      <Text style={[styles.resumeRowText, { color: colors.primary }]}>View / Download Resume</Text>
-                      <Ionicons name="open-outline" size={15} color={colors.primary} />
-                    </TouchableOpacity>
+                    {!!currentApplicant.resume_url && (
+                      <TouchableOpacity
+                        style={[styles.resumeRow, { borderColor: colors.border, backgroundColor: colors.muted + '40' }]}
+                        onPress={() => Linking.openURL(currentApplicant.resume_url!)}
+                      >
+                        <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+                        <Text style={[styles.resumeRowText, { color: colors.primary }]}>View / Download Resume</Text>
+                        <Ionicons name="open-outline" size={15} color={colors.primary} />
+                      </TouchableOpacity>
+                    )}
+                    {!!currentApplicant.cv_url && (
+                      <TouchableOpacity
+                        style={[styles.resumeRow, { borderColor: '#22c55e', backgroundColor: '#22c55e10', marginTop: 8 }]}
+                        onPress={() => Linking.openURL(currentApplicant.cv_url!)}
+                      >
+                        <Ionicons name="cloud-download-outline" size={18} color="#22c55e" />
+                        <Text style={[styles.resumeRowText, { color: '#22c55e' }]}>Download CV</Text>
+                        <Ionicons name="open-outline" size={15} color="#22c55e" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
 
@@ -1408,6 +1413,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardContent: { flex: 1, padding: 0 },
+  cardTimestampWrapper: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
+  cardTimestamp: { fontSize: 11 },
   profileHeader: {
     alignItems: 'center',
     paddingTop: 24,

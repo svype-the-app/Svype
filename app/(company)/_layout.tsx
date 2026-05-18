@@ -22,7 +22,6 @@ export default function CompanyLayout() {
         name="applicants"
         options={{
           title: 'Swipe',
-          href: '/(company)/applicants/review-applicants',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'heart' : 'heart-outline'} size={24} color={color} />
           ),
@@ -32,7 +31,6 @@ export default function CompanyLayout() {
         name="dashboard"
         options={{
           title: 'Dashboard',
-          href: '/(company)/dashboard',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={24} color={color} />
           ),
@@ -42,7 +40,6 @@ export default function CompanyLayout() {
         name="posts"
         options={{
           title: 'Post',
-          href: '/(company)/posts/post-job',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'briefcase' : 'briefcase-outline'} size={24} color={color} />
           ),
@@ -52,7 +49,6 @@ export default function CompanyLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          href: '/(company)/profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),

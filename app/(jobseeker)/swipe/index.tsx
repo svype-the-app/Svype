@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { mockSwipeJobs, SwipeJob } from '@/lib/mock-jobs';
+import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -296,17 +297,6 @@ function LegacySwipeScreen() {
     return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) return '1 day ago';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 14) return '1 week ago';
-    return `${Math.floor(diffDays / 7)} weeks ago`;
-  };
 
   if (jobs.length === 0) {
     return (
@@ -464,7 +454,7 @@ function LegacySwipeScreen() {
                   <View style={styles.postedRow}>
                     <Ionicons name="calendar-outline" size={12} color={colors.mutedForeground} />
                     <Text style={[styles.postedText, { color: colors.mutedForeground }]}>
-                      Posted {formatDate(currentJob.posted_at)}
+                      Posted {formatRelativeTime(currentJob.posted_at)}
                     </Text>
                   </View>
 
@@ -649,7 +639,7 @@ function LegacySwipeScreen() {
               <View style={styles.infoRow}>
                 <Ionicons name="calendar" size={18} color={colors.mutedForeground} />
                 <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
-                  Posted {formatDate(currentJob.posted_at)}
+                  Posted {formatRelativeTime(currentJob.posted_at)}
                 </Text>
               </View>
             </View>
