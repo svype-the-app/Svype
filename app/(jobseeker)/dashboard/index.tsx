@@ -41,6 +41,8 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchUnreadCount();
+      const interval = setInterval(fetchUnreadCount, 30_000);
+      return () => clearInterval(interval);
     }, [fetchUnreadCount])
   );
 

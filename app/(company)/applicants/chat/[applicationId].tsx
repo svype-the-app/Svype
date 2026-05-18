@@ -3,7 +3,7 @@ import { Colors } from '@/constants/theme';
 import { applicationsApi } from '@/services/api';
 import type { AcceptedApplicantMessage } from '@/services/applications';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -46,6 +46,13 @@ export default function CompanyChatScreen() {
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(fetchMessages, 10_000);
+      return () => clearInterval(interval);
+    }, [fetchMessages])
+  );
 
   useEffect(() => {
     if (messages.length > 0) {
