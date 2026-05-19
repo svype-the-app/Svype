@@ -16,15 +16,15 @@ export function getRouteForUserState(user: User): string {
     case 'active':
       return user_type === 'company'
         ? '/(company)/dashboard'
-        : '/(jobseeker)/swipe';
-    
+        : '/(jobseeker)/chat';
+
     case 'suspended':
     case 'deactivated':
       return '/(auth)/login';
-    
+
     default:
       return user_type === 'company'
         ? '/(company)/dashboard'
-        : '/(jobseeker)/swipe';
+        : '/(jobseeker)/chat';
   }
 }

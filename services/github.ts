@@ -18,6 +18,17 @@ export const githubApi = {
     return apiClient.get(`/auth/github/initiate/${qs}`);
   },
 
+  /**
+   * Exchange the authorization code + state for a confirmed connection. Used
+   * by the in-app WebView OAuth flow: the WebView intercepts GitHub's
+   * redirect to our callback URL before the browser actually navigates
+   * there, extracts the code/state, and calls this endpoint. Avoids the
+   * ngrok URL ever being visible to the user.
+   */
+  async exchangeCode(code: string, state: string): Promise<GitHubConnectResult> {
+    return apiClient.post('/auth/github/exchange/', { code, state });
+  },
+
   async disconnect(): Promise<{ ok: boolean }> {
     return apiClient.post('/auth/github/disconnect/', {});
   },

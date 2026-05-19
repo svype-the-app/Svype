@@ -1,6 +1,26 @@
 import { apiClient } from './client';
 import type { Job, QuizQuestionPayload } from './types';
 
+export interface CompatibilityBreakdown {
+  skills_match: number;
+  experience_match: number;
+  role_fit: number;
+  location_match: number;
+  salary_match: number;
+  strengths: string[];
+  gaps: string[];
+  verdict: string;
+}
+
+export interface CompatibilityScore {
+  job_id: number;
+  overall_score: number;
+  breakdown: CompatibilityBreakdown;
+  summary: string;
+  cached: boolean;
+  computed_at: string;
+}
+
 export const jobsApi = {
   async getJobs(): Promise<Job[]> {
     return apiClient.get<Job[]>('/jobs/');
@@ -57,5 +77,13 @@ export const jobsApi = {
 
   async swipe(jobId: number, action: 'like' | 'dislike'): Promise<void> {
     await apiClient.post('/swipe/', { job: jobId, action });
+  },
+
+  async getCompatibility(jobId: number): Promise<CompatibilityScore> {
+    return apiClient.get<CompatibilityScore>(`/jobs/${jobId}/compatibility/`);
+  },
+
+  async saveJob(jobId: number): Promise<{ id: number; job: number }> {
+    return apiClient.post<{ id: number; job: number }>('/saved-jobs/', { job: jobId });
   },
 };

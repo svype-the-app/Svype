@@ -329,7 +329,13 @@ export default function CompanyDashboard() {
             {/* Delete Action */}
             <TouchableOpacity
               style={styles.actionItem}
-              onPress={() => setShowDeleteConfirm(true)}
+              onPress={() => {
+                // Close actions modal first — only one RN Modal can be visible
+                // at a time on iOS, so we defer opening the confirm modal until
+                // the dismiss animation finishes.
+                setShowActionsModal(false);
+                setTimeout(() => setShowDeleteConfirm(true), 250);
+              }}
             >
               <Ionicons name="trash" size={18} color={colors.destructive} />
               <Text style={[styles.actionItemText, { color: colors.destructive }]}>

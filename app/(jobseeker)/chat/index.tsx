@@ -40,7 +40,7 @@ export default function AIChatScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const scrollViewRef = useRef<ScrollView>(null);
-  const { setHasUnreadAiMsg } = useChatUnread();
+  const { hasUnreadAiMsg, setHasUnreadAiMsg } = useChatUnread();
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,15 +54,20 @@ export default function AIChatScreen() {
 
   // Every time the chat tab gains focus:
   //   1. Clear the nav badge (the user is now reading).
-  //   2. If the session is already loaded, refresh its messages so any
-  //      proactive check-ins added by the poller while the user was on
-  //      another tab appear immediately. We skip this on first focus
-  //      (sessionId is still null) because the main init effect below
-  //      handles the initial load.
+  //   2. If the badge was set (proactive check-in arrived while we were
+  //      on another tab), refresh the messages so it appears. Otherwise
+  //      skip the refetch — the in-memory state is already current and
+  //      a full round-trip on every focus is noticeable on slow networks.
   useFocusEffect(
     useCallback(() => {
+      if (sessionId === null) {
+        setHasUnreadAiMsg(false);
+        return;
+      }
+      const shouldRefetch = hasUnreadAiMsg;
       setHasUnreadAiMsg(false);
-      if (sessionId === null) return;
+      if (!shouldRefetch) return;
+
       let cancelled = false;
       aiOnboardingApi.startSession().then((start) => {
         if (cancelled) return;
@@ -71,7 +76,7 @@ export default function AIChatScreen() {
         setCompletedFields(start.completed_fields);
       }).catch(() => {});
       return () => { cancelled = true; };
-    }, [sessionId, setHasUnreadAiMsg])
+    }, [sessionId, hasUnreadAiMsg, setHasUnreadAiMsg])
   );
 
   // Scroll to bottom whenever the keyboard shows (Android pan mode doesn't
