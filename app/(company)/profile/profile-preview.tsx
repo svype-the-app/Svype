@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type CompanyDraft = {
   name: string;
@@ -79,6 +80,7 @@ export default function CompanyProfilePreviewScreen() {
   const isOnboarding = mode === 'onboarding';
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -229,11 +231,25 @@ export default function CompanyProfilePreviewScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-          {isOnboarding ? 'Company Profile Setup' : isEditMode ? 'Edit Company Information' : 'Complete Company Profile'}
-        </Text>
+        <View style={styles.headerTopRow}>
+          {isOnboarding ? (
+            <View style={styles.headerBack} />
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              hitSlop={8}
+              style={styles.headerBack}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            {isOnboarding ? 'Company Profile Setup' : isEditMode ? 'Edit Company Information' : 'Complete Company Profile'}
+          </Text>
+          <View style={styles.headerBack} />
+        </View>
         <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
           {isOnboarding
             ? 'Set up your company profile to get started.'
@@ -461,12 +477,19 @@ const styles = StyleSheet.create({
   loadingContainer: { justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 16, fontSize: 14 },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: 12,
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  headerBack: { width: 24 },
+  headerTitle: { fontSize: 24, fontWeight: '700', marginBottom: 4, textAlign: 'center', flex: 1 },
   headerSubtitle: { fontSize: 13 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 120, gap: 16 },

@@ -8,11 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function GenerateCVScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const { template: templateParam } = useLocalSearchParams<{ template?: string }>();
 
   const VALID_TEMPLATES: CvTemplate[] = ['modern', 'classic', 'creative', 'minimal'];
@@ -90,7 +92,7 @@ export default function GenerateCVScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
@@ -362,12 +364,9 @@ export default function GenerateCVScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
   },
   header: {
-    marginTop: 40,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },

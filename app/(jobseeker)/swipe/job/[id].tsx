@@ -222,7 +222,7 @@ export default function JobDetailsScreen() {
                   About {job.company}
                 </Text>
                 <TouchableOpacity 
-                  onPress={() => router.push(`/(jobseeker)/job/company/${job.company.toLowerCase().replace(/\s+/g, '-')}`)}
+                  onPress={() => router.push(`/(jobseeker)/swipe/job/company/${job.company.toLowerCase().replace(/\s+/g, '-')}`)}
                 >
                   <View style={styles.viewProfileButton}>
                     <Text style={[styles.viewProfileText, { color: colors.primary }]}>
@@ -269,7 +269,7 @@ export default function JobDetailsScreen() {
                 {getAvailableJobs().filter((j: Job) => j.id !== job.id).slice(0, 3).map((similarJob: Job) => (
                   <TouchableOpacity
                     key={similarJob.id}
-                    onPress={() => router.push(`/(jobseeker)/job/${similarJob.id}`)}
+                    onPress={() => router.push(`/(jobseeker)/swipe/job/${similarJob.id}`)}
                   >
                     <View style={[styles.similarJobCard, { borderColor: colors.border }]}>
                       <View style={styles.similarJobContent}>

@@ -65,7 +65,7 @@ export default function GitHubCallback() {
 
           <TouchableOpacity
             style={[styles.connectButton, { backgroundColor: colors.foreground }]}
-            onPress={() => router.replace('/(jobseeker)/github-connect' as any)}
+            onPress={() => router.replace('/(jobseeker)/profile/github-connect' as any)}
             activeOpacity={0.85}
           >
             <Text style={[styles.connectButtonText, { color: colors.background }]}>Try again</Text>

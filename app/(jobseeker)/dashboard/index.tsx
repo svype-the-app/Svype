@@ -19,10 +19,12 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { setHasUnreadAiMsg } = useChatUnread();
   const { applications, initialLoading, loadError, refreshing, refresh } = useApplications();
@@ -116,7 +118,34 @@ export default function DashboardScreen() {
       : applications;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Fixed top header (matches swipe style) */}
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Applications</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/(jobseeker)/dashboard/notifications' as any)}
+          style={[
+            styles.notifButton,
+            unreadCount > 0
+              ? { backgroundColor: '#22c55e', borderColor: '#22c55e' }
+              : { borderColor: colors.border },
+          ]}
+        >
+          <Ionicons
+            name="notifications-outline"
+            size={22}
+            color={unreadCount > 0 ? '#fff' : colors.mutedForeground}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -128,34 +157,7 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Text style={[styles.pageTitle, { color: colors.foreground }]}>Applications</Text>
-            <TouchableOpacity
-              onPress={() => router.push('/(jobseeker)/dashboard/notifications' as any)}
-              style={[
-                styles.notifButton,
-                unreadCount > 0
-                  ? { backgroundColor: '#22c55e', borderColor: '#22c55e' }
-                  : { borderColor: colors.border },
-              ]}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={unreadCount > 0 ? '#fff' : colors.mutedForeground}
-              />
-              {unreadCount > 0 && (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
+        <View style={styles.scrollHeader}>
           {/* Stats Overview */}
           {applications.length > 0 && (
             <View style={styles.statsContainer}>
@@ -373,14 +375,25 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
   },
   scrollView: {
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scrollHeader: {
     padding: 16,
-    paddingTop: 8,
+    paddingTop: 16,
   },
   headerTop: {
     flexDirection: 'row',

@@ -183,7 +183,7 @@ export default function CompanyDashboard() {
           <Button
             variant="outline"
             style={[styles.actionButton, { borderColor: '#3b82f6' }]}
-            onPress={() => router.push('/(company)/applicants/compatibility-history')}
+            onPress={() => router.push('/(company)/dashboard/compatibility-history')}
           >
             <Ionicons name="analytics-outline" size={20} color="#3b82f6" style={styles.actionIcon} />
             <Text style={[styles.actionButtonTextOutline, { color: '#3b82f6' }]}>AI Compatibility History</Text>
@@ -192,7 +192,7 @@ export default function CompanyDashboard() {
           <Button
             variant="outline"
             style={[styles.actionButton, { borderColor: '#22c55e' }]}
-            onPress={() => router.push('/(company)/applicants/accepted-applicants')}
+            onPress={() => router.push('/(company)/dashboard/accepted-applicants')}
           >
             <Ionicons name="people-outline" size={20} color="#22c55e" style={styles.actionIcon} />
             <Text style={[styles.actionButtonTextOutline, { color: '#22c55e' }]}>Accepted Applicants</Text>

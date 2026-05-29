@@ -26,7 +26,7 @@ export default function OnboardingSuccessScreen() {
   }, []);
 
   const handleGenerateResume = () => {
-    router.replace('/(jobseeker)/ai-tools/generate-cv' as any);
+    router.replace('/(jobseeker)/profile/generate-cv' as any);
   };
 
   const handleBackToChat = () => {

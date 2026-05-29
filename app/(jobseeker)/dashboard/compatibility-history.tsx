@@ -91,7 +91,7 @@ export default function CompatibilityHistoryScreen() {
                 key={item.job_id}
                 onPress={() =>
                   router.push({
-                    pathname: '/(jobseeker)/job/compatibility',
+                    pathname: '/(jobseeker)/swipe/job/compatibility',
                     params: { jobId: String(item.job_id) },
                   } as any)
                 }

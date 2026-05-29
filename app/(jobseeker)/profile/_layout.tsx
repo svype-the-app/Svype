@@ -5,10 +5,13 @@ export default function ProfileLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="edit" />
-      <Stack.Screen name="personal-info" />
       <Stack.Screen name="preferences" />
       <Stack.Screen name="profile-preview" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="generate-cv" />
+      <Stack.Screen name="github-connect" />
+      <Stack.Screen name="saved" />
+      <Stack.Screen name="ai-settings" />
     </Stack>
   );
 }

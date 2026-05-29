@@ -11,11 +11,13 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function GitHubConnectScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [connecting, setConnecting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -59,10 +61,14 @@ export default function GitHubConnectScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border ?? '#e5e7eb' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
-          <Text style={[styles.cancelText, { color: colors.primary }]}>Cancel</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.cancelButton}
+          hitSlop={8}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Connect GitHub</Text>
         <View style={styles.cancelButton} />
@@ -126,7 +132,10 @@ export default function GitHubConnectScreen() {
           </>
         ) : null}
 
-        <TouchableOpacity onPress={() => router.back()} style={styles.skipButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.skipButton}
+        >
           <Text style={[styles.skipText, { color: colors.mutedForeground }]}>
             I&apos;ll enter skills manually
           </Text>

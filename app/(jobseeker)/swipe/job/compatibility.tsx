@@ -267,7 +267,7 @@ export default function CompatibilityScreen() {
 
       if (result.requires_quiz && result.quiz) {
         router.replace({
-          pathname: '/(jobseeker)/job/pre-screening-quiz',
+          pathname: '/(jobseeker)/swipe/job/pre-screening-quiz',
           params: {
             applicationId: String(result.application_id),
             jobTitle: job?.title ?? 'Pre-Screening Quiz',
@@ -341,7 +341,7 @@ export default function CompatibilityScreen() {
               text: 'Generate AI Resume',
               onPress: () => {
                 if (me.user_state === 'active') {
-                  router.push('/(jobseeker)/ai-tools/generate-cv' as any);
+                  router.push('/(jobseeker)/profile/generate-cv' as any);
                 } else {
                   router.push('/(onboarding)/job-seeker-onboarding' as any);
                 }

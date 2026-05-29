@@ -375,7 +375,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       invalidateApplications()
       if (result.requires_quiz && result.quiz) {
         router.push({
-          pathname: '/(jobseeker)/job/pre-screening-quiz',
+          pathname: '/(jobseeker)/swipe/job/pre-screening-quiz',
           params: {
             applicationId: String(result.application_id),
             jobTitle: approvedJob.title,
@@ -749,7 +749,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
                 onPress={() => {
                   if (!currentJob) return
                   router.push(
-                    `/(jobseeker)/job/compatibility?jobId=${currentJob.id}` as any
+                    `/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any
                   )
                 }}
               >

@@ -5,6 +5,8 @@ export default function ProfileLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="upgrade" />
+      <Stack.Screen name="profile-preview" />
     </Stack>
   );
 }

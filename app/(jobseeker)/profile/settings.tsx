@@ -317,7 +317,6 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
   },
   header: {
     flexDirection: 'row',

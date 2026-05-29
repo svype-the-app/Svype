@@ -21,6 +21,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface UserProfile {
   fullName: string;
@@ -37,6 +38,7 @@ interface UserProfile {
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applicationCount, setApplicationCount] = useState(0);
@@ -138,7 +140,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Profile</Text>
           <TouchableOpacity onPress={() => router.push('/(jobseeker)/profile/settings')}>
@@ -156,7 +158,7 @@ export default function ProfileScreen() {
   const completionColor = getCompletionColor(completionPercentage);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Profile</Text>
@@ -357,13 +359,13 @@ export default function ProfileScreen() {
                   try {
                     const check = await cvApi.checkCvReady();
                     if (check.cv_ready) {
-                      router.push('/(jobseeker)/ai-tools/generate-cv');
+                      router.push('/(jobseeker)/profile/generate-cv' as any);
                     } else {
                       router.push('/(jobseeker)/chat?reason=cv_incomplete' as any);
                     }
                   } catch {
                     // Network error — navigate to generate-cv anyway; it will handle errors
-                    router.push('/(jobseeker)/ai-tools/generate-cv');
+                    router.push('/(jobseeker)/profile/generate-cv' as any);
                   }
                 }}
                 colors={colors}
@@ -371,13 +373,13 @@ export default function ProfileScreen() {
               <MenuItem
                 icon={<Ionicons name="bookmark-outline" size={20} color="#3b82f6" />}
                 label="Saved Jobs"
-                onPress={() => router.push('/(jobseeker)/saved')}
+                onPress={() => router.push('/(jobseeker)/profile/saved' as any)}
                 colors={colors}
               />
               <MenuItem
                 icon={<Ionicons name="logo-github" size={20} color={colors.foreground} />}
                 label="Connect GitHub"
-                onPress={() => router.push('/(jobseeker)/github-connect')}
+                onPress={() => router.push('/(jobseeker)/profile/github-connect' as any)}
                 colors={colors}
                 isLast
               />
@@ -406,7 +408,7 @@ export default function ProfileScreen() {
                 icon={<Ionicons name="sparkles-outline" size={20} color="#a855f7" />}
                 label="AI Assistant"
                 subtitle="Control how often AI contacts you"
-                onPress={() => router.push('/(account)/ai-settings' as any)}
+                onPress={() => router.push('/(jobseeker)/profile/ai-settings' as any)}
                 colors={colors}
               />
               <TouchableOpacity
@@ -484,7 +486,6 @@ function MenuItem({ icon, label, subtitle, onPress, colors, isLast }: MenuItemPr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
   },
   header: {
     flexDirection: 'row',

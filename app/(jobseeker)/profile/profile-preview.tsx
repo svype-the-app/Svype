@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ProfileDraft = {
   name: string;
@@ -58,6 +59,7 @@ export default function ProfilePreviewScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const { setHasUnreadAiMsg } = useChatUnread();
 
   const isEditMode = params.mode === 'edit';
@@ -383,9 +385,19 @@ export default function ProfilePreviewScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{pageHeading}</Text>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={styles.headerBack}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>{pageHeading}</Text>
+          <View style={styles.headerBack} />
+        </View>
         <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
           {isDirectEditMode ? 'Edit and save your profile sections.' : 'Complete your profile to stand out.'}
         </Text>
@@ -805,15 +817,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: 12,
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  headerBack: {
+    width: 24,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
+    textAlign: 'center',
+    flex: 1,
   },
   headerSubtitle: {
     fontSize: 13,

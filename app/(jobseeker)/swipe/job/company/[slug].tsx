@@ -8,12 +8,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CompanyProfileScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'about' | 'jobs' | 'culture' | 'reviews'>('about');
 
   // Get company data with dynamic name based on slug
@@ -81,7 +83,7 @@ export default function CompanyProfileScreen() {
       {jobs.map((job) => (
         <TouchableOpacity 
           key={job.id}
-          onPress={() => router.push(`/(jobseeker)/job/${job.id}`)}
+          onPress={() => router.push(`/(jobseeker)/swipe/job/${job.id}`)}
         >
           <Card style={[styles.card, styles.jobCard]}>
             <CardContent>
@@ -218,7 +220,7 @@ export default function CompanyProfileScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>

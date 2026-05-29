@@ -345,13 +345,7 @@ export default function CompanyProfileScreen() {
               <MenuItem
                 icon={<Ionicons name="diamond-outline" size={20} color={'#f59e0b'} />}
                 label="Upgrade to Premium"
-                onPress={() => router.push('/(company)/premium/upgrade')}
-                colors={colors}
-              />
-              <MenuItem
-                icon={<Ionicons name="briefcase-outline" size={20} color={colors.primary} />}
-                label="Manage Job Posts"
-                onPress={() => router.push('/(company)/posts')}
+                onPress={() => router.push('/(company)/profile/upgrade')}
                 colors={colors}
               />
               <MenuItem

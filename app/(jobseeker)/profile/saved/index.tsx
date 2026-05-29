@@ -126,7 +126,7 @@ export default function SavedJobsScreen() {
               if (swiped) {
                 resetSwipe();
               } else {
-                router.push(`/(jobseeker)/job/${job.id}` as any);
+                router.push(`/(jobseeker)/swipe/job/${job.id}` as any);
               }
             }}
             activeOpacity={0.7}
@@ -183,7 +183,7 @@ export default function SavedJobsScreen() {
 
                 <Button
                   variant="outline"
-                  onPress={() => router.push(`/(jobseeker)/job/${job.id}` as any)}
+                  onPress={() => router.push(`/(jobseeker)/swipe/job/${job.id}` as any)}
                   style={styles.viewDetailsButton}
                 >
                   <View style={styles.buttonContent}>
@@ -233,6 +233,13 @@ export default function SavedJobsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={8}
+          style={styles.headerBack}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={[styles.headerIcon, { backgroundColor: colors.primary + '20' }]}>
             <Ionicons name="bookmark" size={24} color={colors.primary} />
@@ -271,11 +278,18 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerBack: {
+    paddingRight: 4,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   headerIcon: {
     width: 40,

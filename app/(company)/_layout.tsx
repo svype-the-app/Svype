@@ -59,7 +59,6 @@ export default function CompanyLayout() {
         }}
       />
       {/* Hidden routes - accessible but not in tab bar */}
-      <Tabs.Screen name="premium/upgrade" options={{ href: null }} />
       <Tabs.Screen name="+not-found" options={{ href: null }} />
     </Tabs>
   );
