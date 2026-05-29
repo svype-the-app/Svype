@@ -25,7 +25,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Remote'
 
@@ -33,6 +33,7 @@ export default function PostJobScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
   const postJobDraft = getPostJobDraft()
 
   const [requirements, setRequirements] = useState<string[]>(postJobDraft.requirements)
@@ -204,7 +205,7 @@ export default function PostJobScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -519,7 +520,7 @@ export default function PostJobScreen() {
         animationType="slide"
         onRequestClose={() => setEmploymentTypeModal(false)}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background, paddingTop: insets.top }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
               Select Employment Type
@@ -554,9 +555,9 @@ export default function PostJobScreen() {
               </TouchableOpacity>
             )}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 

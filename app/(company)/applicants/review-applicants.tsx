@@ -29,7 +29,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
@@ -478,7 +478,7 @@ export default function ReviewApplicantsScreen() {
   // ── PICKER MODE ────────────────────────────────────────────────────────
   if (!selectedJob) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -549,14 +549,14 @@ export default function ReviewApplicantsScreen() {
             ))}
           </ScrollView>
         )}
-      </SafeAreaView>
+      </View>
     )
   }
 
   // ── LOADING STATE (per-job) ────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -571,14 +571,14 @@ export default function ReviewApplicantsScreen() {
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   // ── ERROR STATE ────────────────────────────────────────────────────────
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -600,14 +600,14 @@ export default function ReviewApplicantsScreen() {
             </CardContent>
           </Card>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   // ── EMPTY ──────────────────────────────────────────────────────────────
   if (applicants.length === 0 || currentIndex >= applicants.length) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -634,7 +634,7 @@ export default function ReviewApplicantsScreen() {
             </CardContent>
           </Card>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -678,7 +678,7 @@ export default function ReviewApplicantsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack}>
@@ -1125,15 +1125,13 @@ export default function ReviewApplicantsScreen() {
         onRequestClose={() => setShowCompatibilityModal(false)}
       >
         {/*
-          RN Modal renders in its own React tree, so the outer
-          SafeAreaProvider context isn't reachable from inside. Mount a fresh
-          provider here so SafeAreaView gets correct insets and pads under the
-          status bar properly.
+          RN Modal renders in its own React tree. We use the outer
+          SafeAreaProvider's insets value here — values are stable enough
+          across the same device for this full-screen modal, and the
+          theme-coloured padding avoids the system black band.
         */}
-        <SafeAreaProvider>
-          <SafeAreaView
-            edges={['top', 'bottom']}
-            style={[styles.compatContainer, { backgroundColor: colors.background }]}
+          <View
+            style={[styles.compatContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}
           >
           <View
             style={[
@@ -1381,10 +1379,9 @@ export default function ReviewApplicantsScreen() {
               )}
             </ScrollView>
           ) : null}
-          </SafeAreaView>
-        </SafeAreaProvider>
+          </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 

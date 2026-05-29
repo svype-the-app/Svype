@@ -25,7 +25,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const NUM_MIN = 5
 const NUM_MAX = 20
@@ -56,6 +56,7 @@ export default function AIQuizGeneratorScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
 
   const [step, setStep] = useState<'form' | 'review'>('form')
   const [loading, setLoading] = useState(false)
@@ -156,7 +157,7 @@ export default function AIQuizGeneratorScreen() {
   // ─── FORM STEP ────────────────────────────────────────────────────────────
   if (step === 'form') {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -306,13 +307,13 @@ export default function AIQuizGeneratorScreen() {
             )}
           </Button>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     )
   }
 
   // ─── REVIEW STEP ──────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => setStep('form')} hitSlop={8}>
           <Ionicons name="chevron-back" size={28} color={colors.foreground} />
@@ -477,7 +478,7 @@ export default function AIQuizGeneratorScreen() {
           </View>
         </Button>
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 

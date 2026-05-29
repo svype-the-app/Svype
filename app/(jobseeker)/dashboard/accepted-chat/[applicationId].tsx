@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
+import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
 import { applicationsApi } from '@/services/api';
 import type { AcceptedApplicantMessage } from '@/services/applications';
@@ -10,11 +11,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AcceptedChatScreen() {
   const colorScheme = useColorScheme();
@@ -71,14 +70,8 @@ export default function AcceptedChatScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Company Message</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <Screen edges={['top', 'bottom']}>
+      <ScreenHeader title="Company Message" onBack={() => router.back()} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -128,21 +121,11 @@ export default function AcceptedChatScreen() {
           })}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
   emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },

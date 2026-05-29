@@ -67,6 +67,41 @@ export const Radius = {
   xl: 16,
 };
 
+// 4-pt scale. Use these instead of raw literals when introducing new layout
+// code. Existing screens keep their literals — see ScreenHeader for the
+// canonical header dimensions.
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+};
+
+// Type scale matching the values most existing screens already use.
+export const FontSizes = {
+  xs: 11,
+  sm: 12,
+  md: 13,
+  base: 14,
+  lg: 15,
+  xl: 16,
+  xxl: 18,
+  title: 20,
+  display: 24,
+};
+
+// Border widths and standard hit slop. Hit slop matches the value used by
+// the back-button pattern in all current screen headers.
+export const Borders = {
+  hairline: 1,
+};
+
+export const HitSlop = {
+  default: 8,
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

@@ -8,6 +8,3 @@ export type { CompanyProfile, Profile } from './mock-profile';
 export { addApplication, getApplicationById, getApplications, initializeMockData } from './mock-applications';
 export type { Application } from './mock-applications';
 
-export { getApplicantsByJob, rejectApplicant } from './mock-applicants';
-export type { Applicant } from './mock-applicants';
-

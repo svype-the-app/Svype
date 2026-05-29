@@ -24,7 +24,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
@@ -108,6 +108,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { invalidate: invalidateApplications } = useApplications()
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -468,7 +469,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
@@ -480,13 +481,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             Finding your best matches…
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (loadError) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
@@ -506,13 +507,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             </CardContent>
           </Card>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   if (jobs.length === 0 || currentIndex >= jobs.length) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}> 
         <View style={[styles.header, { borderBottomColor: colors.border }]}> 
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
@@ -531,7 +532,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             </CardContent>
           </Card>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -566,7 +567,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     .toUpperCase() || 'UC'
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}> 
       <View style={[styles.header, { borderBottomColor: colors.border }]}> 
         <View style={{ marginLeft: 4, flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
@@ -831,7 +832,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   )
 }
 

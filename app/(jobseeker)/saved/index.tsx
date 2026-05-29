@@ -10,7 +10,6 @@ import {
     Alert,
     Animated,
     PanResponder,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -18,6 +17,7 @@ import {
     useColorScheme,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Simple in-memory storage for saved jobs
 let savedJobsCache: string[] = [];
@@ -28,6 +28,7 @@ export default function SavedJobsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -229,7 +230,7 @@ export default function SavedJobsScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
@@ -259,7 +260,7 @@ export default function SavedJobsScreen() {
           <EmptyState />
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

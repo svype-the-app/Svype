@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
+import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
 import { applicationsApi, type ApplicantCompatibilityHistoryItem } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +16,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function scoreColor(score: number) {
   if (score >= 75) return '#10b981';
@@ -33,6 +34,7 @@ export default function ApplicantCompatibilityHistoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [history, setHistory] = useState<ApplicantCompatibilityHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,14 +72,11 @@ export default function ApplicantCompatibilityHistoryScreen() {
   const report = selectedItem?.report;
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.push('/(company)/dashboard' as any)} hitSlop={8}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>AI Compatibility History</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="AI Compatibility History"
+        onBack={() => router.push('/(company)/dashboard' as any)}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -163,7 +162,7 @@ export default function ApplicantCompatibilityHistoryScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSelectedItem(null)}
       >
-        <SafeAreaView edges={['top']} style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background, paddingTop: insets.top }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setSelectedItem(null)} hitSlop={8}>
               <Ionicons name="close" size={24} color={colors.foreground} />
@@ -272,23 +271,13 @@ export default function ApplicantCompatibilityHistoryScreen() {
               </>
             ) : null}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
   scrollContent: { padding: 16, gap: 12, paddingBottom: 32 },
   centered: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },

@@ -16,7 +16,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedReaction,
@@ -381,9 +381,8 @@ export default function CompatibilityScreen() {
   // ── LOADING ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView
-        edges={['top', 'bottom']}
-        style={[styles.loadingContainer, { backgroundColor: colors.background }]}
+      <View
+        style={[styles.loadingContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
         <Pressable
           onPress={() => router.back()}
@@ -401,16 +400,15 @@ export default function CompatibilityScreen() {
             This usually takes a few seconds…
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // ── MISSING DATA ─────────────────────────────────────────────────────────
   if (!score) {
     return (
-      <SafeAreaView
-        edges={['top', 'bottom']}
-        style={[styles.loadingContainer, { backgroundColor: colors.background }]}
+      <View
+        style={[styles.loadingContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
         <View style={styles.loadingInner}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
@@ -422,7 +420,7 @@ export default function CompatibilityScreen() {
             <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
           </Button>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -441,7 +439,7 @@ export default function CompatibilityScreen() {
   const companyName = job?.company_name ?? '';
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -597,7 +595,7 @@ export default function CompatibilityScreen() {
           )}
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

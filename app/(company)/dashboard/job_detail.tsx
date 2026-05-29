@@ -8,13 +8,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CompanyJobDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,18 +53,18 @@ export default function CompanyJobDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.centeredState}>
           <ActivityIndicator color={colors.primary} />
           <Text style={[styles.helperText, { color: colors.mutedForeground }]}>Loading job details...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!job) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}> 
           <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={colors.foreground} />
@@ -74,12 +75,12 @@ export default function CompanyJobDetailScreen() {
         <View style={styles.centeredState}>
           <Text style={[styles.helperText, { color: colors.mutedForeground }]}>Job not found.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}> 
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
@@ -157,7 +158,7 @@ export default function CompanyJobDetailScreen() {
           <Text style={{ color: colors.foreground }}>Edit Job</Text>
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

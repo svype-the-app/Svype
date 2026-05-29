@@ -7,7 +7,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface FrequencyOption {
   value: AiCheckInFrequency;
@@ -60,6 +60,7 @@ export default function AiSettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [frequency, setFrequency] = useState<AiCheckInFrequency | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +109,7 @@ export default function AiSettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
@@ -200,7 +201,7 @@ export default function AiSettingsScreen() {
           <Text style={[styles.toastText, { color: colors.background }]}>{toast}</Text>
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 

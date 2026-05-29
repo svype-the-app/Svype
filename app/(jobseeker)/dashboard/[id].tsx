@@ -17,7 +17,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function getStatusColor(status: string) {
   switch (status.toLowerCase()) {
@@ -35,6 +35,7 @@ export default function ApplicationDetailScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const appId = Number(id);
 
@@ -105,7 +106,7 @@ export default function ApplicationDetailScreen() {
   const canWithdraw = application && !['rejected', 'withdrawn'].includes(application.status.toLowerCase());
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={colors.foreground} />
@@ -239,7 +240,7 @@ export default function ApplicationDetailScreen() {
           </Card>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

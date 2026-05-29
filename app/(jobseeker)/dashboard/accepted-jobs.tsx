@@ -1,11 +1,12 @@
 import { Card, CardContent } from '@/components/ui/card';
+import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
 import { applicationsApi } from '@/services/api';
 import type { Application } from '@/services/types';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -16,7 +17,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AcceptedJobsScreen() {
   const colorScheme = useColorScheme();
@@ -43,14 +43,11 @@ export default function AcceptedJobsScreen() {
   }, []);
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.push('/(jobseeker)/dashboard' as any)} hitSlop={8}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Accepted Applications</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Accepted Applications"
+        onBack={() => router.push('/(jobseeker)/dashboard' as any)}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -116,21 +113,11 @@ export default function AcceptedJobsScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
   scrollContent: { padding: 16, gap: 10, paddingBottom: 32 },
   centered: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },

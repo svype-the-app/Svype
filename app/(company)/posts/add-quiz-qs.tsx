@@ -13,7 +13,7 @@ import {
   Platform,
   UIManager,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Colors } from '@/constants/theme'
@@ -46,6 +46,7 @@ export default function AddQuizQuestionsScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
 
   const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
   const [typeModal, setTypeModal] = useState(false)
@@ -165,7 +166,7 @@ export default function AddQuizQuestionsScreen() {
   const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
@@ -343,7 +344,7 @@ export default function AddQuizQuestionsScreen() {
         animationType="slide"
         onRequestClose={() => setTypeModal(false)}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background, paddingTop: insets.top }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
               Select Question Type
@@ -388,9 +389,9 @@ export default function AddQuizQuestionsScreen() {
               </TouchableOpacity>
             )}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 

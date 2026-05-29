@@ -9,7 +9,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -18,11 +17,13 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PreferencesScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [preferences, setPreferences] = useState(mockUserPreferences);
   const [locations, setLocations] = useState(mockPreferredLocations);
@@ -41,7 +42,7 @@ export default function PreferencesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
@@ -289,7 +290,7 @@ export default function PreferencesScreen() {
           <Text style={styles.saveButtonText}>Save Preferences</Text>
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

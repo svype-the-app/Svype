@@ -22,7 +22,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const QUIZ_DURATION_SECONDS = 600
 
@@ -38,6 +38,7 @@ export default function PreScreeningQuizScreen() {
   }>()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
 
   const applicationId = useMemo(() => Number(params.applicationId), [params.applicationId])
   const jobTitle = (params.jobTitle as string) || 'Pre-Screening Quiz'
@@ -129,7 +130,7 @@ export default function PreScreeningQuizScreen() {
   // ── Bad params or no quiz ─────────────────────────────────────────────────
   if (!quiz || !applicationId || Number.isNaN(applicationId)) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
           <Text style={[styles.errorTitle, { color: colors.foreground }]}>Quiz unavailable</Text>
@@ -140,7 +141,7 @@ export default function PreScreeningQuizScreen() {
             <Text style={{ color: '#fff', fontWeight: '600' }}>Back to Swipe</Text>
           </Button>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -148,7 +149,7 @@ export default function PreScreeningQuizScreen() {
   if (result) {
     const passed = result.passed
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <ScrollView contentContainerStyle={styles.resultContent}>
           <View style={styles.resultHeader}>
             <View
@@ -225,7 +226,7 @@ export default function PreScreeningQuizScreen() {
             <Text style={{ color: '#fff', fontWeight: '700' }}>Done</Text>
           </Button>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -238,7 +239,7 @@ export default function PreScreeningQuizScreen() {
       : !!(currentAnswer.text_answer && currentAnswer.text_answer.trim().length > 0)
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} disabled={isSubmitting} hitSlop={8}>
           <Ionicons name="chevron-back" size={26} color={colors.foreground} />
@@ -371,7 +372,7 @@ export default function PreScreeningQuizScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

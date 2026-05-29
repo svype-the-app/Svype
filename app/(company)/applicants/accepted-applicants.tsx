@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
+import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
 import { applicationsApi } from '@/services/api';
 import type { AcceptedApplicant } from '@/services/applications';
@@ -16,7 +17,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AcceptedApplicantsScreen() {
   const colorScheme = useColorScheme();
@@ -47,14 +47,11 @@ export default function AcceptedApplicantsScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.push('/(company)/dashboard' as any)} hitSlop={8}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Accepted Applicants</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Accepted Applicants"
+        onBack={() => router.push('/(company)/dashboard' as any)}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -130,17 +127,11 @@ export default function AcceptedApplicantsScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
   scrollContent: { padding: 16, gap: 10, paddingBottom: 32 },
   centered: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },

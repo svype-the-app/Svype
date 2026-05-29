@@ -7,7 +7,7 @@ import {
   useColorScheme,
   TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Colors } from '@/constants/theme'
@@ -27,6 +27,7 @@ export default function UpgradePremiumScreen() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
+  const insets = useSafeAreaInsets()
   const [selectedPlan, setSelectedPlan] = useState<string>('pro')
 
   const plans: Plan[] = [
@@ -81,7 +82,7 @@ export default function UpgradePremiumScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -232,7 +233,7 @@ export default function UpgradePremiumScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 

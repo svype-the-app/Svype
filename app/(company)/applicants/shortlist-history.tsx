@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card'
+import { Screen, ScreenHeader } from '@/components/ui/screen'
 import { Colors } from '@/constants/theme'
 import { applicationsApi, type ShortlistRun } from '@/services/api'
 import { formatRelativeTime } from '@/utils/time'
@@ -15,7 +16,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function ShortlistHistoryScreen() {
   const colorScheme = useColorScheme()
@@ -82,21 +82,15 @@ export default function ShortlistHistoryScreen() {
   const canRunAgain = !lastRun || (currentApplicantCount !== null && currentApplicantCount > lastRun.applicant_count)
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={() =>
-            router.push(
-              `/(company)/applicants/review-applicants?jobId=${jobId}&jobTitle=${encodeURIComponent(jobTitle)}` as any
-            )
-          }
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>AI Shortlist History</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="AI Shortlist History"
+        onBack={() =>
+          router.push(
+            `/(company)/applicants/review-applicants?jobId=${jobId}&jobTitle=${encodeURIComponent(jobTitle)}` as any
+          )
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -207,21 +201,11 @@ export default function ShortlistHistoryScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
   scrollContent: { padding: 16, gap: 12, paddingBottom: 32 },
   jobRow: {
     flexDirection: 'row',

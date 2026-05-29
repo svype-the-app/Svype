@@ -12,7 +12,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WebView, { type WebViewNavigation } from 'react-native-webview';
 
 // Desktop Chrome UA — GitHub's login page refuses to render inside an
@@ -76,6 +76,7 @@ export default function GitHubWebViewScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const { authUrl } = useLocalSearchParams<{ authUrl: string }>();
 
   const [phase, setPhase] = useState<Phase>('oauth');
@@ -166,7 +167,7 @@ export default function GitHubWebViewScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border ?? '#e5e7eb' }]}>
         <TouchableOpacity
           onPress={handleClose}
@@ -218,7 +219,7 @@ export default function GitHubWebViewScreen() {
           </View>
         ) : null}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

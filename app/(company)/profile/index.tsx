@@ -20,7 +20,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CompanyProfileData {
   name: string;
@@ -44,6 +44,7 @@ export default function CompanyProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<CompanyProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -139,7 +140,7 @@ export default function CompanyProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Company Profile</Text>
           <TouchableOpacity onPress={() => router.push('/(company)/profile/settings')}>
@@ -149,7 +150,7 @@ export default function CompanyProfileScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -157,7 +158,7 @@ export default function CompanyProfileScreen() {
   const completionColor = pct >= 90 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Company Profile</Text>
         <TouchableOpacity onPress={() => router.push('/(company)/profile/settings')}>
@@ -365,7 +366,7 @@ export default function CompanyProfileScreen() {
           </CardContent>
         </Card>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider } from '@/lib/chat-unread-context';
@@ -83,6 +84,7 @@ export default function RootLayout() {
   }
 
   return (
+    <SafeAreaProvider>
     <ChatUnreadProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <View style={styles.root}>
@@ -109,6 +111,7 @@ export default function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
     </ChatUnreadProvider>
+    </SafeAreaProvider>
   );
 }
 
