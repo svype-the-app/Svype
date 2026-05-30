@@ -1,12 +1,13 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
+import { queryKeys } from '@/lib/query-keys';
 import { applicationsApi } from '@/services/api';
 import type { AcceptedApplicant } from '@/services/applications';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -18,33 +19,26 @@ import {
   View,
 } from 'react-native';
 
+// Stable empty reference for the no-data-yet render.
+const EMPTY_ACCEPTED: AcceptedApplicant[] = [];
+
 export default function AcceptedApplicantsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
 
-  const [applicants, setApplicants] = useState<AcceptedApplicant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setLoadError(false);
-    try {
-      const data = await applicationsApi.getAcceptedApplicants();
-      setApplicants(data);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const acceptedQuery = useQuery({
+    queryKey: queryKeys.applications.accepted(),
+    queryFn: applicationsApi.getAcceptedApplicants,
+  });
+  const applicants = acceptedQuery.data ?? EMPTY_ACCEPTED;
+  const hasData = acceptedQuery.data !== undefined;
+  // Spinner only when there's nothing cached to show yet.
+  const loading = !hasData && (acceptedQuery.isPending || acceptedQuery.isFetching);
+  // Error state only when the fetch failed AND there's no cached data.
+  const loadError = !hasData && acceptedQuery.isError && !acceptedQuery.isFetching;
+  // Inline pull-to-refresh indicator while revalidating cached data.
+  const refreshing = hasData && acceptedQuery.isFetching;
 
   return (
     <Screen>
@@ -58,7 +52,7 @@ export default function AcceptedApplicantsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => load(true)}
+            onRefresh={() => acceptedQuery.refetch()}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
@@ -73,7 +67,7 @@ export default function AcceptedApplicantsScreen() {
             <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
-            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+            <TouchableOpacity onPress={() => acceptedQuery.refetch()} style={[styles.retryBtn, { borderColor: colors.border }]}>
               <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
             </TouchableOpacity>
           </View>

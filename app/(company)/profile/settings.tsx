@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Colors } from '@/constants/theme';
+import { clearCachedData } from '@/lib/query-client';
 import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -80,6 +81,7 @@ export default function CompanySettingsScreen() {
             } catch (error) {
               console.log('Error during logout');
             }
+            clearCachedData();
             router.replace('/');
           },
         },

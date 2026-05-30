@@ -4,6 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useChatUnread } from '@/lib/chat-unread-context';
+import { clearCachedData } from '@/lib/query-client';
 import { aiChatApi, authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord, WorkExperienceEntry, EducationEntry } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -127,6 +128,7 @@ export default function ProfilePreviewScreen() {
         } catch {
           // ignore
         }
+        clearCachedData();
         router.replace('/');
       } finally {
         setIsLoading(false);

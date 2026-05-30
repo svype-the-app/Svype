@@ -3,12 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { queryKeys } from '@/lib/query-keys';
 import { authApi, jobsApi, type Job } from '@/services/api';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+
+// Stable empty reference for the no-data-yet render.
+const EMPTY_JOBS: Job[] = [];
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,50 +24,40 @@ export default function CompanyDashboard() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const [companyName, setCompanyName] = useState('Company');
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const queryClient = useQueryClient();
+  const meQuery = useQuery({ queryKey: queryKeys.auth.me(), queryFn: authApi.getMe });
+  const myJobsQuery = useQuery({ queryKey: queryKeys.jobs.myJobs(), queryFn: jobsApi.getMyJobs });
+
+  const companyName = meQuery.data?.company?.name || 'Company';
+  const jobs = myJobsQuery.data ?? EMPTY_JOBS;
+  const hasJobs = myJobsQuery.data !== undefined;
+  // Spinner only when there's no cached job list to show yet.
+  const loading = !hasJobs && (myJobsQuery.isPending || myJobsQuery.isFetching);
+  // Error state only when the fetch failed AND there's no cached data.
+  const loadError = !hasJobs && myJobsQuery.isError && !myJobsQuery.isFetching;
+
   const [selectedJobForActions, setSelectedJobForActions] = useState<Job | null>(null);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
-  const fetchDashboardData = useCallback(async () => {
-    setLoadError(false);
-    try {
-      const [me, myJobs] = await Promise.all([
-        authApi.getMe(),
-        jobsApi.getMyJobs(),
-      ]);
+  // Refresh on tab focus and tab re-press (preserves the old behaviour).
+  // refetch identities are stable, so these subscribe once.
+  const refetchMe = meQuery.refetch;
+  const refetchMyJobs = myJobsQuery.refetch;
+  const refetchDashboard = useCallback(() => {
+    refetchMe();
+    refetchMyJobs();
+  }, [refetchMe, refetchMyJobs]);
 
-      setCompanyName(me.company?.name || 'Company');
-      setJobs(myJobs);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchDashboardData();
-    }, [fetchDashboardData])
-  );
+  useFocusEffect(refetchDashboard);
 
   useEffect(() => {
     const unsubscribe = (navigation as any).addListener('tabPress', () => {
-      fetchDashboardData();
+      refetchDashboard();
     });
 
     return unsubscribe;
-  }, [navigation, fetchDashboardData]);
+  }, [navigation, refetchDashboard]);
 
   const stats = useMemo(() => {
     const activeJobs = jobs.filter((job) => job.status === 'active').length;
@@ -79,23 +74,26 @@ export default function CompanyDashboard() {
     };
   }, [jobs]);
 
+  const deleteMutation = useMutation({
+    mutationFn: (jobId: number) => jobsApi.deleteJob(jobId),
+    onSuccess: () => {
+      setShowDeleteConfirm(false);
+      setShowActionsModal(false);
+      setSelectedJobForActions(null);
+      // Re-fetch the job list so the deleted posting drops off.
+      queryClient.invalidateQueries({ queryKey: queryKeys.jobs.myJobs() });
+    },
+    onError: (error: any) => {
+      Alert.alert('Delete Failed', error?.message || 'Could not delete this job.');
+    },
+  });
+  const deleting = deleteMutation.isPending;
 
   const handleDeleteJob = useCallback(
-    async (jobId: number) => {
-      setDeleting(true);
-      try {
-        await jobsApi.deleteJob(jobId);
-        setShowDeleteConfirm(false);
-        setShowActionsModal(false);
-        setSelectedJobForActions(null);
-        await fetchDashboardData();
-      } catch (error: any) {
-        Alert.alert('Delete Failed', error?.message || 'Could not delete this job.');
-      } finally {
-        setDeleting(false);
-      }
+    (jobId: number) => {
+      deleteMutation.mutate(jobId);
     },
-    [fetchDashboardData]
+    [deleteMutation]
   );
 
   const openJobActions = useCallback(
@@ -212,7 +210,7 @@ export default function CompanyDashboard() {
                 <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
                 <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>Failed to Load</Text>
                 <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
-                <TouchableOpacity onPress={() => fetchDashboardData()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+                <TouchableOpacity onPress={() => refetchDashboard()} style={[styles.retryBtn, { borderColor: colors.border }]}>
                   <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
                 </TouchableOpacity>
               </View>

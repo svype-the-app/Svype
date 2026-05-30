@@ -1,7 +1,8 @@
-import { ApplicationsProvider } from '@/lib/applications-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ChatUnreadProvider, useChatUnread } from '@/lib/chat-unread-context';
+import { useChatUnread } from '@/lib/chat-unread-context';
+import { queryClient } from '@/lib/query-client';
+import { queryKeys } from '@/lib/query-keys';
 import { aiChatApi, authApi, jobsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
@@ -89,17 +90,26 @@ function ProfilePreviewGuard() {
 }
 
 /**
- * Fires a fire-and-forget warm request so the backend starts pre-ranking
- * jobs immediately when the jobseeker section loads — before the user
- * even taps the Swipe tab. Also re-warms whenever the app comes back
- * to the foreground (session resume scenario).
+ * Warms the swipe deck before the user taps the Swipe tab:
+ *   1. fires the fire-and-forget backend pre-ranking request (unchanged), and
+ *   2. pulls the ranked deck into the TanStack Query cache so the Swipe screen
+ *      renders straight from cache when opened.
+ * Re-runs whenever the app returns to the foreground (session resume).
  */
 function SwipeCacheWarmer() {
   useEffect(() => {
-    jobsApi.warmSwipeCache();
+    const warm = () => {
+      jobsApi.warmSwipeCache();
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.jobs.swipe(),
+        queryFn: jobsApi.getSwipeJobs,
+      });
+    };
+
+    warm();
 
     const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') jobsApi.warmSwipeCache();
+      if (state === 'active') warm();
     });
 
     return () => appStateSub.remove();
@@ -223,11 +233,11 @@ function JobSeekerTabs() {
 
 export default function JobSeekerLayout() {
   return (
-    <ApplicationsProvider>
+    <>
       <ProfilePreviewGuard />
       <CheckInPoller />
       <SwipeCacheWarmer />
       <JobSeekerTabs />
-    </ApplicationsProvider>
+    </>
   );
 }

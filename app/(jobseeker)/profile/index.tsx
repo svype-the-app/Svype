@@ -4,12 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { applicationsApi, authApi, ProfileCompletion, resolveMediaUrl } from '@/services/api';
+import { clearCachedData } from '@/lib/query-client';
+import { queryKeys } from '@/lib/query-keys';
+import { useApplications } from '@/lib/use-applications';
+import { authApi, ProfileCompletion, resolveMediaUrl, type User } from '@/services/api';
 import { cvApi } from '@/services/cv';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -35,83 +39,59 @@ interface UserProfile {
   completion: ProfileCompletion | null;
 }
 
+// Pure transform from the cached `/auth/me/` user to this screen's view-model.
+function mapUserToProfile(user: User): UserProfile {
+  const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
+  const initials =
+    fullName
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase() || 'U';
+
+  const summarySource = (user.profile?.headline || user.profile?.about || '').trim();
+  const professionalSummary =
+    summarySource.length > 90 ? `${summarySource.slice(0, 90).trim()}...` : summarySource;
+
+  return {
+    fullName,
+    email: user.email,
+    initials,
+    avatarUrl: resolveMediaUrl(user.avatar),
+    professionalSummary,
+    careerGoals: user.profile?.career_goals || '',
+    lifeGoals: user.profile?.life_goals || '',
+    interests: user.profile?.interests || [],
+    completion: user.profile?.completion || null,
+  };
+}
+
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [applicationCount, setApplicationCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const meQuery = useQuery({ queryKey: queryKeys.auth.me(), queryFn: authApi.getMe });
+  // Application count shares the same cache entry as the dashboard, so it's
+  // already warm (and updates live whenever an application is added).
+  const { applications } = useApplications();
+  const applicationCount = applications.length;
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const user = await authApi.getMe();
+  // Derive the view-model from the cached user. Stays null until the first
+  // load succeeds; the JSX below is null-safe (optional chaining + defaults),
+  // so a failed cold load just renders empty fields like the old fallback did.
+  const profile = useMemo(
+    () => (meQuery.data ? mapUserToProfile(meQuery.data) : null),
+    [meQuery.data]
+  );
 
-      const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
-      const initials = fullName
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase() || 'U';
-
-      const summarySource = (user.profile?.headline || user.profile?.about || '').trim();
-      const professionalSummary = summarySource.length > 90
-        ? `${summarySource.slice(0, 90).trim()}...`
-        : summarySource;
-
-      setProfile({
-        fullName,
-        email: user.email,
-        initials,
-        avatarUrl: resolveMediaUrl(user.avatar),
-        professionalSummary,
-        careerGoals: user.profile?.career_goals || '',
-        lifeGoals: user.profile?.life_goals || '',
-        interests: user.profile?.interests || [],
-        completion: user.profile?.completion || null,
-      });
-    } catch (error) {
-      console.log('Could not fetch user profile:', error);
-      // Only fall back to empty if we have nothing cached yet
-      if (!profile) {
-        setProfile({
-          fullName: 'User',
-          email: '',
-          initials: 'U',
-          avatarUrl: undefined,
-          professionalSummary: '',
-          careerGoals: '',
-          lifeGoals: '',
-          interests: [],
-          completion: null,
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [profile]);
-
-  // Load application count independently — never blocks or replaces profile data.
-  const fetchApplicationCount = useCallback(async () => {
-    try {
-      const apps = await applicationsApi.getApplications();
-      setApplicationCount(apps.length);
-    } catch {
-      // Non-critical — keep whatever count is already shown
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProfile();
-    fetchApplicationCount();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
+  // Refresh the profile when the tab regains focus (e.g. after editing it).
+  // refetch is a stable identity, so this subscribes once.
+  const refetchMe = meQuery.refetch;
   useFocusEffect(
     useCallback(() => {
-      fetchProfile();
-      fetchApplicationCount();
-    }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+      refetchMe();
+    }, [refetchMe])
   );
 
   const getCompletionColor = (percentage: number) => {
@@ -132,13 +112,14 @@ export default function ProfileScreen() {
           } catch {
             console.log('Error during logout');
           }
+          clearCachedData();
           router.replace('/');
         },
       },
     ]);
   };
 
-  if (loading) {
+  if (meQuery.isPending) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>

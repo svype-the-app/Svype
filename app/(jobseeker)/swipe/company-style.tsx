@@ -3,10 +3,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
-import { useApplications } from '@/lib/applications-context'
+import { queryKeys } from '@/lib/query-keys'
+import { useApplications } from '@/lib/use-applications'
 import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
 import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
+import { useQuery } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -116,8 +118,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // bufferedJobs is derived synchronously from `jobs` + `currentIndex` so the
   // render after a swipe-approve uses the up-to-date list immediately (the
   // previous useState+useEffect version showed a stale card for one render).
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [pan] = useState(new Animated.ValueXY())
   const scrollViewRef = useRef<ScrollView>(null)
   const [showUndoModal, setShowUndoModal] = useState(false)
@@ -135,8 +135,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const [isCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isApplying, setIsApplying] = useState(false)
-  // Tracks whether the 2.5s minimum spinner has elapsed
-  const [minDelayDone, setMinDelayDone] = useState(false)
 
   const slideAnim = useRef(new Animated.Value(0)).current
 
@@ -165,34 +163,29 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // ref holds the latest values and is re-pointed every render below.
   const gateRef = useRef({ isScrolling: false, isCardNavigating: false, isApplying: false })
 
-  const loadSwipeJobs = async () => {
-    setLoading(true)
-    setMinDelayDone(false)
-    setLoadError(null)
-
-    // Minimum 2.5 s spinner — pure UX, runs in parallel with the API call
-    const minDelay = new Promise<void>((resolve) => setTimeout(resolve, 2500))
-
-    try {
-      const [apiJobs] = await Promise.all([
-        jobsApi.getSwipeJobs(),
-        minDelay,
-      ])
-      const mappedJobs = apiJobs.map(mapApiJobToSwipeJob)
-      setJobs(mappedJobs)
-      setCurrentIndex(0)
-    } catch (error: any) {
-      await minDelay  // always honour the minimum delay, even on error
-      setLoadError(error?.message || 'Could not load jobs. Please try again.')
-    } finally {
-      setMinDelayDone(true)
-      setLoading(false)
-    }
-  }
+  // ── Swipe deck data (TanStack Query) ──────────────────────────────────
+  // The deck is fetched once and cached + persisted to AsyncStorage, so the
+  // screen renders instantly from cache (even offline) on subsequent opens.
+  // `jobs` (above) is the mutable working copy that cards are removed from as
+  // the user swipes; we seed it from the query whenever a fresh deck arrives.
+  const swipeQuery = useQuery({
+    queryKey: queryKeys.jobs.swipe(),
+    queryFn: jobsApi.getSwipeJobs,
+  })
+  const hasDeckData = swipeQuery.data !== undefined
+  // Full-screen spinner only when there's no cached deck to show yet (also
+  // covers the retry-after-error path, which is fetching with no data).
+  const loading = !hasDeckData && (swipeQuery.isPending || swipeQuery.isFetching)
+  // Error screen only when the request failed, there's no cached deck, and
+  // we're not already retrying.
+  const loadError = !hasDeckData && swipeQuery.isError && !swipeQuery.isFetching
 
   useEffect(() => {
-    loadSwipeJobs()
-  }, [])
+    if (swipeQuery.data) {
+      setJobs(swipeQuery.data.map(mapApiJobToSwipeJob))
+      setCurrentIndex(0)
+    }
+  }, [swipeQuery.data])
 
   const { bufferedJobs, bufferStartIndex } = useMemo(() => {
     const start = Math.max(0, currentIndex - BUFFER_SIZE)
@@ -501,7 +494,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <Text style={[styles.emptyDescription, { color: colors.mutedForeground, textAlign: 'center', marginBottom: 16 }]}>
                 Couldn&apos;t connect to the server. Check your connection and try again.
               </Text>
-              <Button onPress={loadSwipeJobs} style={{ width: '100%' }}>
+              <Button onPress={() => swipeQuery.refetch()} style={{ width: '100%' }}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
               </Button>
             </CardContent>
@@ -526,7 +519,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <Ionicons name="checkmark-circle" size={64} color={colors.primary} style={{ marginBottom: 16 }} />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Jobs Reviewed!</Text>
               <Text style={[styles.emptyDescription, { color: colors.mutedForeground }]}>You've reviewed all available jobs. Check back later for new opportunities.</Text>
-              <Button onPress={() => { setLoading(true); setLoadError(null); jobsApi.getSwipeJobs().then((apiJobs) => { setJobs(apiJobs.map(mapApiJobToSwipeJob)); setCurrentIndex(0) }).catch((error: any) => setLoadError(error?.message || 'Could not load jobs. Please try again.')).finally(() => setLoading(false)) }} style={{ marginTop: 16, width: '100%' }}>
+              <Button onPress={() => swipeQuery.refetch()} style={{ marginTop: 16, width: '100%' }}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Reload Jobs</Text>
               </Button>
             </CardContent>

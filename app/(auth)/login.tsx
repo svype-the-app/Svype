@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Colors } from '@/constants/theme';
+import { clearCachedData, prefetchForUser } from '@/lib/query-client';
 import { authApi } from '@/services/api';
 import { getRouteForUserState } from '@/services/routing';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,13 @@ export default function LoginScreen() {
     try {
       // Call login API
       const response = await authApi.login(email, password);
+
+      // Drop any cached data from a previously signed-in account, then force a
+      // fresh fetch from the database for THIS user's home tabs. Clearing first
+      // guarantees no flash of the previous user's data; `force` guarantees the
+      // new account's data is loaded from the DB rather than any stale cache.
+      clearCachedData();
+      prefetchForUser(response.user, { force: true });
 
       // Route based on user state so users in profile_preview / data_collection
       // land on the correct screen rather than being dropped into the swipe feed.

@@ -4,11 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
-import { authApi, resolveMediaUrl } from '@/services/api';
+import { clearCachedData } from '@/lib/query-client';
+import { queryKeys } from '@/lib/query-keys';
+import { authApi, resolveMediaUrl, type User } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -40,78 +43,62 @@ interface CompanyProfileData {
   avatarUrl?: string;
 }
 
+// Pure transform from the cached `/auth/me/` user to this screen's view-model.
+function mapUserToCompanyProfile(user: User): CompanyProfileData {
+  const company = (user as any)?.company;
+
+  const companyName =
+    company?.name || `${user.first_name} ${user.last_name}`.trim() || user.username || 'Company';
+  const initials =
+    companyName
+      .split(' ')
+      .filter(Boolean)
+      .map((n: string) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'CO';
+
+  return {
+    name: companyName,
+    email: company?.email || user.email || '',
+    initials,
+    location: company?.location || '',
+    website: company?.website || '',
+    description: company?.description || '',
+    rating: Number(company?.rating || 0),
+    reviewsCount: Number(company?.reviews_count || 0),
+    followersCount: Number(company?.followers_count || 0),
+    jobsCount: Number(company?.jobs_count || 0),
+    culture: company?.culture || [],
+    benefits: company?.benefits || [],
+    completionPercentage: Number(company?.completion?.percentage || 0),
+    completionFilled: company?.completion?.filled || {},
+    avatarUrl: resolveMediaUrl(user.avatar),
+  };
+}
+
 export default function CompanyProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [profile, setProfile] = useState<CompanyProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const meQuery = useQuery({ queryKey: queryKeys.auth.me(), queryFn: authApi.getMe });
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const user = await authApi.getMe();
-      const company = (user as any)?.company;
+  // Derive the view-model from the cached user. Null until the first load
+  // succeeds; the JSX below is null-safe (optional chaining + defaults), so a
+  // failed cold load just renders empty fields like the old fallback did.
+  const profile = useMemo(
+    () => (meQuery.data ? mapUserToCompanyProfile(meQuery.data) : null),
+    [meQuery.data]
+  );
 
-      const companyName = company?.name || `${user.first_name} ${user.last_name}`.trim() || user.username || 'Company';
-      const initials = companyName
-        .split(' ')
-        .filter(Boolean)
-        .map((n: string) => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase() || 'CO';
-
-      setProfile({
-        name: companyName,
-        email: company?.email || user.email || '',
-        initials,
-        location: company?.location || '',
-        website: company?.website || '',
-        description: company?.description || '',
-        rating: Number(company?.rating || 0),
-        reviewsCount: Number(company?.reviews_count || 0),
-        followersCount: Number(company?.followers_count || 0),
-        jobsCount: Number(company?.jobs_count || 0),
-        culture: company?.culture || [],
-        benefits: company?.benefits || [],
-        completionPercentage: Number(company?.completion?.percentage || 0),
-        completionFilled: company?.completion?.filled || {},
-        avatarUrl: resolveMediaUrl(user.avatar),
-      });
-    } catch (error) {
-      console.log('Could not fetch company profile:', error);
-      setProfile({
-        name: 'Company',
-        email: '',
-        initials: 'CO',
-        location: '',
-        website: '',
-        description: '',
-        rating: 0,
-        reviewsCount: 0,
-        followersCount: 0,
-        jobsCount: 0,
-        culture: [],
-        benefits: [],
-        completionPercentage: 0,
-        completionFilled: {},
-        avatarUrl: undefined,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
+  // Refresh the profile when the tab regains focus (e.g. after editing it).
+  const refetchMe = meQuery.refetch;
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [fetchData])
+      refetchMe();
+    }, [refetchMe])
   );
 
   const handleSignOut = () => {
@@ -132,13 +119,14 @@ export default function CompanyProfileScreen() {
           } finally {
             setIsSigningOut(false);
           }
+          clearCachedData();
           router.replace('/(auth)/login');
         },
       },
     ]);
   };
 
-  if (loading) {
+  if (meQuery.isPending) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>

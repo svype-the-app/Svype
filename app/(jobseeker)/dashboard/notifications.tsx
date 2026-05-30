@@ -1,12 +1,14 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
+import { queryKeys } from '@/lib/query-keys';
 import { notificationsApi } from '@/services/api';
 import type { Notification } from '@/services/types';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -27,35 +29,36 @@ function iconForType(type: string) {
   }
 }
 
+// Stable empty reference for the no-data-yet render.
+const EMPTY_NOTIFICATIONS: Notification[] = [];
+
 export default function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const notifsQuery = useQuery({
+    queryKey: queryKeys.notifications.list(),
+    queryFn: notificationsApi.getNotifications,
+  });
+  const notifications = notifsQuery.data ?? EMPTY_NOTIFICATIONS;
+  const hasData = notifsQuery.data !== undefined;
+  // Full-screen spinner only when there's nothing cached to show yet.
+  const loading = !hasData && (notifsQuery.isPending || notifsQuery.isFetching);
+  // Error state only when the fetch failed AND there's no cached data.
+  const loadError = !hasData && notifsQuery.isError && !notifsQuery.isFetching;
+  // Inline pull-to-refresh indicator while revalidating cached data.
+  const refreshing = hasData && notifsQuery.isFetching;
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setLoadError(false);
-    try {
-      const data = await notificationsApi.getNotifications();
-      setNotifications(data);
-      const unread = data.filter((n) => !n.is_read);
-      await Promise.all(unread.map((n) => notificationsApi.markAsRead(n.id).catch(() => {})));
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
+  // Mark everything read whenever a fresh list arrives — mirrors the old
+  // load() side effect. We don't refetch afterwards, so the unread styling
+  // stays for this view (matching prior behaviour); the next fetch reflects it.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!notifsQuery.data) return;
+    const unread = notifsQuery.data.filter((n) => !n.is_read);
+    if (unread.length === 0) return;
+    Promise.all(unread.map((n) => notificationsApi.markAsRead(n.id).catch(() => {})));
+  }, [notifsQuery.data]);
 
   const handleTap = (notif: Notification) => {
     if (
@@ -78,7 +81,7 @@ export default function NotificationsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => load(true)}
+            onRefresh={() => notifsQuery.refetch()}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
@@ -93,7 +96,7 @@ export default function NotificationsScreen() {
             <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
-            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+            <TouchableOpacity onPress={() => notifsQuery.refetch()} style={[styles.retryBtn, { borderColor: colors.border }]}>
               <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
             </TouchableOpacity>
           </View>

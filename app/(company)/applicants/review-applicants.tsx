@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
+import { queryKeys } from '@/lib/query-keys'
 import {
   applicationsApi,
   type ApplicantCard,
@@ -12,6 +13,7 @@ import {
 } from '@/services/api'
 import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
+import { useQuery } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
@@ -34,6 +36,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
 const FLICK_VELOCITY_THRESHOLD = 0.45
+
+// Stable empty reference for the no-data-yet render of the job picker.
+const EMPTY_JOBS: Job[] = []
 
 export default function ReviewApplicantsScreen() {
   const router = useRouter()
@@ -63,16 +68,58 @@ export default function ReviewApplicantsScreen() {
   const jobId = selectedJob?.id
   const jobTitle = selectedJob?.title || 'Applicants'
 
-  // Job-picker state (used only when no job is selected)
-  const [myJobs, setMyJobs] = useState<Job[]>([])
-  const [pickerLoading, setPickerLoading] = useState(false)
-  const [pickerError, setPickerError] = useState<string | null>(null)
+  // Job-picker data — only fetched when no job is selected. Shares the same
+  // cache entry as the company dashboard's "my jobs" list.
+  const pickerJobsQuery = useQuery({
+    queryKey: queryKeys.jobs.myJobs(),
+    queryFn: jobsApi.getMyJobs,
+    enabled: !selectedJob,
+  })
+  const myJobs = pickerJobsQuery.data ?? EMPTY_JOBS
+  const pickerHasData = pickerJobsQuery.data !== undefined
+  const pickerLoading =
+    !selectedJob && !pickerHasData && (pickerJobsQuery.isPending || pickerJobsQuery.isFetching)
+  const pickerError =
+    !pickerHasData && pickerJobsQuery.isError && !pickerJobsQuery.isFetching
+      ? ((pickerJobsQuery.error as any)?.message ?? 'Could not load your jobs.')
+      : null
 
-  // Per-job applicant state — same shape as the original (mock) screen.
+  // Per-job applicant state — `applicants` is the mutable working deck that
+  // cards are removed from as the reviewer swipes; it's seeded from the query.
   const [currentIndex, setCurrentIndex] = useState(0)
   const [applicants, setApplicants] = useState<ApplicantCard[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+
+  // Applicants for the selected job: either the full list, or a specific AI
+  // shortlist run. Fetched + cached here; the deck above is the working copy.
+  const useShortlistRun = isShortlistMode && !!paramShortlistRunId
+  const applicantsQuery = useQuery({
+    queryKey:
+      useShortlistRun && jobId
+        ? queryKeys.applications.shortlistRun(jobId, paramShortlistRunId as number)
+        : queryKeys.applications.applicants(jobId ?? 0),
+    queryFn: () =>
+      useShortlistRun
+        ? applicationsApi
+            .getShortlistRun(jobId as number, paramShortlistRunId as number)
+            .then((d) => d.applicants)
+        : applicationsApi.getApplicants(jobId as number),
+    enabled: !!jobId,
+  })
+  const applicantsHasData = applicantsQuery.data !== undefined
+  const loading =
+    !!jobId && !applicantsHasData && (applicantsQuery.isPending || applicantsQuery.isFetching)
+  const error =
+    !applicantsHasData && applicantsQuery.isError && !applicantsQuery.isFetching
+      ? ((applicantsQuery.error as any)?.message ?? 'Could not load applicants.')
+      : null
+
+  // Seed the working deck whenever a fresh applicant list arrives.
+  useEffect(() => {
+    if (applicantsQuery.data) {
+      setApplicants(applicantsQuery.data)
+      setCurrentIndex(0)
+    }
+  }, [applicantsQuery.data])
   const [pan] = useState(new Animated.ValueXY())
   const scrollViewRef = useRef<ScrollView>(null)
   const [showUndoModal, setShowUndoModal] = useState(false)
@@ -205,63 +252,6 @@ export default function ReviewApplicantsScreen() {
       scrollViewRef.current.scrollTo({ y: 0, animated: false })
     }
   }
-
-  // ── Load applicants for the selected job (normal or shortlist mode) ────
-  useEffect(() => {
-    let cancelled = false
-    if (!jobId) {
-      setLoading(false)
-      setError(null)
-      return
-    }
-    setLoading(true)
-    setError(null)
-
-    const fetchPromise = isShortlistMode && paramShortlistRunId
-      ? applicationsApi.getShortlistRun(jobId, paramShortlistRunId).then((d) => d.applicants)
-      : applicationsApi.getApplicants(jobId)
-
-    fetchPromise
-      .then((data) => {
-        if (cancelled) return
-        setApplicants(data)
-        setCurrentIndex(0)
-      })
-      .catch((err: any) => {
-        if (cancelled) return
-        setError(err?.message ?? 'Could not load applicants.')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [jobId, isShortlistMode, paramShortlistRunId])
-
-  // ── Picker mode: load the company's jobs to choose from ────────────────
-  useEffect(() => {
-    if (selectedJob) return
-    let cancelled = false
-    setPickerLoading(true)
-    setPickerError(null)
-    jobsApi
-      .getMyJobs()
-      .then((data) => {
-        if (cancelled) return
-        setMyJobs(data)
-      })
-      .catch((err: any) => {
-        if (cancelled) return
-        setPickerError(err?.message ?? 'Could not load your jobs.')
-      })
-      .finally(() => {
-        if (!cancelled) setPickerLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedJob])
 
   useEffect(() => {
     if (showUndoModal) {

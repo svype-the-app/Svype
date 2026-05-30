@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
-import { useApplications } from '@/lib/applications-context';
+import { useApplications } from '@/lib/use-applications';
 import { aiChatApi, notificationsApi } from '@/services/api';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';

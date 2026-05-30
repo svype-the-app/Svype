@@ -8,8 +8,12 @@ import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatUnreadProvider } from '@/lib/chat-unread-context';
+import { asyncStoragePersister, clearCachedData, GC_TIME, prefetchForUser, queryClient } from '@/lib/query-client';
+import { queryKeys } from '@/lib/query-keys';
 import { authApi } from '@/services/api';
 import { apiClient } from '@/services/client';
 import { getRouteForUserState } from '@/services/routing';
@@ -46,15 +50,22 @@ export default function RootLayout() {
         ]);
         if (!cancelled && token && user) {
           setPendingRoute(getRouteForUserState(user));
-          // Background revalidation: if the token has been invalidated
-          // server-side, bounce the user back to the welcome screen.
-          // Network errors are ignored so an offline launch doesn't
-          // force a re-login.
-          authApi.getMe().catch((err: any) => {
-            if (err?.status === 401) {
-              authApi.logout().finally(() => router.replace('/'));
-            }
-          });
+          // Warm the query cache for this user's home tabs in parallel, so the
+          // first screen they land on renders from cache instead of spinning.
+          prefetchForUser(user);
+          // Token validation doubles as a cache warm: fetchQuery populates the
+          // `me` cache AND dedupes with the prefetch above (same key → one
+          // request, not two). If the token was invalidated server-side, bounce
+          // back to the welcome screen. Network errors are ignored so an offline
+          // launch doesn't force a re-login.
+          queryClient
+            .fetchQuery({ queryKey: queryKeys.auth.me(), queryFn: authApi.getMe })
+            .catch((err: any) => {
+              if (err?.status === 401) {
+                clearCachedData();
+                authApi.logout().finally(() => router.replace('/'));
+              }
+            });
         }
       } finally {
         if (!cancelled) setAuthChecked(true);
@@ -84,6 +95,10 @@ export default function RootLayout() {
   }
 
   return (
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: asyncStoragePersister, maxAge: GC_TIME, buster: 'v1' }}
+    >
     <SafeAreaProvider>
     <ChatUnreadProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -112,6 +127,7 @@ export default function RootLayout() {
     </ThemeProvider>
     </ChatUnreadProvider>
     </SafeAreaProvider>
+    </PersistQueryClientProvider>
   );
 }
 
