@@ -6,7 +6,7 @@ import type { Notification } from '@/services/types';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -52,6 +52,10 @@ export default function NotificationsScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleTap = (notif: Notification) => {
     if (

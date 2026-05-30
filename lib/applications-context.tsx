@@ -38,7 +38,8 @@ export function ApplicationsProvider({ children }: { children: React.ReactNode }
       setApplications(apps);
       setLoadError(false);
       hasFetchedRef.current = true;
-    } catch {
+    } catch (err) {
+      console.error('[ApplicationsContext] getApplications failed:', err);
       // Initial load failure — show error state (no data to fall back on).
       if (!hasFetchedRef.current) {
         setLoadError(true);
