@@ -281,7 +281,7 @@ export default function PostJobScreen() {
               {/* Salary Range */}
               <View style={styles.twoColumnRow}>
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Label>Minimum Salary (£)</Label>
+                  <Label>Minimum Salary (PKR, monthly)</Label>
                   <Input
                     placeholder="40000"
                     value={formData.salaryMin}
@@ -293,7 +293,7 @@ export default function PostJobScreen() {
                 </View>
 
                 <View style={[styles.fieldGroup, { flex: 1, marginLeft: 12 }]}>
-                  <Label>Maximum Salary (£)</Label>
+                  <Label>Maximum Salary (PKR, monthly)</Label>
                   <Input
                     placeholder="60000"
                     value={formData.salaryMax}

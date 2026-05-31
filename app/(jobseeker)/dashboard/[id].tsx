@@ -101,7 +101,7 @@ export default function ApplicationDetailScreen() {
 
   const formatSalary = (min?: number, max?: number) => {
     if (typeof min !== 'number' || typeof max !== 'number') return null;
-    return `£${(min / 1000).toFixed(0)}k – £${(max / 1000).toFixed(0)}k`;
+    return `₨${(min / 1000).toFixed(0)}k – ₨${(max / 1000).toFixed(0)}k`;
   };
 
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString();

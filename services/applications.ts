@@ -158,6 +158,21 @@ export const applicationsApi = {
     );
   },
 
+  // Quiz integrity telemetry. Sent alongside submitQuiz (and on forced cancel).
+  async logQuizAttempt(
+    applicationId: number,
+    data: {
+      total_duration_ms?: number;
+      time_per_question_ms?: Record<string, number>;
+      answer_change_counts?: Record<string, number>;
+      suspected_paste_questions?: number[];
+      left_screen_count?: number;
+      was_cancelled_by_leave?: boolean;
+    },
+  ): Promise<{ flagged: boolean }> {
+    return apiClient.post<{ flagged: boolean }>(`/apply/${applicationId}/quiz/log/`, data);
+  },
+
   // Fetch the pre-screening quiz for an existing application the user owns —
   // used by the dashboard Quizzes flow to take a pending quiz / review a done one.
   async getApplicationQuiz(applicationId: number): Promise<ApplyQuiz> {

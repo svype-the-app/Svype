@@ -178,14 +178,27 @@ export interface QuizQuestionPayload {
   order?: number;
 }
 
+// Application status. 'pending_quiz' = quiz-gated application created but quiz
+// not yet completed (hidden from the company until done).
+export type ApplicationStatus =
+  | 'pending_quiz'
+  | 'applied'
+  | 'shortlisted'
+  | 'interview'
+  | 'offered'
+  | 'rejected'
+  | 'withdrawn';
+
 export interface Application {
   id: number;
   job: Job;
-  status: string;
+  status: ApplicationStatus | string;
   applied_at: string;
   // Pre-screening quiz results (null until a quiz-gated application is completed).
   quiz_score?: number | null;
   quiz_completed_at?: string | null;
+  // Deadline for completing a quiz-gated application (null for non-quiz jobs).
+  quiz_expires_at?: string | null;
   cover_letter?: string;
 }
 

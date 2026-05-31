@@ -71,7 +71,7 @@ export default function DashboardScreen() {
   const CLOSED_STATUSES = ['rejected', 'withdrawn'];
 
   const formatSalary = (min: number, max: number) => {
-    return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
+    return `₨${(min / 1000).toFixed(0)}k - ₨${(max / 1000).toFixed(0)}k`;
   };
 
 

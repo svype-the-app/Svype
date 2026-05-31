@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,8 +57,42 @@ export default function DashboardQuizScreen() {
   const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION_SECONDS)
   const submittedRef = useRef(false)
 
+  // ── Integrity telemetry (Change 3) ────────────────────────────────────────
+  const quizStartRef = useRef<number>(Date.now())
+  const questionStartRef = useRef<number>(Date.now())
+  const timePerQuestionRef = useRef<Record<string, number>>({})
+  const answerChangeRef = useRef<Record<string, number>>({})
+  const pasteRef = useRef<Set<number>>(new Set())
+  const prevTextLenRef = useRef<Record<string, number>>({})
+  const leftScreenRef = useRef(0)
+  const appStateRef = useRef(AppState.currentState)
+  const cancelledRef = useRef(false)
+
   const questions = quiz?.questions ?? []
   const totalQuestions = questions.length
+
+  // Accumulate time spent on the question currently shown, and reset the clock.
+  const recordQuestionTime = useCallback(() => {
+    const q = questions[currentIndex]
+    if (!q) return
+    const now = Date.now()
+    const key = String(q.id)
+    timePerQuestionRef.current[key] = (timePerQuestionRef.current[key] || 0) + (now - questionStartRef.current)
+    questionStartRef.current = now
+  }, [questions, currentIndex])
+
+  // Snapshot of the integrity telemetry for the log endpoint.
+  const buildIntegrityPayload = useCallback(
+    (cancelledByLeave: boolean) => ({
+      total_duration_ms: Date.now() - quizStartRef.current,
+      time_per_question_ms: timePerQuestionRef.current,
+      answer_change_counts: answerChangeRef.current,
+      suspected_paste_questions: Array.from(pasteRef.current),
+      left_screen_count: leftScreenRef.current,
+      was_cancelled_by_leave: cancelledByLeave,
+    }),
+    [],
+  )
 
   // Fetch the quiz for this application (needed both to take a pending quiz and
   // to show the passing score on a completed one).
@@ -72,6 +107,9 @@ export default function DashboardQuizScreen() {
     try {
       const data = await applicationsApi.getApplicationQuiz(applicationId)
       setQuiz(data)
+      // Start the integrity clocks once the quiz is actually loaded.
+      quizStartRef.current = Date.now()
+      questionStartRef.current = Date.now()
     } catch (err: any) {
       setQuizError(err?.message || 'Could not load the quiz.')
     } finally {
@@ -84,9 +122,12 @@ export default function DashboardQuizScreen() {
   }, [loadQuiz])
 
   const handleSubmit = useCallback(async () => {
-    if (submittedRef.current || !quiz) return
+    if (submittedRef.current || cancelledRef.current || !quiz) return
     submittedRef.current = true
     setIsSubmitting(true)
+
+    // Flush the time spent on the question currently on screen.
+    recordQuestionTime()
 
     const payload: Answer[] = questions.map((q) => {
       const entry = answers[q.id] || {}
@@ -97,6 +138,10 @@ export default function DashboardQuizScreen() {
           : { text_answer: entry.text_answer || '' }),
       }
     })
+
+    // Send the integrity telemetry in parallel with the answers (fire-and-forget;
+    // a logging failure must never block the actual quiz submission).
+    applicationsApi.logQuizAttempt(applicationId, buildIntegrityPayload(false)).catch(() => {})
 
     try {
       const res = await applicationsApi.submitQuiz(applicationId, payload)
@@ -111,7 +156,28 @@ export default function DashboardQuizScreen() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [answers, applicationId, questions, quiz])
+  }, [answers, applicationId, questions, quiz, recordQuestionTime, buildIntegrityPayload])
+
+  // Integrity: count screen-leaves (active → background/inactive). On the 2nd
+  // leave, cancel the attempt, log it, and return to quiz history.
+  useEffect(() => {
+    if (isCompletedMode) return
+    const sub = AppState.addEventListener('change', (next) => {
+      const prev = appStateRef.current
+      appStateRef.current = next
+      if (prev === 'active' && (next === 'background' || next === 'inactive')) {
+        if (submittedRef.current || cancelledRef.current || !quiz) return
+        leftScreenRef.current += 1
+        if (leftScreenRef.current >= 2) {
+          cancelledRef.current = true
+          applicationsApi.logQuizAttempt(applicationId, buildIntegrityPayload(true)).catch(() => {})
+          Alert.alert('Quiz cancelled', 'Quiz cancelled: you left the screen too many times.')
+          router.replace('/(jobseeker)/dashboard/quiz-history' as any)
+        }
+      }
+    })
+    return () => sub.remove()
+  }, [isCompletedMode, quiz, applicationId, buildIntegrityPayload, router])
 
   // Countdown timer (taking mode only).
   useEffect(() => {
@@ -136,9 +202,24 @@ export default function DashboardQuizScreen() {
   }
 
   const setMcqAnswer = (qId: number, option: number) => {
-    setAnswers((prev) => ({ ...prev, [qId]: { selected_option: option } }))
+    setAnswers((prev) => {
+      const had = prev[qId]
+      // Count a change only when an existing, different option is replaced.
+      if (had && had.selected_option !== undefined && had.selected_option !== option) {
+        const key = String(qId)
+        answerChangeRef.current[key] = (answerChangeRef.current[key] || 0) + 1
+      }
+      return { ...prev, [qId]: { selected_option: option } }
+    })
   }
   const setTextAnswer = (qId: number, text: string) => {
+    // Paste detection: a single onChange that grows the text by > 40 chars.
+    const key = String(qId)
+    const prevLen = prevTextLenRef.current[key] || 0
+    if (text.length - prevLen > 40) {
+      pasteRef.current.add(qId)
+    }
+    prevTextLenRef.current[key] = text.length
     setAnswers((prev) => ({ ...prev, [qId]: { text_answer: text } }))
   }
 
@@ -339,7 +420,7 @@ export default function DashboardQuizScreen() {
           <Button
             variant="outline"
             disabled={currentIndex === 0 || isSubmitting}
-            onPress={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+            onPress={() => { recordQuestionTime(); setCurrentIndex((i) => Math.max(0, i - 1)) }}
             style={styles.navButton}
           >
             <Text style={{ color: colors.foreground }}>Previous</Text>
@@ -359,7 +440,7 @@ export default function DashboardQuizScreen() {
             </Button>
           ) : (
             <Button
-              onPress={() => setCurrentIndex((i) => Math.min(totalQuestions - 1, i + 1))}
+              onPress={() => { recordQuestionTime(); setCurrentIndex((i) => Math.min(totalQuestions - 1, i + 1)) }}
               disabled={!answeredCurrent || isSubmitting}
               style={[styles.navButton, { backgroundColor: colors.primary }]}
             >

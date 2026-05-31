@@ -38,9 +38,9 @@ export default function CompanyJobDetailScreen() {
 
   const salaryText = useMemo(() => {
     if (!job?.salary_min && !job?.salary_max) return 'Not specified';
-    if (job.salary_min && job.salary_max) return `£${job.salary_min.toLocaleString()} - £${job.salary_max.toLocaleString()}`;
-    if (job.salary_min) return `From £${job.salary_min.toLocaleString()}`;
-    return `Up to £${job?.salary_max?.toLocaleString()}`;
+    if (job.salary_min && job.salary_max) return `₨${job.salary_min.toLocaleString()} - ₨${job.salary_max.toLocaleString()}`;
+    if (job.salary_min) return `From ₨${job.salary_min.toLocaleString()}`;
+    return `Up to ₨${job?.salary_max?.toLocaleString()}`;
   }, [job]);
 
   const handleBack = () => {

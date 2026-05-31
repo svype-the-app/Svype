@@ -67,7 +67,7 @@ export default function SavedJobsScreen() {
   };
 
   const formatSalary = (min: number, max: number) => {
-    return `£${(min / 1000).toFixed(0)}k - £${(max / 1000).toFixed(0)}k`;
+    return `₨${(min / 1000).toFixed(0)}k - ₨${(max / 1000).toFixed(0)}k`;
   };
 
   const JobCard = ({ job }: { job: Job }) => {

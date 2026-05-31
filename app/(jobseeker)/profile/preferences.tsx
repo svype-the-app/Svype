@@ -207,7 +207,7 @@ export default function PreferencesScreen() {
                 <View style={styles.sliderHeader}>
                   <Label style={[styles.sliderLabel, { color: colors.foreground }]}>Minimum</Label>
                   <Text style={[styles.sliderValue, { color: colors.foreground }]}>
-                    £{preferences.salaryMin}k
+                    ₨{preferences.salaryMin}k
                   </Text>
                 </View>
                 <View style={[styles.customSlider, { backgroundColor: colors.muted }]}>
@@ -242,7 +242,7 @@ export default function PreferencesScreen() {
                 <View style={styles.sliderHeader}>
                   <Label style={[styles.sliderLabel, { color: colors.foreground }]}>Maximum</Label>
                   <Text style={[styles.sliderValue, { color: colors.foreground }]}>
-                    £{preferences.salaryMax}k+
+                    ₨{preferences.salaryMax}k+
                   </Text>
                 </View>
                 <View style={[styles.customSlider, { backgroundColor: colors.muted }]}>
@@ -277,7 +277,7 @@ export default function PreferencesScreen() {
                 <Text style={[styles.salaryRangeLabel, { color: colors.mutedForeground }]}>
                   Preferred range:{' '}
                   <Text style={[styles.salaryRangeValue, { color: colors.foreground }]}>
-                    £{preferences.salaryMin}k - £{preferences.salaryMax}k+
+                    ₨{preferences.salaryMin}k - ₨{preferences.salaryMax}k+
                   </Text>
                 </Text>
               </View>

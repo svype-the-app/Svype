@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -27,10 +28,38 @@ function isPending(app: Application): boolean {
   return app.quiz_score == null && app.quiz_completed_at == null;
 }
 
+// A pending quiz whose 24h window has elapsed.
+function isExpired(app: Application): boolean {
+  return (
+    isPending(app) &&
+    !!app.quiz_expires_at &&
+    new Date(app.quiz_expires_at).getTime() <= Date.now()
+  );
+}
+
+// "Expires in 8h" / "Expires in 12m" for a pending quiz with a deadline.
+function expiryLabel(app: Application): string | null {
+  if (!isPending(app) || !app.quiz_expires_at) return null;
+  const ms = new Date(app.quiz_expires_at).getTime() - Date.now();
+  if (ms <= 0) return 'Expired';
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 1) return `Expires in ${hours}h`;
+  const mins = Math.max(1, Math.floor(ms / 60_000));
+  return `Expires in ${mins}m`;
+}
+
 export default function QuizHistoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+
+  // Re-render periodically so "Expires in Xh" ticks down and a quiz that has
+  // just expired flips to non-tappable without a manual refresh.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Separate cache key from the dashboard's applications list, but the same
   // /applications/ source (filtered client-side). Cache-first + persisted.
@@ -57,6 +86,7 @@ export default function QuizHistoryScreen() {
     });
 
   const openQuiz = (app: Application) => {
+    if (isExpired(app)) return; // expired quizzes are non-tappable
     const pending = isPending(app);
     router.push({
       pathname: '/(jobseeker)/dashboard/quiz/[applicationId]',
@@ -103,12 +133,21 @@ export default function QuizHistoryScreen() {
         ) : (
           quizApps.map((app) => {
             const pending = isPending(app);
+            const expired = isExpired(app);
+            const expLabel = expiryLabel(app);
             return (
-              <TouchableOpacity key={app.id} onPress={() => openQuiz(app)} activeOpacity={0.8}>
+              <TouchableOpacity
+                key={app.id}
+                onPress={() => openQuiz(app)}
+                activeOpacity={expired ? 1 : 0.8}
+                disabled={expired}
+              >
                 <Card
                   style={[
                     styles.card,
-                    pending
+                    expired
+                      ? { borderColor: colors.destructive, borderWidth: 2, opacity: 0.85 }
+                      : pending
                       ? { borderColor: colors.primary, borderWidth: 2 }
                       : { opacity: 0.7 },
                   ]}
@@ -125,7 +164,12 @@ export default function QuizHistoryScreen() {
                           </Text>
                         ) : null}
                       </View>
-                      {pending ? (
+                      {expired ? (
+                        <View style={[styles.pill, { backgroundColor: colors.destructive }]}>
+                          <Ionicons name="alert-circle" size={14} color="#fff" />
+                          <Text style={styles.pillText}>Expired</Text>
+                        </View>
+                      ) : pending ? (
                         <View style={[styles.pill, { backgroundColor: colors.primary }]}>
                           <Ionicons name="create-outline" size={14} color="#fff" />
                           <Text style={styles.pillText}>Take Quiz</Text>
@@ -141,12 +185,18 @@ export default function QuizHistoryScreen() {
                       <Text style={[styles.dateText, { color: colors.mutedForeground }]}>
                         Applied {formatRelativeTime(app.applied_at)}
                       </Text>
-                      <View style={styles.viewRow}>
-                        <Text style={[styles.viewText, { color: colors.primary }]}>
-                          {pending ? 'Start' : 'View result'}
-                        </Text>
-                        <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-                      </View>
+                      {expired ? (
+                        <Text style={[styles.viewText, { color: colors.destructive }]}>Application cancelled</Text>
+                      ) : pending && expLabel ? (
+                        <Text style={[styles.viewText, { color: colors.primary }]}>{expLabel}</Text>
+                      ) : (
+                        <View style={styles.viewRow}>
+                          <Text style={[styles.viewText, { color: colors.primary }]}>
+                            {pending ? 'Start' : 'View result'}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                        </View>
+                      )}
                     </View>
                   </CardContent>
                 </Card>

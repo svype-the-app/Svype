@@ -203,6 +203,12 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // newer one (or a card the user already swiped away from).
   const coverLetterReqRef = useRef(0)
 
+  // ── Confirmation card (Change 2) — shown between right-swipe and cover letter.
+  const [confirmJob, setConfirmJob] = useState<SwipeJob | null>(null)
+  const [confirmTimer, setConfirmTimer] = useState(5)
+  const confirmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const confirmProgressAnim = useRef(new Animated.Value(0)).current
+
   const showToast = (message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     setToastMessage(message)
@@ -337,6 +343,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current)
       }
+      if (confirmTimerRef.current) {
+        clearInterval(confirmTimerRef.current)
+      }
     }
   }, [])
 
@@ -390,11 +399,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   ).current
 
-  // Right swipe on a JOB card → show the editable cover-letter card for it.
-  // The deck is NOT mutated here; that happens only after the user swipes right
-  // on the cover-letter card (apply) below.
-  const handleShowCoverLetter = () => {
-    const job = jobs[currentIndex]
+  // Show the editable cover-letter card for a job and load its draft. Invoked
+  // after the user confirms on the confirmation card (Change 2). The deck is NOT
+  // mutated here; that happens only after a right-swipe (apply) on this card.
+  const startCoverLetterFlow = (job: SwipeJob) => {
     if (!job || coverLetterJob) return
     Haptics.selectionAsync().catch(() => {})
 
@@ -535,6 +543,84 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   }
 
+  // ── Confirmation card (Change 2) ──────────────────────────────────────────
+  const clearConfirmTimer = () => {
+    if (confirmTimerRef.current) {
+      clearInterval(confirmTimerRef.current)
+      confirmTimerRef.current = null
+    }
+    confirmProgressAnim.stopAnimation()
+  }
+
+  // Right swipe on a JOB card → show the confirmation card (no API call yet).
+  const handleShowConfirmation = () => {
+    const job = jobs[currentIndex]
+    if (!job || confirmJob || coverLetterJob) return
+    Haptics.selectionAsync().catch(() => {})
+    pan.setValue({ x: 0, y: 0 })
+    setConfirmJob(job)
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    triggerSlideIn(true)
+  }
+
+  // Confirm (button / right-swipe / 5s timeout) → start the cover-letter flow.
+  const handleConfirmApply = () => {
+    if (!confirmJob) return
+    clearConfirmTimer()
+    const job = confirmJob
+    setConfirmJob(null)
+    startCoverLetterFlow(job)
+  }
+
+  // Cancel (button / left-swipe) → return to the same job card, no API call.
+  const handleCancelConfirmation = () => {
+    clearConfirmTimer()
+    Haptics.selectionAsync().catch(() => {})
+    Animated.timing(pan.x, {
+      toValue: -SCREEN_WIDTH * 1.2,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => {
+      pan.setValue({ x: 0, y: 0 })
+      setConfirmJob(null)
+      triggerSlideIn(false)
+    })
+  }
+
+  // 5-second confirmation countdown; auto-confirms when it reaches 0.
+  useEffect(() => {
+    if (!confirmJob) return
+    const job = confirmJob
+    setConfirmTimer(5)
+    confirmProgressAnim.setValue(0)
+    Animated.timing(confirmProgressAnim, {
+      toValue: 1,
+      duration: 5000,
+      useNativeDriver: false,
+    }).start()
+    confirmTimerRef.current = setInterval(() => {
+      setConfirmTimer((prev) => {
+        if (prev <= 1) {
+          if (confirmTimerRef.current) {
+            clearInterval(confirmTimerRef.current)
+            confirmTimerRef.current = null
+          }
+          setConfirmJob(null)
+          startCoverLetterFlow(job)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => {
+      if (confirmTimerRef.current) {
+        clearInterval(confirmTimerRef.current)
+        confirmTimerRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmJob, confirmProgressAnim])
+
   const handleUndoAction = () => {
     if (undoTimerRef.current) clearInterval(undoTimerRef.current)
     setShowUndoModal(false)
@@ -597,8 +683,11 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     if (coverLetterJob) {
       approveRef.current = handleCoverLetterApply
       rejectRef.current = handleCoverLetterBack
+    } else if (confirmJob) {
+      approveRef.current = handleConfirmApply
+      rejectRef.current = handleCancelConfirmation
     } else {
-      approveRef.current = handleShowCoverLetter
+      approveRef.current = handleShowConfirmation
       rejectRef.current = handleReject
     }
     // `isApplying` here gates the panResponder: block swipes while the cover
@@ -612,9 +701,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   const formatSalary = (min?: number, max?: number) => {
     if (!min && !max) return 'Salary not specified'
-    if (!min && max) return `Up to £${Math.round(max / 1000)}k`
-    if (min && !max) return `From £${Math.round(min / 1000)}k`
-    return `£${Math.round((min || 0) / 1000)}k - £${Math.round((max || 0) / 1000)}k`
+    if (!min && max) return `Up to ₨${Math.round(max / 1000)}k`
+    if (min && !max) return `From ₨${Math.round(min / 1000)}k`
+    return `₨${Math.round((min || 0) / 1000)}k - ₨${Math.round((max || 0) / 1000)}k`
   }
 
   if (loading) {
@@ -740,7 +829,57 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           pointerEvents="box-none"
         >
         <Animated.View style={[animatedCardStyle, { width: '100%', height: '100%' }]} {...panResponder.panHandlers}>
-          {coverLetterJob ? (
+          {confirmJob ? (
+          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
+            <CardContent style={styles.cardContent}>
+              <View style={styles.confirmCardInner}>
+                <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>
+                  {confirmJob.title}
+                </Text>
+                <Text style={[styles.coverLetterCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {confirmJob.company}
+                </Text>
+                <Text style={[styles.confirmPrompt, { color: colors.cardForeground }]}>Apply to this job?</Text>
+                <Text style={[styles.confirmNote, { color: colors.mutedForeground }]}>
+                  We&apos;ll prepare a tailored cover letter you can review and edit before applying.
+                </Text>
+                <View style={styles.timerContainer}>
+                  <Animated.View
+                    style={[
+                      styles.timerRing,
+                      {
+                        transform: [
+                          {
+                            rotate: confirmProgressAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0deg', '360deg'],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={[styles.timerRingInner, { borderColor: colors.primary }]} />
+                  </Animated.View>
+                  <View style={[styles.timerCenter, { backgroundColor: colors.card }]}>
+                    <Text style={[styles.timerText, { color: colors.primary }]}>{confirmTimer}s</Text>
+                  </View>
+                </View>
+                <View style={styles.confirmButtonsRow}>
+                  <Button onPress={handleCancelConfirmation} style={[styles.confirmCardButton, { backgroundColor: colors.muted }]}>
+                    <Text style={[styles.undoActionText, { color: colors.mutedForeground }]}>Cancel</Text>
+                  </Button>
+                  <Button onPress={handleConfirmApply} style={[styles.confirmCardButton, { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.undoActionText, { color: '#fff' }]}>Confirm</Text>
+                  </Button>
+                </View>
+                <Text style={[styles.coverLetterInstructions, { color: colors.mutedForeground }]}>
+                  Swipe right to confirm · Swipe left to cancel
+                </Text>
+              </View>
+            </CardContent>
+          </Card>
+          ) : coverLetterJob ? (
           <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
             <CardContent style={styles.cardContent}>
               <View style={styles.coverLetterCardInner}>
@@ -936,7 +1075,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
         {(() => {
           const noJobs = jobs.length === 0
-          const navDisabled = noJobs || showUndoModal || isCardNavigating || coverLetterJob !== null
+          const navDisabled =
+            noJobs || showUndoModal || isCardNavigating || coverLetterJob !== null || confirmJob !== null
           const prevDisabled = navDisabled || currentIndex <= 0
           const nextDisabled = navDisabled || currentIndex >= jobs.length - 1
           return (
@@ -954,10 +1094,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.aiMatchButton, coverLetterJob && { opacity: 0.5 }]}
-                disabled={!!coverLetterJob}
+                style={[styles.aiMatchButton, (coverLetterJob || confirmJob) && { opacity: 0.5 }]}
+                disabled={!!coverLetterJob || !!confirmJob}
                 onPress={() => {
-                  if (!currentJob || coverLetterJob) return
+                  if (!currentJob || coverLetterJob || confirmJob) return
                   router.push(
                     `/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any
                   )
@@ -1403,6 +1543,12 @@ const styles = StyleSheet.create({
   coverLetterErrorText: { color: '#ef4444', fontSize: 13, marginBottom: 8 },
   coverLetterApplyingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   coverLetterInstructions: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  // ── Confirmation card (Change 2) ──────────────────────────────────────
+  confirmCardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  confirmPrompt: { fontSize: 20, fontWeight: '700', marginTop: 8 },
+  confirmNote: { fontSize: 14, textAlign: 'center', paddingHorizontal: 8, lineHeight: 20 },
+  confirmButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 8 },
+  confirmCardButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   // ── First-time intro popup (Feature 2c) ──────────────────────────────
   introPopup: {
     position: 'absolute',
