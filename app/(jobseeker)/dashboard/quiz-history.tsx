@@ -2,7 +2,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
 import { queryKeys } from '@/lib/query-keys';
-import { jobsApi, type CompatibilityHistoryItem } from '@/services/api';
+import { applicationsApi } from '@/services/api';
+import type { Application } from '@/services/types';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -18,41 +19,59 @@ import {
   View,
 } from 'react-native';
 
-function scoreColor(score: number) {
-  if (score >= 75) return '#10b981';
-  if (score >= 50) return '#f59e0b';
-  return '#ef4444';
+// Stable empty reference for the no-data-yet render.
+const EMPTY_APPS: Application[] = [];
+
+// Pending = quiz not yet taken (no score and no completion timestamp).
+function isPending(app: Application): boolean {
+  return app.quiz_score == null && app.quiz_completed_at == null;
 }
 
-// Stable empty reference for the no-data-yet render.
-const EMPTY_HISTORY: CompatibilityHistoryItem[] = [];
-
-export default function CompatibilityHistoryScreen() {
+export default function QuizHistoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
 
+  // Separate cache key from the dashboard's applications list, but the same
+  // /applications/ source (filtered client-side). Cache-first + persisted.
   const query = useQuery({
-    queryKey: queryKeys.jobs.compatibilityHistory(),
-    queryFn: jobsApi.getCompatibilityHistory,
+    queryKey: queryKeys.applications.quizHistory(),
+    queryFn: applicationsApi.getApplications,
   });
-  const history = query.data ?? EMPTY_HISTORY;
+  const apps = query.data ?? EMPTY_APPS;
   const hasData = query.data !== undefined;
-  // Cache-first: spinner only with no cached data, error only when there's
-  // none to fall back on, inline refresh indicator while revalidating.
   const loading = !hasData && (query.isPending || query.isFetching);
-  const error =
-    !hasData && query.isError && !query.isFetching
-      ? ((query.error as any)?.message ?? 'Could not load history.')
-      : null;
+  const loadError = !hasData && query.isError && !query.isFetching;
   const refreshing = hasData && query.isFetching;
+
+  // Quiz-gated applications only. Pending first, then completed; each group
+  // newest-first by applied_at.
+  const quizApps = apps
+    .filter((a) => a.job?.has_questions)
+    .slice()
+    .sort((a, b) => {
+      const ap = isPending(a) ? 0 : 1;
+      const bp = isPending(b) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime();
+    });
+
+  const openQuiz = (app: Application) => {
+    const pending = isPending(app);
+    router.push({
+      pathname: '/(jobseeker)/dashboard/quiz/[applicationId]',
+      params: {
+        applicationId: String(app.id),
+        jobTitle: app.job?.title ?? 'Quiz',
+        // `score` present → result-only view for a completed quiz.
+        ...(pending ? {} : { score: String(app.quiz_score) }),
+      },
+    } as any);
+  };
 
   return (
     <Screen>
-      <ScreenHeader
-        title="Compatibility History"
-        onBack={() => router.push('/(jobseeker)/dashboard' as any)}
-      />
+      <ScreenHeader title="Quizzes" onBack={() => router.push('/(jobseeker)/dashboard' as any)} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -64,80 +83,68 @@ export default function CompatibilityHistoryScreen() {
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        ) : error ? (
+        ) : loadError ? (
           <View style={styles.centered}>
             <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{error}</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
             <TouchableOpacity onPress={() => query.refetch()} style={[styles.retryBtn, { borderColor: colors.border }]}>
               <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
             </TouchableOpacity>
           </View>
-        ) : history.length === 0 ? (
+        ) : quizApps.length === 0 ? (
           <View style={styles.centered}>
-            <Ionicons name="analytics-outline" size={64} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No checks yet</Text>
+            <Ionicons name="help-circle-outline" size={64} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No quizzes yet</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              When you view a job's compatibility, it will appear here.
+              When you apply to a job that requires a quiz, it will appear here.
             </Text>
           </View>
         ) : (
-          history.map((item) => {
-            const c = scoreColor(item.overall_score);
+          quizApps.map((app) => {
+            const pending = isPending(app);
             return (
-              <TouchableOpacity
-                key={item.job_id}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(jobseeker)/swipe/job/compatibility',
-                    params: { jobId: String(item.job_id) },
-                  } as any)
-                }
-                activeOpacity={0.8}
-              >
-                <Card style={styles.card}>
+              <TouchableOpacity key={app.id} onPress={() => openQuiz(app)} activeOpacity={0.8}>
+                <Card
+                  style={[
+                    styles.card,
+                    pending
+                      ? { borderColor: colors.primary, borderWidth: 2 }
+                      : { opacity: 0.7 },
+                  ]}
+                >
                   <CardContent style={styles.cardContent}>
                     <View style={styles.cardTop}>
                       <View style={styles.cardInfo}>
                         <Text style={[styles.jobTitle, { color: colors.foreground }]} numberOfLines={1}>
-                          {item.job_title}
+                          {app.job?.title}
                         </Text>
-                        {item.company_name ? (
+                        {app.job?.company_name ? (
                           <Text style={[styles.companyName, { color: colors.mutedForeground }]} numberOfLines={1}>
-                            {item.company_name}
+                            {app.job.company_name}
                           </Text>
                         ) : null}
-                        <View style={styles.metaRow}>
-                          {item.job_location ? (
-                            <View style={styles.metaItem}>
-                              <Ionicons name="location-outline" size={12} color={colors.mutedForeground} />
-                              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{item.job_location}</Text>
-                            </View>
-                          ) : null}
-                          {item.job_type ? (
-                            <View style={styles.metaItem}>
-                              <Ionicons name="briefcase-outline" size={12} color={colors.mutedForeground} />
-                              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{item.job_type}</Text>
-                            </View>
-                          ) : null}
+                      </View>
+                      {pending ? (
+                        <View style={[styles.pill, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="create-outline" size={14} color="#fff" />
+                          <Text style={styles.pillText}>Take Quiz</Text>
                         </View>
-                      </View>
-                      <View style={styles.scoreWrap}>
-                        <Text style={[styles.scoreText, { color: c }]}>{item.overall_score}%</Text>
-                        <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>Match</Text>
-                      </View>
-                    </View>
-
-                    <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
-                      <View style={[styles.barFill, { backgroundColor: c, width: `${item.overall_score}%` }]} />
+                      ) : (
+                        <View style={[styles.pill, { backgroundColor: colors.muted }]}>
+                          <Text style={[styles.pillText, { color: colors.mutedForeground }]}>Score: {app.quiz_score}%</Text>
+                        </View>
+                      )}
                     </View>
 
                     <View style={styles.cardFooter}>
                       <Text style={[styles.dateText, { color: colors.mutedForeground }]}>
-                        Checked {formatRelativeTime(item.computed_at)}
+                        Applied {formatRelativeTime(app.applied_at)}
                       </Text>
                       <View style={styles.viewRow}>
-                        <Text style={[styles.viewText, { color: colors.primary }]}>View details</Text>
+                        <Text style={[styles.viewText, { color: colors.primary }]}>
+                          {pending ? 'Start' : 'View result'}
+                        </Text>
                         <Ionicons name="chevron-forward" size={14} color={colors.primary} />
                       </View>
                     </View>
@@ -164,15 +171,9 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
   cardInfo: { flex: 1 },
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  companyName: { fontSize: 13, marginBottom: 6 },
-  metaRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  metaText: { fontSize: 12 },
-  scoreWrap: { alignItems: 'center', minWidth: 56 },
-  scoreText: { fontSize: 24, fontWeight: '800' },
-  scoreLabel: { fontSize: 11, marginTop: 2 },
-  barTrack: { height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10 },
-  barFill: { height: '100%', borderRadius: 4 },
+  companyName: { fontSize: 13 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  pillText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateText: { fontSize: 12 },
   viewRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },

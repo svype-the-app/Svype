@@ -6,9 +6,9 @@ import { notificationsApi } from '@/services/api';
 import type { Notification } from '@/services/types';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -36,6 +36,7 @@ export default function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const notifsQuery = useQuery({
     queryKey: queryKeys.notifications.list(),
@@ -50,15 +51,24 @@ export default function NotificationsScreen() {
   // Inline pull-to-refresh indicator while revalidating cached data.
   const refreshing = hasData && notifsQuery.isFetching;
 
-  // Mark everything read whenever a fresh list arrives — mirrors the old
-  // load() side effect. We don't refetch afterwards, so the unread styling
-  // stays for this view (matching prior behaviour); the next fetch reflects it.
+  // IDs that were unread when this screen opened — keeps their highlight for
+  // this view even after we mark them read below (so the visual doesn't change).
+  const unreadOnOpenRef = useRef<Set<number>>(new Set());
+
+  // Mark everything read whenever a fresh list arrives (mirrors the old load()),
+  // then write is_read=true straight into the shared cache so the dashboard's
+  // unread badge clears immediately — no refetch, so no spinner flash here.
   useEffect(() => {
     if (!notifsQuery.data) return;
     const unread = notifsQuery.data.filter((n) => !n.is_read);
+    unread.forEach((n) => unreadOnOpenRef.current.add(n.id));
     if (unread.length === 0) return;
-    Promise.all(unread.map((n) => notificationsApi.markAsRead(n.id).catch(() => {})));
-  }, [notifsQuery.data]);
+    Promise.all(unread.map((n) => notificationsApi.markAsRead(n.id).catch(() => {}))).then(() => {
+      queryClient.setQueryData<Notification[]>(queryKeys.notifications.list(), (old) =>
+        old ? old.map((n) => ({ ...n, is_read: true })) : old,
+      );
+    });
+  }, [notifsQuery.data, queryClient]);
 
   const handleTap = (notif: Notification) => {
     if (
@@ -120,7 +130,7 @@ export default function NotificationsScreen() {
                 onPress={() => handleTap(notif)}
                 activeOpacity={tappable ? 0.7 : 1}
               >
-                <Card style={[styles.card, !notif.is_read && { borderColor: colors.primary + '50', borderWidth: 1 }]}>
+                <Card style={[styles.card, (!notif.is_read || unreadOnOpenRef.current.has(notif.id)) && { borderColor: colors.primary + '50', borderWidth: 1 }]}>
                   <CardContent style={styles.cardContent}>
                     <View style={[styles.iconWrap, { backgroundColor: icon.color + '20' }]}>
                       <Ionicons name={icon.name} size={22} color={icon.color} />

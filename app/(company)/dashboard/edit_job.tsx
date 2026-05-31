@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { invalidateCache } from '@/lib/query-client';
 import { jobsApi, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -84,6 +85,9 @@ export default function EditCompanyJobScreen() {
         salary_min: parsedMin,
         salary_max: parsedMax,
       });
+
+      // Edited posting — refresh the company dashboard's job list.
+      invalidateCache.myJobs();
 
       Alert.alert('Saved', 'Job updated successfully.', [
         {

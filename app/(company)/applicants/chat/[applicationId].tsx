@@ -19,6 +19,14 @@ import {
   View,
 } from 'react-native';
 
+// A chat message plus optimistic-send bookkeeping. `_status`/`_tempId` are only
+// present on messages the user just sent and that haven't been confirmed by the
+// server yet (or failed); confirmed/server messages have neither.
+type ChatMessage = AcceptedApplicantMessage & {
+  _status?: 'sending' | 'sent' | 'failed';
+  _tempId?: string;
+};
+
 export default function CompanyChatScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -26,16 +34,20 @@ export default function CompanyChatScreen() {
   const { applicationId } = useLocalSearchParams<{ applicationId: string }>();
   const appId = Number(applicationId);
 
-  const [messages, setMessages] = useState<AcceptedApplicantMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const fetchMessages = useCallback(async () => {
     try {
       const data = await applicationsApi.getApplicationMessages(appId);
-      setMessages(data);
+      // Merge: keep any still-sending/failed optimistic messages (not yet on the
+      // server) so a background poll doesn't make them disappear mid-send.
+      setMessages((prev) => {
+        const pending = prev.filter((m) => m._status === 'sending' || m._status === 'failed');
+        return [...data, ...pending];
+      });
     } catch {
       // ignore
     } finally {
@@ -60,20 +72,48 @@ export default function CompanyChatScreen() {
     }
   }, [messages.length]);
 
-  const handleSend = async () => {
+  // Fire the network call for one optimistic message; flips it to 'sent' (with
+  // the real server row) or 'failed'.
+  const deliver = useCallback((tempId: string, content: string) => {
+    applicationsApi
+      .sendApplicationMessage(appId, content)
+      .then((real) => {
+        setMessages((prev) =>
+          prev.map((m) => (m._tempId === tempId ? { ...real, _status: 'sent', _tempId: tempId } : m)),
+        );
+      })
+      .catch(() => {
+        setMessages((prev) =>
+          prev.map((m) => (m._tempId === tempId ? { ...m, _status: 'failed' } : m)),
+        );
+      });
+  }, [appId]);
+
+  const handleSend = () => {
     const content = input.trim();
-    if (!content || sending) return;
-    setSending(true);
+    if (!content) return;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Show the message immediately with a 'sending' indicator; don't block input.
+    const optimistic: ChatMessage = {
+      id: -Date.now(),
+      content,
+      sent_at: new Date().toISOString(),
+      _status: 'sending',
+      _tempId: tempId,
+    };
+    setMessages((prev) => [...prev, optimistic]);
     setInput('');
-    try {
-      const msg = await applicationsApi.sendApplicationMessage(appId, content);
-      setMessages((prev) => [...prev, msg]);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
-      setInput(content); // restore on failure
-    } finally {
-      setSending(false);
-    }
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    deliver(tempId, content);
+  };
+
+  // Re-send a message whose delivery failed (tap the alert icon).
+  const retrySend = (msg: ChatMessage) => {
+    if (!msg._tempId) return;
+    setMessages((prev) =>
+      prev.map((m) => (m._tempId === msg._tempId ? { ...m, _status: 'sending' } : m)),
+    );
+    deliver(msg._tempId, msg.content);
   };
 
   const formatTime = (iso: string) => {
@@ -123,7 +163,7 @@ export default function CompanyChatScreen() {
                 index === 0 ||
                 formatDate(msg.sent_at) !== formatDate(messages[index - 1].sent_at);
               return (
-                <View key={msg.id}>
+                <View key={msg._tempId ?? String(msg.id)}>
                   {showDate && (
                     <Text style={[styles.dateSeparator, { color: colors.mutedForeground }]}>
                       {formatDate(msg.sent_at)}
@@ -133,7 +173,18 @@ export default function CompanyChatScreen() {
                     <Card style={[styles.bubble, { backgroundColor: colors.primary }]}>
                       <CardContent style={styles.bubbleContent}>
                         <Text style={styles.bubbleText}>{msg.content}</Text>
-                        <Text style={styles.bubbleTime}>{formatTime(msg.sent_at)}</Text>
+                        <View style={styles.bubbleFooter}>
+                          <Text style={styles.bubbleTime}>{formatTime(msg.sent_at)}</Text>
+                          {msg._status === 'sending' ? (
+                            <ActivityIndicator size="small" color="rgba(255,255,255,0.85)" />
+                          ) : msg._status === 'sent' ? (
+                            <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.85)" />
+                          ) : msg._status === 'failed' ? (
+                            <TouchableOpacity onPress={() => retrySend(msg)} hitSlop={6}>
+                              <Ionicons name="alert-circle" size={14} color="#fecaca" />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                       </CardContent>
                     </Card>
                   </View>
@@ -158,12 +209,9 @@ export default function CompanyChatScreen() {
           <TouchableOpacity
             style={[styles.sendBtn, { backgroundColor: input.trim() ? colors.primary : colors.muted }]}
             onPress={handleSend}
-            disabled={!input.trim() || sending}
+            disabled={!input.trim()}
           >
-            {sending
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Ionicons name="send" size={18} color="#fff" />
-            }
+            <Ionicons name="send" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -181,7 +229,8 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '80%' },
   bubbleContent: { padding: 10 },
   bubbleText: { color: '#fff', fontSize: 14, lineHeight: 20 },
-  bubbleTime: { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 4, textAlign: 'right' },
+  bubbleFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 },
+  bubbleTime: { color: 'rgba(255,255,255,0.7)', fontSize: 10, textAlign: 'right' },
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1,

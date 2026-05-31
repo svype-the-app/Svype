@@ -1,10 +1,12 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
+import { queryKeys } from '@/lib/query-keys';
 import { applicationsApi, type ApplicantCompatibilityHistoryItem } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -30,34 +32,31 @@ function scoreLabel(score: number) {
   return 'Weak';
 }
 
+// Stable empty reference for the no-data-yet render.
+const EMPTY_COMPAT_HISTORY: ApplicantCompatibilityHistoryItem[] = [];
+
 export default function ApplicantCompatibilityHistoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [history, setHistory] = useState<ApplicantCompatibilityHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: queryKeys.applications.compatibilityHistory(),
+    queryFn: () => applicationsApi.getCompatibilityHistory(),
+  });
+  const history = query.data ?? EMPTY_COMPAT_HISTORY;
+  const hasData = query.data !== undefined;
+  // Cache-first: spinner only with no cached data, error only when there's
+  // none to fall back on, inline refresh indicator while revalidating.
+  const loading = !hasData && (query.isPending || query.isFetching);
+  const error =
+    !hasData && query.isError && !query.isFetching
+      ? ((query.error as any)?.message ?? 'Could not load history.')
+      : null;
+  const refreshing = hasData && query.isFetching;
 
   const [selectedItem, setSelectedItem] = useState<ApplicantCompatibilityHistoryItem | null>(null);
-
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError(null);
-    try {
-      const data = await applicationsApi.getCompatibilityHistory();
-      setHistory(data);
-    } catch (err: any) {
-      setError(err?.message || 'Could not load history.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -81,7 +80,7 @@ export default function ApplicantCompatibilityHistoryScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} colors={[colors.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => query.refetch()} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
         {loading ? (
@@ -93,7 +92,7 @@ export default function ApplicantCompatibilityHistoryScreen() {
             <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{error}</Text>
-            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+            <TouchableOpacity onPress={() => query.refetch()} style={[styles.retryBtn, { borderColor: colors.border }]}>
               <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
             </TouchableOpacity>
           </View>

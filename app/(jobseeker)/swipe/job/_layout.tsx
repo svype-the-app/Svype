@@ -5,7 +5,7 @@ export default function JobLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="[id]" />
       <Stack.Screen name="pre-screening-quiz" />
-      <Stack.Screen name="company" />
+      <Stack.Screen name="company/[slug]" />
       <Stack.Screen name="compatibility" />
     </Stack>
   );

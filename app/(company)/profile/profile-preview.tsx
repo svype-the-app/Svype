@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { invalidateCache } from '@/lib/query-client';
 import { authApi, resolveMediaUrl } from '@/services/api';
 import { companyApi } from '@/services/company';
 import { Ionicons } from '@expo/vector-icons';
@@ -129,6 +130,8 @@ export default function CompanyProfilePreviewScreen() {
         completionPercentage: Number(company?.completion?.percentage || 0),
         completionFilled: company?.completion?.filled || {},
       }));
+      // Company profile changed (details / logo) — refresh the cached profile.
+      invalidateCache.me();
     } catch {
       // silent
     }
@@ -169,6 +172,7 @@ export default function CompanyProfilePreviewScreen() {
         benefits: toNormalizedList(draft.benefits),
       });
       await authApi.updateState('active');
+      invalidateCache.me();
       router.replace('/(company)/profile' as any);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message || 'Unable to save company profile.');

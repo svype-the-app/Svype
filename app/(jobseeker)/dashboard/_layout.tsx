@@ -8,6 +8,8 @@ export default function DashboardLayout() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="accepted-jobs" />
       <Stack.Screen name="compatibility-history" />
+      <Stack.Screen name="quiz-history" />
+      <Stack.Screen name="quiz/[applicationId]" />
       <Stack.Screen name="accepted-chat/[applicationId]" />
     </Stack>
   );

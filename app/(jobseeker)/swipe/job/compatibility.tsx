@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/theme';
+import { invalidateCache } from '@/lib/query-client';
 import { applicationsApi, jobsApi, type CompatibilityScore, type Job } from '@/services/api';
 import { authApi, profileApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -242,6 +243,9 @@ export default function CompatibilityScreen() {
       setScore(s);
       setJob(j);
       setLoading(false);
+      // Viewing a compatibility score records/updates it server-side, so the
+      // jobseeker's compatibility-history list is now stale — refresh it.
+      invalidateCache.jobseekerCompatibility();
     } catch (err: any) {
       setLoading(false);
       Alert.alert(
@@ -264,6 +268,8 @@ export default function CompatibilityScreen() {
     setApplying(true);
     try {
       const result = await applicationsApi.apply(jobId);
+      // New application created — refresh the dashboard/accepted-jobs list.
+      invalidateCache.applications();
 
       if (result.requires_quiz && result.quiz) {
         router.replace({
@@ -310,6 +316,8 @@ export default function CompatibilityScreen() {
       if (result.canceled || !result.assets?.length) return;
       const file = result.assets[0];
       await profileApi.uploadResume(file.uri, file.name || 'resume.pdf', file.size || 0);
+      // Resume affects profile completion — refresh the profile screen.
+      invalidateCache.me();
       Alert.alert(
         'Resume uploaded',
         'Your resume was saved. Apply now?',

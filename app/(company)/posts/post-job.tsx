@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Colors } from '@/constants/theme'
 import { getPostJobQuizDraft, resetPostJobQuizDraft, type QuizQuestionDraft } from '@/lib/post-job-quiz-draft'
 import { getPostJobDraft, resetPostJobDraft, setPostJobDraft } from '../../../lib/post-job-draft'
+import { invalidateCache } from '@/lib/query-client'
 import { jobsApi } from '@/services/api'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
@@ -171,6 +172,9 @@ export default function PostJobScreen() {
           : [],
         status: 'active',
       })
+
+      // New posting — refresh the company dashboard's job list.
+      invalidateCache.myJobs()
 
       // Clear the draft stores so the form is empty next time the user opens it.
       resetPostJobDraft()

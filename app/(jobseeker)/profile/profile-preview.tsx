@@ -4,7 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useChatUnread } from '@/lib/chat-unread-context';
-import { clearCachedData } from '@/lib/query-client';
+import { clearCachedData, invalidateCache } from '@/lib/query-client';
 import { aiChatApi, authApi, profileApi, ProfileCompletion, resolveMediaUrl, ResumeRecord, WorkExperienceEntry, EducationEntry } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -193,6 +193,8 @@ export default function ProfilePreviewScreen() {
     setAvatarUrl(resolveMediaUrl(user.avatar));
     setResumes(resumeItems);
     setHasResume(resumeItems.length > 0 || Boolean(updatedCompletion?.filled?.resume));
+    // Profile changed (fields / resume / avatar) — refresh the cached profile.
+    invalidateCache.me();
   };
 
   const removeSavedExperience = (id: number) => {
@@ -299,6 +301,7 @@ export default function ProfilePreviewScreen() {
       setIsSaving(true);
       await saveDraftToDatabase();
       await authApi.updateState('data_collection');
+      invalidateCache.me();
       router.replace('/(jobseeker)/profile' as any);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message || 'Unable to save profile changes.');

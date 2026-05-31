@@ -143,14 +143,36 @@ export const applicationsApi = {
     return apiClient.get<Application>(`/applications/${id}/`);
   },
 
-  async apply(jobId: number): Promise<ApplyResponse> {
-    return apiClient.postAI<ApplyResponse>('/apply/', { job_id: jobId });
+  // `coverLetter` (optional): the text the user edited on the swipe cover-letter
+  // card. When omitted, the backend generates one (unchanged legacy behaviour).
+  async apply(jobId: number, coverLetter?: string): Promise<ApplyResponse> {
+    const body: { job_id: number; cover_letter?: string } = { job_id: jobId };
+    if (coverLetter !== undefined) body.cover_letter = coverLetter;
+    return apiClient.postAI<ApplyResponse>('/apply/', body);
   },
 
   async submitQuiz(applicationId: number, answers: Answer[]): Promise<QuizSubmitResponse> {
     return apiClient.postAI<QuizSubmitResponse>(
       `/apply/${applicationId}/quiz/submit/`,
       { answers },
+    );
+  },
+
+  // Fetch the pre-screening quiz for an existing application the user owns —
+  // used by the dashboard Quizzes flow to take a pending quiz / review a done one.
+  async getApplicationQuiz(applicationId: number): Promise<ApplyQuiz> {
+    return apiClient.get<ApplyQuiz>(`/applications/${applicationId}/quiz/`);
+  },
+
+  // Generate (and persist on the backend) an AI cover letter for this job.
+  async generateCoverLetter(jobId: number): Promise<{ cover_letter: string }> {
+    return apiClient.postAI<{ cover_letter: string }>(`/jobs/${jobId}/cover-letter/generate/`, {});
+  },
+
+  // Fetch a previously-saved draft cover letter for this job (404 if none).
+  async getDraftCoverLetter(jobId: number): Promise<{ cover_letter: string; generated_at: string }> {
+    return apiClient.get<{ cover_letter: string; generated_at: string }>(
+      `/jobs/${jobId}/cover-letter/draft/`,
     );
   },
 

@@ -26,12 +26,12 @@ export const GC_TIME = 24 * 60 * 60 * 1000;
  * startup, before any screen has mounted.
  */
 export const queryClient = new QueryClient({
-  // Surface every query failure in the Metro/console logs with its key + error,
-  // so a network/auth/timeout problem isn't silently swallowed into an empty
-  // screen. Safe to remove once things are confirmed working.
+  // Surface query failures in the Metro/console logs (as a warning, not a red
+  // error — these are usually transient timeouts revalidating over cached data,
+  // not crashes). Helpful for spotting connectivity issues; harmless to keep.
   queryCache: new QueryCache({
-    onError: (error, query) => {
-      console.error('[react-query] failed:', JSON.stringify(query.queryKey), error);
+    onError: (error: any, query) => {
+      console.warn('[react-query] query failed:', JSON.stringify(query.queryKey), error?.message ?? error);
     },
   }),
   defaultOptions: {
@@ -81,6 +81,34 @@ export function clearCachedData(): void {
 }
 
 /**
+ * Targeted cache invalidations — call these from a mutation's success handler
+ * so the affected screen refetches fresh data (cache-first: it keeps showing
+ * the old data until the new arrives, no spinner flash). Centralised here so
+ * the query keys stay in one place.
+ */
+export const invalidateCache = {
+  /** Jobseeker applications (dashboard + accepted-jobs view). */
+  applications: () => queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() }),
+  /** Jobseeker job-compatibility history. */
+  jobseekerCompatibility: () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.jobs.compatibilityHistory() }),
+  /** Company applicant-compatibility history. */
+  companyCompatibility: () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.applications.compatibilityHistory() }),
+  /** Company accepted/shortlisted applicants. */
+  acceptedApplicants: () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.applications.accepted() }),
+  /** Current user (`/auth/me/`) — profile / company-profile screens. */
+  me: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() }),
+  /** Company's own job postings (company dashboard). */
+  myJobs: () => queryClient.invalidateQueries({ queryKey: queryKeys.jobs.myJobs() }),
+  /** Jobseeker notification feed (drives the dashboard unread badge). */
+  notifications: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list() }),
+  /** Jobseeker quiz history (applications to quiz-gated jobs). */
+  quizHistory: () => queryClient.invalidateQueries({ queryKey: queryKeys.applications.quizHistory() }),
+};
+
+/**
  * Warm the cache for the screens a user is about to land on, in parallel, so
  * the data is ready before they tap any tab. Called right after login resolves
  * and on app startup when a saved session is restored.
@@ -93,11 +121,11 @@ export function clearCachedData(): void {
  * still-"fresh" cache entry. Neither mode rejects, so one failing/offline
  * request won't block the others.
  */
-export function prefetchForUser(
+export async function prefetchForUser(
   user: User | null | undefined,
   options: { force?: boolean } = {}
-): Promise<unknown> {
-  if (!user) return Promise.resolve();
+): Promise<void> {
+  if (!user) return;
   const { force = false } = options;
 
   const warm = (queryKey: readonly unknown[], queryFn: () => Promise<unknown>) =>
@@ -105,16 +133,33 @@ export function prefetchForUser(
       ? queryClient.fetchQuery({ queryKey, queryFn, staleTime: 0 }).catch(() => {})
       : queryClient.prefetchQuery({ queryKey, queryFn });
 
-  const tasks: Promise<unknown>[] = [warm(queryKeys.auth.me(), authApi.getMe)];
-
+  // Two-phase priority load:
+  //   Phase 1 — the main tab screens the user lands on first.
+  //   Phase 2 — secondary screens behind dashboard buttons (compatibility
+  //             history, accepted lists). Deferred (awaited after phase 1) so
+  //             they don't pile onto the initial launch burst.
+  // If the user opens a phase-2 screen before it's warmed, that screen's own
+  // useQuery fetches it immediately — active observers take priority over a
+  // background prefetch (and dedupe with it) — so the tapped screen never waits
+  // on this queue; the prefetch just resumes for the rest.
   if (user.user_type === 'company') {
-    tasks.push(warm(queryKeys.jobs.myJobs(), jobsApi.getMyJobs));
-    tasks.push(warm(queryKeys.applications.accepted(), applicationsApi.getAcceptedApplicants));
+    await Promise.allSettled([
+      warm(queryKeys.auth.me(), authApi.getMe),               // profile + dashboard header
+      warm(queryKeys.jobs.myJobs(), jobsApi.getMyJobs),       // dashboard + applicants picker
+    ]);
+    await Promise.allSettled([
+      warm(queryKeys.applications.accepted(), applicationsApi.getAcceptedApplicants),
+      warm(queryKeys.applications.compatibilityHistory(), () => applicationsApi.getCompatibilityHistory()),
+    ]);
   } else {
-    tasks.push(warm(queryKeys.applications.list(), applicationsApi.getApplications));
-    tasks.push(warm(queryKeys.jobs.swipe(), jobsApi.getSwipeJobs));
-    tasks.push(warm(queryKeys.notifications.list(), notificationsApi.getNotifications));
+    await Promise.allSettled([
+      warm(queryKeys.auth.me(), authApi.getMe),                              // profile
+      warm(queryKeys.applications.list(), applicationsApi.getApplications),  // dashboard + accepted-jobs
+      warm(queryKeys.jobs.swipe(), jobsApi.getSwipeJobs),                    // swipe deck
+      warm(queryKeys.notifications.list(), notificationsApi.getNotifications), // dashboard badge
+    ]);
+    await Promise.allSettled([
+      warm(queryKeys.jobs.compatibilityHistory(), jobsApi.getCompatibilityHistory),
+    ]);
   }
-
-  return Promise.allSettled(tasks);
 }

@@ -3,10 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useChatUnread } from '@/lib/chat-unread-context';
+import { queryKeys } from '@/lib/query-keys';
 import { useApplications } from '@/lib/use-applications';
 import { aiChatApi, notificationsApi } from '@/services/api';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -29,23 +31,25 @@ export default function DashboardScreen() {
   const { setHasUnreadAiMsg } = useChatUnread();
   const { applications, initialLoading, loadError, refreshing, refresh } = useApplications();
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
-  const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      const notifs = await notificationsApi.getNotifications();
-      setUnreadCount(notifs.filter((n) => !n.is_read).length);
-    } catch {
-      // non-critical
-    }
-  }, []);
+  // Unread badge derives from the shared notifications cache, so it clears the
+  // instant the notifications screen marks everything read (that screen writes
+  // is_read=true into this same cache). Polled while the dashboard is focused;
+  // the poll pauses when another screen is pushed on top, so it never flashes a
+  // refresh spinner on the notifications screen.
+  const notificationsQuery = useQuery({
+    queryKey: queryKeys.notifications.list(),
+    queryFn: notificationsApi.getNotifications,
+  });
+  const unreadCount = (notificationsQuery.data ?? []).filter((n) => !n.is_read).length;
+  const refetchNotifs = notificationsQuery.refetch;
 
   useFocusEffect(
     useCallback(() => {
-      fetchUnreadCount();
-      const interval = setInterval(fetchUnreadCount, 30_000);
+      refetchNotifs();
+      const interval = setInterval(refetchNotifs, 30_000);
       return () => clearInterval(interval);
-    }, [fetchUnreadCount])
+    }, [refetchNotifs])
   );
 
   // Trigger the AI welcome message exactly once per app session — runs only
@@ -197,6 +201,15 @@ export default function DashboardScreen() {
           >
             <Ionicons name="checkmark-circle-outline" size={20} color="#22c55e" style={styles.actionIcon} />
             <Text style={[styles.actionButtonText, { color: '#22c55e' }]}>Accepted Applications</Text>
+          </Button>
+
+          <Button
+            variant="outline"
+            style={[styles.actionButton, { borderColor: '#f59e0b' }]}
+            onPress={() => router.push('/(jobseeker)/dashboard/quiz-history' as any)}
+          >
+            <Ionicons name="help-circle-outline" size={20} color="#f59e0b" style={styles.actionIcon} />
+            <Text style={[styles.actionButtonText, { color: '#f59e0b' }]}>Quizzes</Text>
           </Button>
         </View>
 

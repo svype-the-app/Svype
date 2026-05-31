@@ -1,12 +1,10 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Colors } from '@/constants/theme';
-import { applicationsApi } from '@/services/api';
-import type { Application } from '@/services/types';
+import { useApplications } from '@/lib/use-applications';
 import { formatRelativeTime } from '@/utils/time';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -23,24 +21,11 @@ export default function AcceptedJobsScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
 
-  const [accepted, setAccepted] = useState<Application[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setLoadError(false);
-    try {
-      const all = await applicationsApi.getApplications();
-      setAccepted(all.filter((a) => a.status === 'shortlisted'));
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  // Accepted applications are just the shortlisted slice of the shared
+  // applications cache — so this screen is warm the moment the dashboard is,
+  // and auto-refreshes whenever an application is added/withdrawn.
+  const { applications, initialLoading: loading, loadError, refreshing, refresh } = useApplications();
+  const accepted = applications.filter((a) => a.status === 'shortlisted');
 
   return (
     <Screen>
@@ -54,7 +39,7 @@ export default function AcceptedJobsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => load(true)}
+            onRefresh={refresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
@@ -69,7 +54,7 @@ export default function AcceptedJobsScreen() {
             <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to Load</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
-            <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { borderColor: colors.border }]}>
+            <TouchableOpacity onPress={refresh} style={[styles.retryBtn, { borderColor: colors.border }]}>
               <Text style={[styles.retryText, { color: colors.foreground }]}>Retry</Text>
             </TouchableOpacity>
           </View>

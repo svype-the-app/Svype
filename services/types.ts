@@ -183,6 +183,10 @@ export interface Application {
   job: Job;
   status: string;
   applied_at: string;
+  // Pre-screening quiz results (null until a quiz-gated application is completed).
+  quiz_score?: number | null;
+  quiz_completed_at?: string | null;
+  cover_letter?: string;
 }
 
 export interface ResumeRecord {

@@ -157,6 +157,12 @@ export const authApi = {
     try {
       await AsyncStorage.removeItem(TOKEN_KEY);
       await AsyncStorage.removeItem(USER_KEY);
+      // Clear every cached draft cover letter (one key per job).
+      const keys = await AsyncStorage.getAllKeys();
+      const draftKeys = keys.filter((k) => k.startsWith('draft_cover_letter_'));
+      if (draftKeys.length > 0) {
+        await AsyncStorage.multiRemove(draftKeys);
+      }
     } catch (storageError) {
       console.warn('Failed to clear auth data from storage:', storageError);
     }

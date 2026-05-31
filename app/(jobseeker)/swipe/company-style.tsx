@@ -2,7 +2,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors } from '@/constants/theme'
+import { invalidateCache } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useApplications } from '@/lib/use-applications'
 import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
@@ -14,7 +16,6 @@ import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -22,6 +23,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -44,6 +46,54 @@ type SwipeJob = {
   posted_at: string
   description: string
   requirements: string[]
+  has_questions: boolean
+}
+
+// ── Draft cover-letter AsyncStorage cache (key per job, 24h TTL) ───────────
+const DRAFT_COVER_LETTER_PREFIX = 'draft_cover_letter_'
+const DRAFT_COVER_LETTER_TTL_MS = 24 * 60 * 60 * 1000
+const COVER_LETTER_INTRO_KEY = 'cover_letter_intro_seen'
+
+const draftKey = (jobId: number) => `${DRAFT_COVER_LETTER_PREFIX}${jobId}`
+
+/** Return the cached draft if present and < 24h old, else null (and evict if stale). */
+async function readLocalDraft(jobId: number): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(draftKey(jobId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { content?: string; generated_at?: number }
+    if (
+      typeof parsed?.content === 'string' &&
+      typeof parsed?.generated_at === 'number' &&
+      Date.now() - parsed.generated_at < DRAFT_COVER_LETTER_TTL_MS
+    ) {
+      return parsed.content
+    }
+    // Expired or malformed — drop it.
+    await AsyncStorage.removeItem(draftKey(jobId))
+    return null
+  } catch {
+    return null
+  }
+}
+
+async function writeLocalDraft(jobId: number, content: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      draftKey(jobId),
+      JSON.stringify({ content, generated_at: Date.now() }),
+    )
+  } catch {
+    // Non-critical — the draft just won't be cached locally.
+  }
+}
+
+async function clearLocalDraft(jobId: number): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(draftKey(jobId))
+  } catch {
+    // ignore
+  }
 }
 
 function formatJobType(jobType: string): string {
@@ -83,6 +133,7 @@ function mapApiJobToSwipeJob(job: ApiJob): SwipeJob {
     posted_at: rawJob.posted_at || new Date().toISOString(),
     description: rawJob.description || 'No description provided yet.',
     requirements,
+    has_questions: Boolean(rawJob.has_questions),
   }
 }
 
@@ -134,7 +185,29 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // with its remaining references the next time this file gets touched.
   const [isCardNavigating] = useState(false)
   const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [isApplying, setIsApplying] = useState(false)
+
+  // ── Cover-letter card flow (Feature 2) ───────────────────────────────────
+  // When set, the swipe card shows the editable cover letter for this job
+  // instead of the job details. The deck position is unchanged until the user
+  // swipes right (apply) on the cover-letter card.
+  const [coverLetterJob, setCoverLetterJob] = useState<SwipeJob | null>(null)
+  const [coverLetterText, setCoverLetterText] = useState('')
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false)
+  const [coverLetterApplying, setCoverLetterApplying] = useState(false)
+  const [coverLetterError, setCoverLetterError] = useState<string | null>(null)
+  const [showCoverLetterIntro, setShowCoverLetterIntro] = useState(false)
+  // Dismissable toast (e.g. the "quiz lives in your dashboard" message).
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Guards the request token so a stale cover-letter fetch can't overwrite a
+  // newer one (or a card the user already swiped away from).
+  const coverLetterReqRef = useRef(0)
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToastMessage(message)
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 6000)
+  }
 
   const slideAnim = useRef(new Animated.Value(0)).current
 
@@ -261,6 +334,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       if (undoTimerRef.current) {
         clearInterval(undoTimerRef.current)
       }
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current)
+      }
     }
   }, [])
 
@@ -314,79 +390,149 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   ).current
 
-  const handleApprove = async () => {
-    if (isApplying) return
-    const indexToRemove = currentIndex
-    const approvedJob = jobs[indexToRemove]
-    if (!approvedJob) return
+  // Right swipe on a JOB card → show the editable cover-letter card for it.
+  // The deck is NOT mutated here; that happens only after the user swipes right
+  // on the cover-letter card (apply) below.
+  const handleShowCoverLetter = () => {
+    const job = jobs[currentIndex]
+    if (!job || coverLetterJob) return
+    Haptics.selectionAsync().catch(() => {})
 
-    setIsApplying(true)
-    // Fire haptics non-blocking — awaiting on iOS can stall the animation start.
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    // Reset pan so the cover-letter card slides in centered.
+    pan.setValue({ x: 0, y: 0 })
+    setCoverLetterError(null)
+    setCoverLetterText('')
+    setCoverLetterApplying(false)
+    setCoverLetterLoading(true)
+    setCoverLetterJob(job)
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    triggerSlideIn(true)
 
-    // Defensive: stop any in-flight animation on pan.x and rebase the value
-    // so the timing starts from a clean state, regardless of whether we got
-    // here from a finger gesture or a button tap.
-    pan.x.stopAnimation((currentX) => {
-      pan.x.setValue(currentX)
-
-      // Animate the swiped card off-screen. The card must remain in the list
-      // during the animation so pan.x drives the swiped card (not the next
-      // one underneath). Only on completion do we mutate the list + reset pan.
-      Animated.timing(pan.x, {
-        toValue: SCREEN_WIDTH * 1.2,
-        duration: 250,
-        useNativeDriver: false,
-      }).start(() => {
-        // Reset pan FIRST so the next card renders centered, then mutate list.
-        pan.setValue({ x: 0, y: 0 })
-        setJobs((prevJobs) => {
-          const nextJobs = prevJobs.filter((_, idx) => idx !== indexToRemove)
-          setCurrentIndex((prevIndex) => {
-            if (nextJobs.length === 0) return 0
-            return Math.min(prevIndex, nextJobs.length - 1)
-          })
-          return nextJobs
-        })
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ y: 0, animated: false })
-        }
-        triggerSlideIn(true)
-        // Release the gate as soon as the card is gone, NOT when the network
-        // call resolves. The apply request continues in the background; the
-        // success/failure alert will fire whenever it fires.
-        setIsApplying(false)
+    // First-time intro popup (once per device).
+    AsyncStorage.getItem(COVER_LETTER_INTRO_KEY)
+      .then((seen) => {
+        if (!seen) setShowCoverLetterIntro(true)
       })
-    })
+      .catch(() => {})
 
-    // Fire the apply call in parallel with the animation. Result is processed
-    // when both the animation and the network call have finished.
-    try {
-      const result = await applicationsApi.apply(approvedJob.id)
-      // Silently refresh the applications cache so the Dashboard reflects
-      // the new application without any visible loading on that screen.
-      invalidateApplications()
-      if (result.requires_quiz && result.quiz) {
-        router.push({
-          pathname: '/(jobseeker)/swipe/job/pre-screening-quiz',
-          params: {
-            applicationId: String(result.application_id),
-            jobTitle: approvedJob.title,
-            quizData: JSON.stringify(result.quiz),
-            skillMatch: JSON.stringify(result.skill_match),
-          },
-        } as any)
+    // Load the cover letter: AsyncStorage draft → backend draft → generate.
+    const token = ++coverLetterReqRef.current
+    ;(async () => {
+      let content = ''
+      try {
+        const local = await readLocalDraft(job.id)
+        if (local != null) {
+          content = local
+        } else {
+          try {
+            const draft = await applicationsApi.getDraftCoverLetter(job.id)
+            content = draft.cover_letter
+          } catch {
+            const gen = await applicationsApi.generateCoverLetter(job.id)
+            content = gen.cover_letter
+          }
+          await writeLocalDraft(job.id, content)
+        }
+      } catch {
+        // Generation failed — let the user write their own from scratch.
+        content = ''
       }
-      // Silent success: the green-overlay-during-swipe + card-fly-off is
-      // enough confirmation. Cover letter info, when present, will live in
-      // the Applications tab — no blocking modal interrupts the swipe flow.
+      // Ignore a stale fetch (user swiped away / started a newer one).
+      if (coverLetterReqRef.current !== token) return
+      setCoverLetterText(content)
+      setCoverLetterLoading(false)
+    })()
+  }
+
+  const dismissCoverLetterIntro = () => {
+    setShowCoverLetterIntro(false)
+    AsyncStorage.setItem(COVER_LETTER_INTRO_KEY, 'true').catch(() => {})
+  }
+
+  // Fly the cover-letter card off to the right, then drop the job from the deck
+  // and advance to the next card.
+  const advanceDeckAfterApply = (jobId: number) => {
+    Animated.timing(pan.x, {
+      toValue: SCREEN_WIDTH * 1.2,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => {
+      pan.setValue({ x: 0, y: 0 })
+      setCoverLetterJob(null)
+      setCoverLetterText('')
+      setCoverLetterApplying(false)
+      setCoverLetterError(null)
+      setShowCoverLetterIntro(false)
+      setJobs((prevJobs) => {
+        const idx = prevJobs.findIndex((j) => j.id === jobId)
+        if (idx === -1) return prevJobs
+        const nextJobs = prevJobs.filter((_, i) => i !== idx)
+        setCurrentIndex((prevIndex) => {
+          if (nextJobs.length === 0) return 0
+          return Math.min(prevIndex, nextJobs.length - 1)
+        })
+        return nextJobs
+      })
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+      triggerSlideIn(true)
+    })
+  }
+
+  // Right swipe on the COVER-LETTER card → submit the application with the
+  // edited text. On success advance the deck; on error stay on the card.
+  const handleCoverLetterApply = async () => {
+    if (coverLetterApplying || coverLetterLoading || !coverLetterJob) return
+    const job = coverLetterJob
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    setCoverLetterApplying(true)
+    setCoverLetterError(null)
+    // Spring the card back to centre while the request is in flight.
+    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 5 }).start()
+
+    try {
+      const result = await applicationsApi.apply(job.id, coverLetterText)
+      // Refresh the dashboard; and the quiz history if this job is quiz-gated.
+      invalidateApplications()
+      if (job.has_questions) invalidateCache.quizHistory()
+      await clearLocalDraft(job.id)
+
+      // Quiz-gated job: do NOT navigate to the quiz — point the user to the
+      // dashboard instead (Feature 1a).
+      if (result.requires_quiz) {
+        showToast('This job requires a quiz. You can access it from your Dashboard → Quizzes.')
+      }
+      advanceDeckAfterApply(job.id)
     } catch (err: any) {
       const msg = String(err?.message || '')
-      // 'Already applied' is silently swallowed (bug #14 will filter these
-      // server-side; defensive guard for now). Real failures still surface.
-      if (msg.toLowerCase().includes('already applied')) return
-      Alert.alert('Apply Failed', msg || 'Could not submit application.')
+      if (msg.toLowerCase().includes('already applied')) {
+        await clearLocalDraft(job.id)
+        advanceDeckAfterApply(job.id)
+        return
+      }
+      setCoverLetterError(msg || 'Could not submit application. Please try again.')
+      setCoverLetterApplying(false)
     }
+  }
+
+  // Left swipe on the COVER-LETTER card → return to the same job card.
+  const handleCoverLetterBack = () => {
+    if (coverLetterApplying) return
+    Haptics.selectionAsync().catch(() => {})
+    coverLetterReqRef.current++ // cancel any in-flight cover-letter fetch
+    Animated.timing(pan.x, {
+      toValue: -SCREEN_WIDTH * 1.2,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => {
+      pan.setValue({ x: 0, y: 0 })
+      setCoverLetterJob(null)
+      setCoverLetterText('')
+      setCoverLetterLoading(false)
+      setCoverLetterError(null)
+      setShowCoverLetterIntro(false)
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+      triggerSlideIn(false) // job card slides back in from the left
+    })
   }
 
   const handleUndoAction = () => {
@@ -448,9 +594,20 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // values. Runs after every render so the once-built panResponder never
   // invokes a stale closure that captured the first-render state.
   useEffect(() => {
-    approveRef.current = handleApprove
-    rejectRef.current = handleReject
-    gateRef.current = { isScrolling, isCardNavigating, isApplying }
+    if (coverLetterJob) {
+      approveRef.current = handleCoverLetterApply
+      rejectRef.current = handleCoverLetterBack
+    } else {
+      approveRef.current = handleShowCoverLetter
+      rejectRef.current = handleReject
+    }
+    // `isApplying` here gates the panResponder: block swipes while the cover
+    // letter is loading or an apply is in flight.
+    gateRef.current = {
+      isScrolling,
+      isCardNavigating,
+      isApplying: coverLetterLoading || coverLetterApplying,
+    }
   })
 
   const formatSalary = (min?: number, max?: number) => {
@@ -583,8 +740,66 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           pointerEvents="box-none"
         >
         <Animated.View style={[animatedCardStyle, { width: '100%', height: '100%' }]} {...panResponder.panHandlers}>
-          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}> 
+          {coverLetterJob ? (
+          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
             <CardContent style={styles.cardContent}>
+              <View style={styles.coverLetterCardInner}>
+                <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>
+                  {coverLetterJob.title}
+                </Text>
+                <Text style={[styles.coverLetterCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {coverLetterJob.company}
+                </Text>
+                <Text style={[styles.coverLetterLabel, { color: colors.mutedForeground }]}>
+                  YOUR COVER LETTER (EDITABLE)
+                </Text>
+                {coverLetterLoading ? (
+                  <View style={styles.coverLetterLoadingWrap}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={[styles.coverLetterLoadingText, { color: colors.mutedForeground }]}>
+                      Preparing your cover letter…
+                    </Text>
+                  </View>
+                ) : (
+                  <TextInput
+                    value={coverLetterText}
+                    onChangeText={setCoverLetterText}
+                    editable={!coverLetterApplying}
+                    multiline
+                    placeholder="Write your cover letter…"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[
+                      styles.coverLetterInput,
+                      { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
+                    ]}
+                  />
+                )}
+                {coverLetterError ? (
+                  <Text style={styles.coverLetterErrorText}>{coverLetterError}</Text>
+                ) : null}
+                {coverLetterApplying ? (
+                  <View style={styles.coverLetterApplyingRow}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={[styles.coverLetterLoadingText, { color: colors.mutedForeground }]}>Submitting…</Text>
+                  </View>
+                ) : null}
+                <Text style={[styles.coverLetterInstructions, { color: colors.mutedForeground }]}>
+                  Swipe right to apply · Swipe left to go back
+                </Text>
+              </View>
+            </CardContent>
+          </Card>
+          ) : (
+          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
+            <CardContent style={styles.cardContent}>
+              {currentJob.has_questions ? (
+                <View style={styles.quizBadgeWrapper} pointerEvents="none">
+                  <View style={styles.quizBadge}>
+                    <Ionicons name="help-circle" size={12} color="#fff" />
+                    <Text style={styles.quizBadgeText}>Includes Quiz</Text>
+                  </View>
+                </View>
+              ) : null}
               <View style={styles.cardTimestampWrapper} pointerEvents="none">
                 <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
                   {formatRelativeTime(currentJob.posted_at)}
@@ -671,6 +886,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               </ScrollView>
             </CardContent>
           </Card>
+          )}
 
           <Animated.View
             style={[
@@ -720,7 +936,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
         {(() => {
           const noJobs = jobs.length === 0
-          const navDisabled = noJobs || showUndoModal || isCardNavigating || isApplying
+          const navDisabled = noJobs || showUndoModal || isCardNavigating || coverLetterJob !== null
           const prevDisabled = navDisabled || currentIndex <= 0
           const nextDisabled = navDisabled || currentIndex >= jobs.length - 1
           return (
@@ -738,9 +954,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.aiMatchButton}
+                style={[styles.aiMatchButton, coverLetterJob && { opacity: 0.5 }]}
+                disabled={!!coverLetterJob}
                 onPress={() => {
-                  if (!currentJob) return
+                  if (!currentJob || coverLetterJob) return
                   router.push(
                     `/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any
                   )
@@ -824,6 +1041,30 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           </Card>
         </View>
       </Modal>
+
+      {/* First-time cover-letter intro popup (Feature 2c) */}
+      {coverLetterJob && showCoverLetterIntro ? (
+        <View style={[styles.introPopup, { backgroundColor: colors.primary, top: insets.top + 60 }]}>
+          <Text style={styles.introPopupText}>
+            You can edit this cover letter. Swipe right to apply, or swipe left to go back.
+          </Text>
+          <TouchableOpacity onPress={dismissCoverLetterIntro} hitSlop={8} style={styles.introPopupClose}>
+            <Ionicons name="close" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* Dismissable toast (e.g. quiz-in-dashboard message, Feature 1a) */}
+      {toastMessage ? (
+        <View style={styles.toastWrap} pointerEvents="box-none">
+          <View style={[styles.toast, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.toastText, { color: colors.foreground }]}>{toastMessage}</Text>
+            <TouchableOpacity onPress={() => setToastMessage(null)} hitSlop={8}>
+              <Ionicons name="close" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
     </View>
   )
@@ -1131,4 +1372,72 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // ── Quiz badge (Feature 1a) ──────────────────────────────────────────
+  quizBadgeWrapper: { position: 'absolute', top: 12, left: 12, zIndex: 10 },
+  quizBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  quizBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  // ── Cover-letter card (Feature 2b) ───────────────────────────────────
+  coverLetterCardInner: { flex: 1, paddingTop: 24, paddingHorizontal: 16, paddingBottom: 16 },
+  coverLetterCompany: { fontSize: 14, textAlign: 'center', marginBottom: 16 },
+  coverLetterLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
+  coverLetterLoadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  coverLetterLoadingText: { fontSize: 13 },
+  coverLetterInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+  },
+  coverLetterErrorText: { color: '#ef4444', fontSize: 13, marginBottom: 8 },
+  coverLetterApplyingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  coverLetterInstructions: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  // ── First-time intro popup (Feature 2c) ──────────────────────────────
+  introPopup: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    zIndex: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  introPopupText: { flex: 1, color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '500' },
+  introPopupClose: { padding: 2 },
+  // ── Dismissable toast (Feature 1a) ───────────────────────────────────
+  toastWrap: { position: 'absolute', left: 16, right: 16, bottom: 96, alignItems: 'center', zIndex: 30 },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: 440,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastText: { flex: 1, fontSize: 13, lineHeight: 18 },
 })

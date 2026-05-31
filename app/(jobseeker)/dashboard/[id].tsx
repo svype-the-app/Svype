@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
+import { invalidateCache } from '@/lib/query-client';
 import { applicationsApi } from '@/services/api';
 import type { Application } from '@/services/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,6 +86,8 @@ export default function ApplicationDetailScreen() {
     setWithdrawing(true);
     try {
       await applicationsApi.updateStatus(appId, 'withdrawn');
+      // Application withdrawn — refresh the dashboard/accepted-jobs list.
+      invalidateCache.applications();
       setShowWithdrawModal(false);
       router.back();
     } catch {

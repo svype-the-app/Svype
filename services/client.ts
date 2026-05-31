@@ -13,7 +13,10 @@ export const MEDIA_BASE_URL = API_BASE_URL.endsWith('/api')
   ? API_BASE_URL.slice(0, -4)
   : API_BASE_URL;
 
-export const REQUEST_TIMEOUT_MS = 10000;
+// 20s (was 10s): the remote Supabase DB behind the Django dev server can take
+// a while to answer the burst of parallel reads fired on app launch/login, so
+// a 10s ceiling produced false "Server timeout" errors even on good networks.
+export const REQUEST_TIMEOUT_MS = 20000;
 export const AI_REQUEST_TIMEOUT_MS = 60000;
 
 // Token storage keys

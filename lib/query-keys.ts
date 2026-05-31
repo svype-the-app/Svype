@@ -25,12 +25,18 @@ export const queryKeys = {
       ['applications', 'shortlist-run', jobId, runId] as const,
     /** Applicants the company has accepted/shortlisted. */
     accepted: () => ['applications', 'accepted'] as const,
+    /** Company-side AI applicant-compatibility history (all jobs). */
+    compatibilityHistory: () => ['applications', 'compatibility-history'] as const,
+    /** Jobseeker quiz history (applications to jobs with has_questions). */
+    quizHistory: () => ['applications', 'quiz-history'] as const,
   },
   jobs: {
     /** The jobseeker swipe deck (`jobsApi.getSwipeJobs()`). */
     swipe: () => ['jobs', 'swipe'] as const,
     /** The company's own job postings (`jobsApi.getMyJobs()`). */
     myJobs: () => ['jobs', 'my'] as const,
+    /** Jobseeker-side job-compatibility history (`jobsApi.getCompatibilityHistory()`). */
+    compatibilityHistory: () => ['jobs', 'compatibility-history'] as const,
   },
   notifications: {
     /** Jobseeker notification feed (`notificationsApi.getNotifications()`). */

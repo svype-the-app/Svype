@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Colors } from '@/constants/theme'
+import { invalidateCache } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
 import {
   applicationsApi,
@@ -196,6 +197,8 @@ export default function ReviewApplicantsScreen() {
       const report = await applicationsApi.getAICompatibility(appId)
       compatibilityCacheRef.current[appId] = report
       setCompatibilityReport(report)
+      // A new AI analysis was recorded — refresh the company compatibility history.
+      invalidateCache.companyCompatibility()
     } catch (err: any) {
       setCompatibilityError(
         err?.message ?? 'Could not generate analysis. Please try again.'
@@ -227,7 +230,12 @@ export default function ReviewApplicantsScreen() {
 
     if ((action === 'approve' || action === 'reject') && target) {
       const newStatus = action === 'approve' ? 'shortlisted' : 'rejected'
-      applicationsApi.updateStatus(target.application_id, newStatus).catch(() => {
+      applicationsApi.updateStatus(target.application_id, newStatus).then(() => {
+        // A shortlisted applicant now appears on the Accepted Applicants screen.
+        if (action === 'approve') invalidateCache.acceptedApplicants()
+        // Either action changes this job's applicant count on the dashboard.
+        invalidateCache.myJobs()
+      }).catch(() => {
         // Keep UI consistent (already removed); user can refresh if needed.
       })
       setApplicants((prev) => prev.filter((a) => a.application_id !== target.application_id))
