@@ -2,14 +2,18 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { invalidateCache } from '@/lib/query-client';
-import { applicationsApi } from '@/services/api';
+import { queryKeys } from '@/lib/query-keys';
+import { applicationsApi, profileApi } from '@/services/api';
 import type { Application } from '@/services/types';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -42,6 +46,15 @@ export default function ApplicationDetailScreen() {
 
   const [application, setApplication] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // The user's uploaded resume(s) — this is what gets attached to applications,
+  // so we surface it here as part of "everything about the application".
+  const resumesQuery = useQuery({
+    queryKey: queryKeys.profile.resumes(),
+    queryFn: profileApi.getResumes,
+  });
+  const resumes = resumesQuery.data ?? [];
+  const primaryResume = resumes.find((r) => r.is_primary) ?? resumes[0] ?? null;
 
   // Withdraw modal
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -105,6 +118,32 @@ export default function ApplicationDetailScreen() {
   };
 
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
+
+  const openResume = async () => {
+    if (!primaryResume?.file) return;
+    try {
+      await Linking.openURL(primaryResume.file);
+    } catch {
+      Alert.alert('Could not open resume', 'The resume file could not be opened on this device.');
+    }
+  };
+
+  const isPendingQuiz = application?.status?.toLowerCase() === 'pending_quiz';
+  const hasQuizScore = typeof application?.quiz_score === 'number';
+  const showQuiz = isPendingQuiz || hasQuizScore;
+
+  const openQuiz = () => {
+    if (!application) return;
+    router.push({
+      pathname: '/(jobseeker)/dashboard/quiz/[applicationId]',
+      params: {
+        applicationId: String(application.id),
+        jobTitle: application.job?.title ?? 'Quiz',
+        // `score` present → result-only review for a completed quiz.
+        ...(hasQuizScore ? { score: String(application.quiz_score) } : {}),
+      },
+    } as any);
+  };
 
   const canWithdraw = application && !['rejected', 'withdrawn'].includes(application.status.toLowerCase());
 
@@ -179,6 +218,92 @@ export default function ApplicationDetailScreen() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Cover letter (view only) */}
+            <Card style={styles.card}>
+              <CardContent style={styles.cardContent}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="document-text-outline" size={18} color={colors.foreground} />
+                  <Text style={[styles.sectionLabel, { color: colors.foreground, marginBottom: 0 }]}>Cover Letter</Text>
+                </View>
+                {application.cover_letter ? (
+                  <Text style={[styles.coverLetterText, { color: colors.mutedForeground }]}>{application.cover_letter}</Text>
+                ) : (
+                  <Text style={[styles.mutedNote, { color: colors.mutedForeground }]}>No cover letter on file for this application.</Text>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Resume / CV */}
+            <Card style={styles.card}>
+              <CardContent style={styles.cardContent}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="briefcase-outline" size={18} color={colors.foreground} />
+                  <Text style={[styles.sectionLabel, { color: colors.foreground, marginBottom: 0 }]}>Resume</Text>
+                </View>
+                {primaryResume ? (
+                  <TouchableOpacity
+                    style={[styles.resumeRow, { backgroundColor: colors.muted }]}
+                    onPress={openResume}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="document-text" size={22} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resumeName, { color: colors.foreground }]} numberOfLines={1}>
+                        {primaryResume.file_name}
+                      </Text>
+                      <Text style={[styles.resumeMeta, { color: colors.mutedForeground }]}>Tap to open</Text>
+                    </View>
+                    <Ionicons name="open-outline" size={18} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                ) : resumesQuery.isLoading ? (
+                  <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start', marginTop: 4 }} />
+                ) : (
+                  <Text style={[styles.mutedNote, { color: colors.mutedForeground }]}>
+                    No resume uploaded yet. Add one from your Profile.
+                  </Text>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pre-screening quiz */}
+            {showQuiz && (
+              <Card style={styles.card}>
+                <CardContent style={styles.cardContent}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Ionicons name="help-circle-outline" size={18} color="#f59e0b" />
+                    <Text style={[styles.sectionLabel, { color: colors.foreground, marginBottom: 0 }]}>Pre-screening Quiz</Text>
+                  </View>
+                  {hasQuizScore ? (
+                    <>
+                      <Text style={[styles.mutedNote, { color: colors.mutedForeground }]}>
+                        Completed · Score {application.quiz_score}
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.quizBtn, { borderColor: colors.border }]}
+                        onPress={openQuiz}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.quizBtnText, { color: colors.foreground }]}>Review answers</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.mutedNote, { color: colors.mutedForeground }]}>
+                        This job requires a short quiz to complete your application.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.quizBtn, { backgroundColor: '#f59e0b', borderColor: '#f59e0b' }]}
+                        onPress={openQuiz}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.quizBtnText, { color: '#fff' }]}>Take Quiz</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </ScrollView>
 
           {canWithdraw && (
@@ -271,7 +396,21 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 14 },
   descSection: { borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 14 },
   sectionLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   descText: { fontSize: 14, lineHeight: 21 },
+  coverLetterText: { fontSize: 14, lineHeight: 21 },
+  mutedNote: { fontSize: 14, lineHeight: 20 },
+  resumeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 12, borderRadius: 12,
+  },
+  resumeName: { fontSize: 14, fontWeight: '600' },
+  resumeMeta: { fontSize: 12, marginTop: 2 },
+  quizBtn: {
+    marginTop: 12, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quizBtnText: { fontSize: 14, fontWeight: '700' },
   footer: { padding: 16, borderTopWidth: 1 },
   withdrawBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors } from '@/constants/theme'
 import { invalidateCache } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
@@ -16,24 +15,34 @@ import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
-  Modal,
-  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
 } from 'react-native'
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 120
-const FLICK_VELOCITY_THRESHOLD = 0.45
+// Reanimated/Gesture-Handler report velocity in px/s (PanResponder used px/ms),
+// so the old 0.45 px/ms flick threshold becomes 450 px/s.
+const FLICK_VELOCITY_PX = 450
+const SWIPE_OFF_DURATION = 260
 const BUFFER_SIZE = 25
+const UNDO_WINDOW_MS = 5000
 
 type SwipeJob = {
   id: number
@@ -47,53 +56,6 @@ type SwipeJob = {
   description: string
   requirements: string[]
   has_questions: boolean
-}
-
-// ── Draft cover-letter AsyncStorage cache (key per job, 24h TTL) ───────────
-const DRAFT_COVER_LETTER_PREFIX = 'draft_cover_letter_'
-const DRAFT_COVER_LETTER_TTL_MS = 24 * 60 * 60 * 1000
-const COVER_LETTER_INTRO_KEY = 'cover_letter_intro_seen'
-
-const draftKey = (jobId: number) => `${DRAFT_COVER_LETTER_PREFIX}${jobId}`
-
-/** Return the cached draft if present and < 24h old, else null (and evict if stale). */
-async function readLocalDraft(jobId: number): Promise<string | null> {
-  try {
-    const raw = await AsyncStorage.getItem(draftKey(jobId))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { content?: string; generated_at?: number }
-    if (
-      typeof parsed?.content === 'string' &&
-      typeof parsed?.generated_at === 'number' &&
-      Date.now() - parsed.generated_at < DRAFT_COVER_LETTER_TTL_MS
-    ) {
-      return parsed.content
-    }
-    // Expired or malformed — drop it.
-    await AsyncStorage.removeItem(draftKey(jobId))
-    return null
-  } catch {
-    return null
-  }
-}
-
-async function writeLocalDraft(jobId: number, content: string): Promise<void> {
-  try {
-    await AsyncStorage.setItem(
-      draftKey(jobId),
-      JSON.stringify({ content, generated_at: Date.now() }),
-    )
-  } catch {
-    // Non-critical — the draft just won't be cached locally.
-  }
-}
-
-async function clearLocalDraft(jobId: number): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(draftKey(jobId))
-  } catch {
-    // ignore
-  }
 }
 
 function formatJobType(jobType: string): string {
@@ -157,6 +119,16 @@ const syncRejectInBackground = async (jobId: number): Promise<void> => {
   }
 }
 
+const computeInitials = (name: string): string =>
+  (name || 'Unknown Company')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'UC'
+
 export default function JobSeekerCompanyStyleSwipeScreen() {
   const colorScheme = useColorScheme()
   const colors = Colors[colorScheme ?? 'light']
@@ -166,48 +138,37 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [jobs, setJobs] = useState<SwipeJob[]>([])
-  // bufferedJobs is derived synchronously from `jobs` + `currentIndex` so the
-  // render after a swipe-approve uses the up-to-date list immediately (the
-  // previous useState+useEffect version showed a stale card for one render).
-  const [pan] = useState(new Animated.ValueXY())
   const scrollViewRef = useRef<ScrollView>(null)
-  const [showUndoModal, setShowUndoModal] = useState(false)
-  const [undoTimer, setUndoTimer] = useState(5)
-  const [undoJob, setUndoJob] = useState<SwipeJob | null>(null)
-  const [undoActionType, setUndoActionType] = useState<'approve' | 'reject' | null>(null)
   const [showSectionHint, setShowSectionHint] = useState(true)
-  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const progressAnim = useRef(new Animated.Value(0)).current
-  const [isScrolling, setIsScrolling] = useState(false)
-  // Holdover from the prev/next nav buttons (removed in 218081f). Kept as a
-  // permanent `false` so the existing gates / disabled-checks / opacity
-  // styles that reference it still compile. Safe to delete entirely along
-  // with its remaining references the next time this file gets touched.
-  const [isCardNavigating] = useState(false)
-  const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── Cover-letter card flow (Feature 2) ───────────────────────────────────
-  // When set, the swipe card shows the editable cover letter for this job
-  // instead of the job details. The deck position is unchanged until the user
-  // swipes right (apply) on the cover-letter card.
-  const [coverLetterJob, setCoverLetterJob] = useState<SwipeJob | null>(null)
-  const [coverLetterText, setCoverLetterText] = useState('')
-  const [coverLetterLoading, setCoverLetterLoading] = useState(false)
-  const [coverLetterApplying, setCoverLetterApplying] = useState(false)
-  const [coverLetterError, setCoverLetterError] = useState<string | null>(null)
-  const [showCoverLetterIntro, setShowCoverLetterIntro] = useState(false)
+  // ── Reanimated drivers (UI thread) ───────────────────────────────────────
+  // translateX: live horizontal drag of the TOP card.
+  // enterX: one-shot slide-in offset used when a new card (job / confirm) takes
+  //         the top slot, so it glides in instead of popping.
+  const translateX = useSharedValue(0)
+  const enterX = useSharedValue(0)
+  // undoBar: 1 → 0 width fraction for the reject snackbar's countdown bar.
+  const undoBar = useSharedValue(0)
+
   // Dismissable toast (e.g. the "quiz lives in your dashboard" message).
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Guards the request token so a stale cover-letter fetch can't overwrite a
-  // newer one (or a card the user already swiped away from).
-  const coverLetterReqRef = useRef(0)
 
-  // ── Confirmation card (Change 2) — shown between right-swipe and cover letter.
+  // ── Confirmation card ─────────────────────────────────────────────────────
+  // Right-swipe / Accept on a job card shows this one quick "Apply to this job?"
+  // card. Confirming applies immediately (the backend generates the cover
+  // letter); the user reviews the cover letter + resume later in the Dashboard.
   const [confirmJob, setConfirmJob] = useState<SwipeJob | null>(null)
-  const [confirmTimer, setConfirmTimer] = useState(5)
-  const confirmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const confirmProgressAnim = useRef(new Animated.Value(0)).current
+  const [confirmApplying, setConfirmApplying] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+
+  // ── Reject undo snackbar ──────────────────────────────────────────────────
+  // A reject removes the card optimistically and shows a non-blocking snackbar.
+  // The backend sync is deferred until the 5s window lapses, so Undo just
+  // cancels the timer and re-inserts the card at its original position.
+  const [undoJob, setUndoJob] = useState<SwipeJob | null>(null)
+  const pendingRejectRef = useRef<{ job: SwipeJob; index: number } | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showToast = (message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -215,32 +176,23 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     toastTimerRef.current = setTimeout(() => setToastMessage(null), 6000)
   }
 
-  const slideAnim = useRef(new Animated.Value(0)).current
-
+  // Glide a freshly-promoted top card in from the given side.
   const triggerSlideIn = (fromRight = true) => {
-    slideAnim.setValue(fromRight ? SCREEN_WIDTH : -SCREEN_WIDTH)
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 100,
-    }).start()
+    enterX.value = fromRight ? SCREEN_WIDTH : -SCREEN_WIDTH
+    enterX.value = withSpring(0, { damping: 20, stiffness: 150, overshootClamping: true })
   }
 
-  // The panResponder is built once via useRef, so its release handler would
-  // otherwise close over first-render versions of handleApprove/handleReject
-  // (which captured jobs=[] before the load effect ran, so its !approvedJob
-  // guard always tripped → card stuck mid-swipe). These refs are re-pointed
-  // to the latest handlers on every render so the panResponder always calls
-  // the current versions.
-  const approveRef = useRef<() => void>(() => {})
-  const rejectRef = useRef<() => void>(() => {})
-
-  // Same stale-closure problem applies to the panResponder's gate function,
-  // which reads isScrolling / isCardNavigating / isApplying. Those values
-  // are captured at first render (all false) and never see updates. This
-  // ref holds the latest values and is re-pointed every render below.
-  const gateRef = useRef({ isScrolling: false, isCardNavigating: false, isApplying: false })
+  // Fly the current top card off-screen in the given direction, then run the
+  // follow-up on the JS thread once the animation settles.
+  const animateOff = (toRight: boolean, after: () => void) => {
+    translateX.value = withTiming(
+      (toRight ? 1 : -1) * SCREEN_WIDTH * 1.2,
+      { duration: SWIPE_OFF_DURATION },
+      (finished) => {
+        if (finished) runOnJS(after)()
+      },
+    )
+  }
 
   // ── Swipe deck data (TanStack Query) ──────────────────────────────────
   // The deck is fetched once and cached + persisted to AsyncStorage, so the
@@ -252,11 +204,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     queryFn: jobsApi.getSwipeJobs,
   })
   const hasDeckData = swipeQuery.data !== undefined
-  // Full-screen spinner only when there's no cached deck to show yet (also
-  // covers the retry-after-error path, which is fetching with no data).
   const loading = !hasDeckData && (swipeQuery.isPending || swipeQuery.isFetching)
-  // Error screen only when the request failed, there's no cached deck, and
-  // we're not already retrying.
   const loadError = !hasDeckData && swipeQuery.isError && !swipeQuery.isFetching
 
   useEffect(() => {
@@ -275,202 +223,35 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     }
   }, [jobs, currentIndex])
 
-  // Reject path only — approve no longer routes through the undo modal.
-  const finalizeSwipeAction = () => {
-    const action = undoActionType
-    const indexToRemove = currentIndex
-    const swipedJob = jobs[indexToRemove]
-
-    if (action === 'reject' && swipedJob) {
-      setJobs((prevJobs) => {
-        const nextJobs = prevJobs.filter((_, idx) => idx !== indexToRemove)
-        setCurrentIndex((prevIndex) => {
-          if (nextJobs.length === 0) return 0
-          return Math.min(prevIndex, nextJobs.length - 1)
-        })
-        return nextJobs
-      })
-      syncRejectInBackground(swipedJob.id)
+  // Flush a pending reject immediately (commit the backend sync now). Used when
+  // a second reject happens before the first undo window lapses, and on unmount.
+  const flushPendingReject = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current)
+      undoTimerRef.current = null
     }
-
-    setShowUndoModal(false)
-    setUndoJob(null)
-    setUndoActionType(null)
-    pan.setValue({ x: 0, y: 0 })
-    triggerSlideIn(true)
-
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ y: 0, animated: false })
-    }
+    const pending = pendingRejectRef.current
+    pendingRejectRef.current = null
+    if (pending) syncRejectInBackground(pending.job.id)
   }
-
-  useEffect(() => {
-    if (showUndoModal) {
-      setUndoTimer(5)
-      progressAnim.setValue(0)
-
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: 5000,
-        useNativeDriver: false,
-      }).start()
-
-      undoTimerRef.current = setInterval(() => {
-        setUndoTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(undoTimerRef.current!)
-            finalizeSwipeAction()
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-
-      return () => {
-        if (undoTimerRef.current) clearInterval(undoTimerRef.current)
-      }
-    }
-  }, [showUndoModal, progressAnim, undoActionType])
 
   useEffect(() => {
     return () => {
-      if (navigationUnlockTimerRef.current) {
-        clearTimeout(navigationUnlockTimerRef.current)
-      }
-      if (undoTimerRef.current) {
-        clearInterval(undoTimerRef.current)
-      }
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current)
-      }
-      if (confirmTimerRef.current) {
-        clearInterval(confirmTimerRef.current)
-      }
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      // Don't strand an un-synced reject if the screen unmounts mid-window.
+      const pending = pendingRejectRef.current
+      if (pending) syncRejectInBackground(pending.job.id)
     }
   }, [])
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, { dx, dy }) => {
-        const flags = gateRef.current
-        const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
-        return isHorizontalSwipe && !flags.isScrolling && !flags.isCardNavigating && !flags.isApplying
-      },
-      onPanResponderGrant: () => {
-        slideAnim.stopAnimation()
-        slideAnim.setValue(0)
-        setIsScrolling(false)
-        pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
-        })
-      },
-      onPanResponderMove: (_, { dx }) => {
-        pan.x.setValue(dx)
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        pan.flattenOffset()
-
-        const isQuickRightFlick = vx > FLICK_VELOCITY_THRESHOLD && dx > 35
-        const isQuickLeftFlick = vx < -FLICK_VELOCITY_THRESHOLD && dx < -35
-        const isRightSwipe = dx > SWIPE_THRESHOLD || isQuickRightFlick
-        const isLeftSwipe = dx < -SWIPE_THRESHOLD || isQuickLeftFlick
-
-        if (isRightSwipe) {
-          approveRef.current()
-        } else if (isLeftSwipe) {
-          rejectRef.current()
-        } else {
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-            friction: 5,
-          }).start()
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          friction: 5,
-        }).start()
-      },
-    })
-  ).current
-
-  // Show the editable cover-letter card for a job and load its draft. Invoked
-  // after the user confirms on the confirmation card (Change 2). The deck is NOT
-  // mutated here; that happens only after a right-swipe (apply) on this card.
-  const startCoverLetterFlow = (job: SwipeJob) => {
-    if (!job || coverLetterJob) return
-    Haptics.selectionAsync().catch(() => {})
-
-    // Reset pan so the cover-letter card slides in centered.
-    pan.setValue({ x: 0, y: 0 })
-    setCoverLetterError(null)
-    setCoverLetterText('')
-    setCoverLetterApplying(false)
-    setCoverLetterLoading(true)
-    setCoverLetterJob(job)
-    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    triggerSlideIn(true)
-
-    // First-time intro popup (once per device).
-    AsyncStorage.getItem(COVER_LETTER_INTRO_KEY)
-      .then((seen) => {
-        if (!seen) setShowCoverLetterIntro(true)
-      })
-      .catch(() => {})
-
-    // Load the cover letter: AsyncStorage draft → backend draft → generate.
-    const token = ++coverLetterReqRef.current
-    ;(async () => {
-      let content = ''
-      try {
-        const local = await readLocalDraft(job.id)
-        if (local != null) {
-          content = local
-        } else {
-          try {
-            const draft = await applicationsApi.getDraftCoverLetter(job.id)
-            content = draft.cover_letter
-          } catch {
-            const gen = await applicationsApi.generateCoverLetter(job.id)
-            content = gen.cover_letter
-          }
-          await writeLocalDraft(job.id, content)
-        }
-      } catch {
-        // Generation failed — let the user write their own from scratch.
-        content = ''
-      }
-      // Ignore a stale fetch (user swiped away / started a newer one).
-      if (coverLetterReqRef.current !== token) return
-      setCoverLetterText(content)
-      setCoverLetterLoading(false)
-    })()
-  }
-
-  const dismissCoverLetterIntro = () => {
-    setShowCoverLetterIntro(false)
-    AsyncStorage.setItem(COVER_LETTER_INTRO_KEY, 'true').catch(() => {})
-  }
-
-  // Fly the cover-letter card off to the right, then drop the job from the deck
-  // and advance to the next card.
+  // Fly the confirm card off to the right, then drop the job from the deck and
+  // advance to the next card.
   const advanceDeckAfterApply = (jobId: number) => {
-    Animated.timing(pan.x, {
-      toValue: SCREEN_WIDTH * 1.2,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      pan.setValue({ x: 0, y: 0 })
-      setCoverLetterJob(null)
-      setCoverLetterText('')
-      setCoverLetterApplying(false)
-      setCoverLetterError(null)
-      setShowCoverLetterIntro(false)
+    animateOff(true, () => {
+      setConfirmJob(null)
+      setConfirmApplying(false)
+      setConfirmError(null)
       setJobs((prevJobs) => {
         const idx = prevJobs.findIndex((j) => j.id === jobId)
         if (idx === -1) return prevJobs
@@ -481,223 +262,220 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         })
         return nextJobs
       })
+      translateX.value = 0
       scrollViewRef.current?.scrollTo({ y: 0, animated: false })
       triggerSlideIn(true)
     })
   }
 
-  // Right swipe on the COVER-LETTER card → submit the application with the
-  // edited text. On success advance the deck; on error stay on the card.
-  const handleCoverLetterApply = async () => {
-    if (coverLetterApplying || coverLetterLoading || !coverLetterJob) return
-    const job = coverLetterJob
+  // ── Confirmation card ─────────────────────────────────────────────────────
+  // Right swipe / Accept on a JOB card → fly it off, then show the confirm card.
+  const handleShowConfirmation = () => {
+    const job = jobs[currentIndex]
+    if (!job || confirmJob) return
+    Haptics.selectionAsync().catch(() => {})
+    animateOff(true, () => {
+      translateX.value = 0
+      setConfirmApplying(false)
+      setConfirmError(null)
+      setConfirmJob(job)
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+      triggerSlideIn(true)
+    })
+  }
+
+  // Confirm (button or right-swipe) → submit the application. The backend
+  // generates the cover letter; everything else lives in the Dashboard.
+  const handleConfirmApply = async () => {
+    if (!confirmJob || confirmApplying) return
+    const job = confirmJob
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    setCoverLetterApplying(true)
-    setCoverLetterError(null)
+    setConfirmApplying(true)
+    setConfirmError(null)
     // Spring the card back to centre while the request is in flight.
-    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 5 }).start()
+    translateX.value = withSpring(0, { damping: 20, stiffness: 220, overshootClamping: true })
 
     try {
-      const result = await applicationsApi.apply(job.id, coverLetterText)
+      const result = await applicationsApi.apply(job.id)
       // Refresh the dashboard; and the quiz history if this job is quiz-gated.
       invalidateApplications()
       if (job.has_questions) invalidateCache.quizHistory()
-      await clearLocalDraft(job.id)
-
-      // Quiz-gated job: do NOT navigate to the quiz — point the user to the
-      // dashboard instead (Feature 1a).
       if (result.requires_quiz) {
-        showToast('This job requires a quiz. You can access it from your Dashboard → Quizzes.')
+        showToast('This job requires a quiz. You can take it from your Dashboard → Quizzes.')
       }
       advanceDeckAfterApply(job.id)
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.toLowerCase().includes('already applied')) {
-        await clearLocalDraft(job.id)
         advanceDeckAfterApply(job.id)
         return
       }
-      setCoverLetterError(msg || 'Could not submit application. Please try again.')
-      setCoverLetterApplying(false)
+      setConfirmError(msg || 'Could not submit application. Please try again.')
+      setConfirmApplying(false)
     }
   }
 
-  // Left swipe on the COVER-LETTER card → return to the same job card.
-  const handleCoverLetterBack = () => {
-    if (coverLetterApplying) return
-    Haptics.selectionAsync().catch(() => {})
-    coverLetterReqRef.current++ // cancel any in-flight cover-letter fetch
-    Animated.timing(pan.x, {
-      toValue: -SCREEN_WIDTH * 1.2,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      pan.setValue({ x: 0, y: 0 })
-      setCoverLetterJob(null)
-      setCoverLetterText('')
-      setCoverLetterLoading(false)
-      setCoverLetterError(null)
-      setShowCoverLetterIntro(false)
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-      triggerSlideIn(false) // job card slides back in from the left
-    })
-  }
-
-  // ── Confirmation card (Change 2) ──────────────────────────────────────────
-  const clearConfirmTimer = () => {
-    if (confirmTimerRef.current) {
-      clearInterval(confirmTimerRef.current)
-      confirmTimerRef.current = null
-    }
-    confirmProgressAnim.stopAnimation()
-  }
-
-  // Right swipe on a JOB card → show the confirmation card (no API call yet).
-  const handleShowConfirmation = () => {
-    const job = jobs[currentIndex]
-    if (!job || confirmJob || coverLetterJob) return
-    Haptics.selectionAsync().catch(() => {})
-    pan.setValue({ x: 0, y: 0 })
-    setConfirmJob(job)
-    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    triggerSlideIn(true)
-  }
-
-  // Confirm (button / right-swipe / 5s timeout) → start the cover-letter flow.
-  const handleConfirmApply = () => {
-    if (!confirmJob) return
-    clearConfirmTimer()
-    const job = confirmJob
-    setConfirmJob(null)
-    startCoverLetterFlow(job)
-  }
-
-  // Cancel (button / left-swipe) → return to the same job card, no API call.
+  // Cancel (button or left-swipe) → return to the same job card, no API call.
   const handleCancelConfirmation = () => {
-    clearConfirmTimer()
+    if (!confirmJob || confirmApplying) return
     Haptics.selectionAsync().catch(() => {})
-    Animated.timing(pan.x, {
-      toValue: -SCREEN_WIDTH * 1.2,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      pan.setValue({ x: 0, y: 0 })
+    animateOff(false, () => {
       setConfirmJob(null)
+      setConfirmError(null)
+      translateX.value = 0
       triggerSlideIn(false)
     })
   }
 
-  // 5-second confirmation countdown; auto-confirms when it reaches 0.
-  useEffect(() => {
-    if (!confirmJob) return
-    const job = confirmJob
-    setConfirmTimer(5)
-    confirmProgressAnim.setValue(0)
-    Animated.timing(confirmProgressAnim, {
-      toValue: 1,
-      duration: 5000,
-      useNativeDriver: false,
-    }).start()
-    confirmTimerRef.current = setInterval(() => {
-      setConfirmTimer((prev) => {
-        if (prev <= 1) {
-          if (confirmTimerRef.current) {
-            clearInterval(confirmTimerRef.current)
-            confirmTimerRef.current = null
-          }
-          setConfirmJob(null)
-          startCoverLetterFlow(job)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => {
-      if (confirmTimerRef.current) {
-        clearInterval(confirmTimerRef.current)
-        confirmTimerRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmJob, confirmProgressAnim])
-
-  const handleUndoAction = () => {
-    if (undoTimerRef.current) clearInterval(undoTimerRef.current)
-    setShowUndoModal(false)
-    setUndoJob(null)
-    setUndoActionType(null)
-
-    Animated.spring(pan, {
-      toValue: { x: 0, y: 0 },
-      useNativeDriver: false,
-      friction: 5,
-    }).start()
-  }
-
-  const handleConfirmAction = () => {
-    if (undoTimerRef.current) clearInterval(undoTimerRef.current)
-    finalizeSwipeAction()
-  }
-
-  const handleReject = async () => {
+  // ── Reject + undo snackbar ────────────────────────────────────────────────
+  const handleReject = () => {
     const rejectedJob = jobs[currentIndex]
     if (!rejectedJob) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {})
-
-    setUndoJob(rejectedJob)
-    setUndoActionType('reject')
-    setShowUndoModal(true)
-
-    pan.x.stopAnimation((currentX) => {
-      pan.x.setValue(currentX)
-      Animated.timing(pan.x, {
-        toValue: -SCREEN_WIDTH * 1.2,
-        duration: 300,
-        useNativeDriver: false,
-      }).start()
-    })
+    const index = currentIndex
+    animateOff(false, () => finalizeRejectVisual(rejectedJob, index))
   }
 
-  const handleGoToPrev = () => {
-    if (currentIndex <= 0 || jobs.length === 0) return
-    Haptics.selectionAsync().catch(() => {})
-    pan.setValue({ x: 0, y: 0 })
+  const finalizeRejectVisual = (job: SwipeJob, index: number) => {
+    // A new reject before the previous window lapsed → commit the old one now.
+    flushPendingReject()
+
+    setJobs((prevJobs) => {
+      const nextJobs = prevJobs.filter((_, idx) => idx !== index)
+      setCurrentIndex((prevIndex) => {
+        if (nextJobs.length === 0) return 0
+        return Math.min(prevIndex, nextJobs.length - 1)
+      })
+      return nextJobs
+    })
+    translateX.value = 0
     scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    setCurrentIndex((prev) => prev - 1)
+
+    // Arm the undo window. Backend sync is deferred until it lapses.
+    pendingRejectRef.current = { job, index }
+    setUndoJob(job)
+    undoBar.value = 1
+    undoBar.value = withTiming(0, { duration: UNDO_WINDOW_MS })
+    undoTimerRef.current = setTimeout(() => {
+      undoTimerRef.current = null
+      setUndoJob(null)
+      const pending = pendingRejectRef.current
+      pendingRejectRef.current = null
+      if (pending) syncRejectInBackground(pending.job.id)
+    }, UNDO_WINDOW_MS)
+  }
+
+  const handleUndoReject = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current)
+      undoTimerRef.current = null
+    }
+    const pending = pendingRejectRef.current
+    pendingRejectRef.current = null
+    setUndoJob(null)
+    undoBar.value = 0
+    if (!pending) return
+
+    Haptics.selectionAsync().catch(() => {})
+    // Re-insert the rejected job at its original position and return to it.
+    setJobs((prevJobs) => {
+      const next = [...prevJobs]
+      next.splice(Math.min(pending.index, next.length), 0, pending.job)
+      return next
+    })
+    setCurrentIndex(pending.index)
+    translateX.value = 0
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
     triggerSlideIn(false)
   }
 
-  const handleGoToNext = () => {
-    if (currentIndex >= jobs.length - 1 || jobs.length === 0) return
-    Haptics.selectionAsync().catch(() => {})
-    pan.setValue({ x: 0, y: 0 })
-    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    setCurrentIndex((prev) => prev + 1)
-    triggerSlideIn(true)
+  // Route a completed swipe to the right handler for the current card mode.
+  // These closures are rebuilt every render, and the Gesture object below is
+  // too, so there is no stale-closure problem (the old PanResponder needed refs
+  // to work around exactly this).
+  const onSwipeRight = () => {
+    if (confirmJob) handleConfirmApply()
+    else handleShowConfirmation()
+  }
+  const onSwipeLeft = () => {
+    if (confirmJob) handleCancelConfirmation()
+    else handleReject()
   }
 
-  // Keep the panResponder's call-points + gate flags pointed at the latest
-  // values. Runs after every render so the once-built panResponder never
-  // invokes a stale closure that captured the first-render state.
-  useEffect(() => {
-    if (coverLetterJob) {
-      approveRef.current = handleCoverLetterApply
-      rejectRef.current = handleCoverLetterBack
-    } else if (confirmJob) {
-      approveRef.current = handleConfirmApply
-      rejectRef.current = handleCancelConfirmation
-    } else {
-      approveRef.current = handleShowConfirmation
-      rejectRef.current = handleReject
-    }
-    // `isApplying` here gates the panResponder: block swipes while the cover
-    // letter is loading or an apply is in flight.
-    gateRef.current = {
-      isScrolling,
-      isCardNavigating,
-      isApplying: coverLetterLoading || coverLetterApplying,
+  const gestureEnabled = !confirmApplying
+
+  // activeOffsetX lets a vertical drag fall through to the inner ScrollView
+  // (job description) while still claiming horizontal swipes for the card.
+  const panGesture = Gesture.Pan()
+    .enabled(gestureEnabled)
+    .activeOffsetX([-12, 12])
+    .onUpdate((e) => {
+      translateX.value = e.translationX
+    })
+    .onEnd((e) => {
+      const isRight =
+        e.translationX > SWIPE_THRESHOLD ||
+        (e.velocityX > FLICK_VELOCITY_PX && e.translationX > 35)
+      const isLeft =
+        e.translationX < -SWIPE_THRESHOLD ||
+        (e.velocityX < -FLICK_VELOCITY_PX && e.translationX < -35)
+
+      if (isRight) {
+        runOnJS(onSwipeRight)()
+      } else if (isLeft) {
+        runOnJS(onSwipeLeft)()
+      } else {
+        translateX.value = withSpring(0, { damping: 20, stiffness: 220, overshootClamping: true })
+      }
+    })
+
+  // ── Animated styles ───────────────────────────────────────────────────────
+  const enterStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: enterX.value }],
+  }))
+
+  const topCardStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(
+      translateX.value,
+      [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+      [-10, 0, 10],
+      Extrapolation.CLAMP,
+    )
+    const opacity = interpolate(
+      Math.abs(translateX.value),
+      [0, SCREEN_WIDTH],
+      [1, 0.5],
+      Extrapolation.CLAMP,
+    )
+    return {
+      transform: [{ translateX: translateX.value }, { rotate: `${rotate}deg` }],
+      opacity,
     }
   })
+
+  // The card peeking behind scales up and fades in as the top card is dragged.
+  const behindCardStyle = useAnimatedStyle(() => {
+    const progress = interpolate(
+      Math.abs(translateX.value),
+      [0, SWIPE_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP,
+    )
+    return {
+      transform: [{ scale: 0.94 + 0.06 * progress }],
+      opacity: 0.55 + 0.45 * progress,
+    }
+  })
+
+  const approveOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+  }))
+  const rejectOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
+  }))
+  const undoBarStyle = useAnimatedStyle(() => ({
+    width: `${Math.max(0, Math.min(1, undoBar.value)) * 100}%`,
+  }))
 
   const formatSalary = (min?: number, max?: number) => {
     if (!min && !max) return 'Salary not specified'
@@ -752,8 +530,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   if (jobs.length === 0 || currentIndex >= jobs.length) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}> 
-        <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={{ marginLeft: 4, flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
           </View>
@@ -781,42 +559,35 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     return null
   }
 
-  const rotate = pan.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ['-10deg', '0deg', '10deg'],
-    extrapolate: 'clamp',
-  })
+  // The card peeking behind the top one — only shown on a plain job card (not
+  // while the confirm card is up).
+  const nextJob = !confirmJob ? bufferedJobs[currentIndex + 1 - bufferStartIndex] : undefined
 
-  const animatedCardStyle = {
-    transform: [{ translateX: pan.x }, { rotate }],
-    opacity: pan.x.interpolate({
-      inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-      outputRange: [0.5, 1, 0.5],
-      extrapolate: 'clamp',
-    }),
-  }
-
-  const companyInitials = (currentJob.company || 'Unknown Company')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'UC'
+  const companyInitials = computeInitials(currentJob.company)
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}> 
-      <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={{ marginLeft: 4, flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
         </View>
+        <TouchableOpacity
+          onPress={() => {
+            if (!currentJob || confirmJob) return
+            router.push(`/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any)
+          }}
+          disabled={!!confirmJob}
+          hitSlop={8}
+          style={[styles.headerAiBtn, { borderColor: colors.border }, !!confirmJob && { opacity: 0.4 }]}
+        >
+          <Ionicons name="sparkles" size={18} color="#7c3aed" />
+        </TouchableOpacity>
       </View>
 
       {showSectionHint && (
         <View style={[styles.sectionHint, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
           <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-          <Text style={[styles.sectionHintText, { color: colors.primary }]}>Swipe right to accept • left to reject • use Previous/Next buttons to browse</Text>
+          <Text style={[styles.sectionHintText, { color: colors.primary }]}>Swipe right to apply • left to reject • manage everything in your Dashboard</Text>
           <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
             <Ionicons name="close" size={16} color={colors.primary} />
           </TouchableOpacity>
@@ -824,377 +595,233 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       )}
 
       <View style={[styles.cardContainer, { backgroundColor: colors.background }]}>
-        <Animated.View
-          style={{ width: '100%', height: '100%', transform: [{ translateX: slideAnim }] }}
-          pointerEvents="box-none"
-        >
-        <Animated.View style={[animatedCardStyle, { width: '100%', height: '100%' }]} {...panResponder.panHandlers}>
-          {confirmJob ? (
-          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
-            <CardContent style={styles.cardContent}>
-              <View style={styles.confirmCardInner}>
-                <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>
-                  {confirmJob.title}
-                </Text>
-                <Text style={[styles.coverLetterCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {confirmJob.company}
-                </Text>
-                <Text style={[styles.confirmPrompt, { color: colors.cardForeground }]}>Apply to this job?</Text>
-                <Text style={[styles.confirmNote, { color: colors.mutedForeground }]}>
-                  We&apos;ll prepare a tailored cover letter you can review and edit before applying.
-                </Text>
-                <View style={styles.timerContainer}>
-                  <Animated.View
-                    style={[
-                      styles.timerRing,
-                      {
-                        transform: [
-                          {
-                            rotate: confirmProgressAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ['0deg', '360deg'],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    <View style={[styles.timerRingInner, { borderColor: colors.primary }]} />
-                  </Animated.View>
-                  <View style={[styles.timerCenter, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.timerText, { color: colors.primary }]}>{confirmTimer}s</Text>
-                  </View>
-                </View>
-                <View style={styles.confirmButtonsRow}>
-                  <Button onPress={handleCancelConfirmation} style={[styles.confirmCardButton, { backgroundColor: colors.muted }]}>
-                    <Text style={[styles.undoActionText, { color: colors.mutedForeground }]}>Cancel</Text>
-                  </Button>
-                  <Button onPress={handleConfirmApply} style={[styles.confirmCardButton, { backgroundColor: colors.primary }]}>
-                    <Text style={[styles.undoActionText, { color: '#fff' }]}>Confirm</Text>
-                  </Button>
-                </View>
-                <Text style={[styles.coverLetterInstructions, { color: colors.mutedForeground }]}>
-                  Swipe right to confirm · Swipe left to cancel
-                </Text>
-              </View>
-            </CardContent>
-          </Card>
-          ) : coverLetterJob ? (
-          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
-            <CardContent style={styles.cardContent}>
-              <View style={styles.coverLetterCardInner}>
-                <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>
-                  {coverLetterJob.title}
-                </Text>
-                <Text style={[styles.coverLetterCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {coverLetterJob.company}
-                </Text>
-                <Text style={[styles.coverLetterLabel, { color: colors.mutedForeground }]}>
-                  YOUR COVER LETTER (EDITABLE)
-                </Text>
-                {coverLetterLoading ? (
-                  <View style={styles.coverLetterLoadingWrap}>
-                    <ActivityIndicator color={colors.primary} />
-                    <Text style={[styles.coverLetterLoadingText, { color: colors.mutedForeground }]}>
-                      Preparing your cover letter…
-                    </Text>
-                  </View>
-                ) : (
-                  <TextInput
-                    value={coverLetterText}
-                    onChangeText={setCoverLetterText}
-                    editable={!coverLetterApplying}
-                    multiline
-                    placeholder="Write your cover letter…"
-                    placeholderTextColor={colors.mutedForeground}
-                    style={[
-                      styles.coverLetterInput,
-                      { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
-                    ]}
-                  />
-                )}
-                {coverLetterError ? (
-                  <Text style={styles.coverLetterErrorText}>{coverLetterError}</Text>
-                ) : null}
-                {coverLetterApplying ? (
-                  <View style={styles.coverLetterApplyingRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={[styles.coverLetterLoadingText, { color: colors.mutedForeground }]}>Submitting…</Text>
-                  </View>
-                ) : null}
-                <Text style={[styles.coverLetterInstructions, { color: colors.mutedForeground }]}>
-                  Swipe right to apply · Swipe left to go back
-                </Text>
-              </View>
-            </CardContent>
-          </Card>
-          ) : (
-          <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
-            <CardContent style={styles.cardContent}>
-              {currentJob.has_questions ? (
-                <View style={styles.quizBadgeWrapper} pointerEvents="none">
-                  <View style={styles.quizBadge}>
-                    <Ionicons name="help-circle" size={12} color="#fff" />
-                    <Text style={styles.quizBadgeText}>Includes Quiz</Text>
-                  </View>
-                </View>
-              ) : null}
-              <View style={styles.cardTimestampWrapper} pointerEvents="none">
-                <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
-                  {formatRelativeTime(currentJob.posted_at)}
-                </Text>
-              </View>
-              <ScrollView
-                ref={scrollViewRef}
-                showsVerticalScrollIndicator={true}
-                bounces={true}
-                scrollEnabled={true}
-                onScrollBeginDrag={() => setIsScrolling(true)}
-                onScrollEndDrag={() => setIsScrolling(false)}
-                onMomentumScrollEnd={() => setIsScrolling(false)}
-                scrollEventThrottle={16}
-              >
-                <View style={styles.profileHeader}>
-                  <Avatar size={96} style={{ marginBottom: 12, borderWidth: 3, borderColor: colors.primary }}>
-                    <AvatarFallback
-                      style={{
-                        backgroundColor: colors.primary,
-                        width: 96,
-                        height: 96,
-                        borderRadius: 48,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Text style={{ fontSize: 34, fontWeight: '700', color: '#fff' }}>{companyInitials}</Text>
-                    </AvatarFallback>
-                  </Avatar>
-                  <Text style={[styles.applicantName, { color: colors.cardForeground }]}>{currentJob.title}</Text>
-                  <Text style={[styles.applicantEmail, { color: colors.mutedForeground }]}>{currentJob.company}</Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.appliedForSection,
-                    {
-                      backgroundColor: colors.primary + '15',
-                      borderColor: colors.primary + '30',
-                    },
-                  ]}
-                >
-                  <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Employment</Text>
-                  <Text style={[styles.appliedForTitle, { color: colors.cardForeground }]}>{currentJob.type}</Text>
-                  <Text style={[styles.appliedAt, { color: colors.mutedForeground }]}>Posted {formatRelativeTime(currentJob.posted_at)}</Text>
-                </View>
-
-                <View style={styles.infoGrid}>
-                  <View style={styles.infoItem}>
-                    <Ionicons name="location-outline" size={20} color={colors.mutedForeground} />
-                    <Text style={[styles.infoText, { color: colors.mutedForeground }]}>{currentJob.location}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Ionicons name="cash-outline" size={20} color={colors.mutedForeground} />
-                    <Text style={[styles.infoText, { color: colors.mutedForeground }]}>{formatSalary(currentJob.salary_min, currentJob.salary_max)}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.skillsSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Requirements</Text>
-                  <View style={styles.skillsContainer}>
-                    {currentJob.requirements.map((requirement, index) => (
-                      <Badge
-                        key={`${currentJob.id}-req-${index}`}
+        <View style={styles.cardStack}>
+          {/* Peek of the next card behind the top one */}
+          {nextJob ? (
+            <Animated.View style={[styles.cardStackLayer, behindCardStyle]} pointerEvents="none">
+              <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
+                <CardContent style={styles.cardContent}>
+                  <View style={styles.behindCardInner}>
+                    <Avatar size={72} style={{ marginBottom: 12, borderWidth: 3, borderColor: colors.primary }}>
+                      <AvatarFallback
                         style={{
-                          backgroundColor: colors.secondary,
-                          marginBottom: 8,
-                          marginRight: 8,
+                          backgroundColor: colors.primary,
+                          width: 72,
+                          height: 72,
+                          borderRadius: 36,
+                          justifyContent: 'center',
+                          alignItems: 'center',
                         }}
                       >
-                        <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{requirement}</Text>
-                      </Badge>
-                    ))}
+                        <Text style={{ fontSize: 26, fontWeight: '700', color: '#fff' }}>{computeInitials(nextJob.company)}</Text>
+                      </AvatarFallback>
+                    </Avatar>
+                    <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>{nextJob.title}</Text>
+                    <Text style={[styles.applicantEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{nextJob.company}</Text>
+                    <Text style={[styles.behindCardType, { color: colors.mutedForeground }]} numberOfLines={1}>{nextJob.type}</Text>
                   </View>
-                </View>
+                </CardContent>
+              </Card>
+            </Animated.View>
+          ) : null}
 
-                <View style={styles.bioSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Job Description</Text>
-                  <Text style={[styles.bioText, { color: colors.mutedForeground }]}>{currentJob.description}</Text>
-                </View>
+          {/* Top card (slide-in wrapper → drag/rotate layer → gesture) */}
+          <Animated.View style={[styles.cardStackLayer, enterStyle]} pointerEvents="box-none">
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={[topCardStyle, { width: '100%', height: '100%' }]}>
+                {confirmJob ? (
+                  <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
+                    <CardContent style={styles.cardContent}>
+                      <View style={styles.confirmCardInner}>
+                        <Text style={[styles.applicantName, { color: colors.cardForeground }]} numberOfLines={2}>
+                          {confirmJob.title}
+                        </Text>
+                        <Text style={[styles.confirmCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
+                          {confirmJob.company}
+                        </Text>
+                        <Text style={[styles.confirmPrompt, { color: colors.cardForeground }]}>Apply to this job?</Text>
+                        <Text style={[styles.confirmNote, { color: colors.mutedForeground }]}>
+                          We&apos;ll attach your resume and a tailored cover letter — review them anytime from your Dashboard.
+                        </Text>
+                        {confirmJob.has_questions ? (
+                          <View style={styles.confirmQuizRow}>
+                            <Ionicons name="help-circle" size={16} color="#f59e0b" />
+                            <Text style={[styles.confirmQuizText, { color: colors.mutedForeground }]}>
+                              Includes a quiz you can take from your Dashboard.
+                            </Text>
+                          </View>
+                        ) : null}
+                        {confirmError ? (
+                          <Text style={styles.confirmErrorText}>{confirmError}</Text>
+                        ) : null}
+                        {confirmApplying ? (
+                          <View style={styles.confirmApplyingRow}>
+                            <ActivityIndicator size="small" color={colors.primary} />
+                            <Text style={[styles.confirmApplyingText, { color: colors.mutedForeground }]}>Submitting…</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.confirmButtonsRow}>
+                            <Button onPress={handleCancelConfirmation} style={[styles.confirmCardButton, { backgroundColor: colors.muted }]}>
+                              <Text style={[styles.undoActionText, { color: colors.mutedForeground }]}>Cancel</Text>
+                            </Button>
+                            <Button onPress={handleConfirmApply} style={[styles.confirmCardButton, { backgroundColor: colors.primary }]}>
+                              <Text style={[styles.undoActionText, { color: '#fff' }]}>Confirm</Text>
+                            </Button>
+                          </View>
+                        )}
+                        <Text style={[styles.confirmInstructions, { color: colors.mutedForeground }]}>
+                          Swipe right to apply · Swipe left to cancel
+                        </Text>
+                      </View>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card style={[styles.jobCard, { backgroundColor: colors.card }]}>
+                    <CardContent style={styles.cardContent}>
+                      {currentJob.has_questions ? (
+                        <View style={styles.quizBadgeWrapper} pointerEvents="none">
+                          <View style={styles.quizBadge}>
+                            <Ionicons name="help-circle" size={12} color="#fff" />
+                            <Text style={styles.quizBadgeText}>Includes Quiz</Text>
+                          </View>
+                        </View>
+                      ) : null}
+                      <View style={styles.cardTimestampWrapper} pointerEvents="none">
+                        <Text style={[styles.cardTimestamp, { color: colors.mutedForeground }]}>
+                          {formatRelativeTime(currentJob.posted_at)}
+                        </Text>
+                      </View>
+                      <ScrollView
+                        ref={scrollViewRef}
+                        showsVerticalScrollIndicator={true}
+                        bounces={true}
+                        scrollEnabled={true}
+                        scrollEventThrottle={16}
+                      >
+                        <View style={styles.profileHeader}>
+                          <Avatar size={96} style={{ marginBottom: 12, borderWidth: 3, borderColor: colors.primary }}>
+                            <AvatarFallback
+                              style={{
+                                backgroundColor: colors.primary,
+                                width: 96,
+                                height: 96,
+                                borderRadius: 48,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Text style={{ fontSize: 34, fontWeight: '700', color: '#fff' }}>{companyInitials}</Text>
+                            </AvatarFallback>
+                          </Avatar>
+                          <Text style={[styles.applicantName, { color: colors.cardForeground }]}>{currentJob.title}</Text>
+                          <Text style={[styles.applicantEmail, { color: colors.mutedForeground }]}>{currentJob.company}</Text>
+                        </View>
 
-                <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← Swipe to Reject or Accept →</Text>
-              </ScrollView>
-            </CardContent>
-          </Card>
-          )}
+                        <View
+                          style={[
+                            styles.appliedForSection,
+                            {
+                              backgroundColor: colors.primary + '15',
+                              borderColor: colors.primary + '30',
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Employment</Text>
+                          <Text style={[styles.appliedForTitle, { color: colors.cardForeground }]}>{currentJob.type}</Text>
+                          <Text style={[styles.appliedAt, { color: colors.mutedForeground }]}>Posted {formatRelativeTime(currentJob.posted_at)}</Text>
+                        </View>
 
-          <Animated.View
-            style={[
-              styles.swipeOverlay,
-              {
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                opacity: isCardNavigating
-                  ? 0
-                  : pan.x.interpolate({
-                      inputRange: [0, SWIPE_THRESHOLD],
-                      outputRange: [0, 1],
-                      extrapolate: 'clamp',
-                    }),
-              },
-            ]}
-            pointerEvents="none"
-          >
-            <View style={[styles.swipeIcon, { backgroundColor: '#10b981', transform: [{ rotate: '12deg' }] }]}>
-              <Ionicons name="checkmark" size={48} color="#fff" />
-            </View>
-          </Animated.View>
+                        <View style={styles.infoGrid}>
+                          <View style={styles.infoItem}>
+                            <Ionicons name="location-outline" size={20} color={colors.mutedForeground} />
+                            <Text style={[styles.infoText, { color: colors.mutedForeground }]}>{currentJob.location}</Text>
+                          </View>
+                          <View style={styles.infoItem}>
+                            <Ionicons name="cash-outline" size={20} color={colors.mutedForeground} />
+                            <Text style={[styles.infoText, { color: colors.mutedForeground }]}>{formatSalary(currentJob.salary_min, currentJob.salary_max)}</Text>
+                          </View>
+                        </View>
 
-          <Animated.View
-            style={[
-              styles.swipeOverlay,
-              {
-                backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                opacity: isCardNavigating
-                  ? 0
-                  : pan.x.interpolate({
-                      inputRange: [-SWIPE_THRESHOLD, 0],
-                      outputRange: [1, 0],
-                      extrapolate: 'clamp',
-                    }),
-              },
-            ]}
-            pointerEvents="none"
-          >
-            <View style={[styles.swipeIcon, { backgroundColor: '#ef4444', transform: [{ rotate: '-12deg' }] }]}>
-              <Ionicons name="close" size={48} color="#fff" />
-            </View>
-          </Animated.View>
-        </Animated.View>
-        </Animated.View>
-      </View>
+                        <View style={styles.skillsSection}>
+                          <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Requirements</Text>
+                          <View style={styles.skillsContainer}>
+                            {currentJob.requirements.map((requirement, index) => (
+                              <Badge
+                                key={`${currentJob.id}-req-${index}`}
+                                style={{
+                                  backgroundColor: colors.secondary,
+                                  marginBottom: 8,
+                                  marginRight: 8,
+                                }}
+                              >
+                                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{requirement}</Text>
+                              </Badge>
+                            ))}
+                          </View>
+                        </View>
 
-      <View style={[styles.actionButtonsContainer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
-        {(() => {
-          const noJobs = jobs.length === 0
-          const navDisabled =
-            noJobs || showUndoModal || isCardNavigating || coverLetterJob !== null || confirmJob !== null
-          const prevDisabled = navDisabled || currentIndex <= 0
-          const nextDisabled = navDisabled || currentIndex >= jobs.length - 1
-          return (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  styles.navButton,
-                  prevDisabled && styles.navButtonDisabled,
-                ]}
-                onPress={handleGoToPrev}
-                disabled={prevDisabled}
-              >
-                <Ionicons name="chevron-back" size={28} color={prevDisabled ? '#9ca3af' : '#fff'} />
-              </TouchableOpacity>
+                        <View style={styles.bioSection}>
+                          <Text style={[styles.sectionTitle, { color: colors.cardForeground }]}>Job Description</Text>
+                          <Text style={[styles.bioText, { color: colors.mutedForeground }]}>{currentJob.description}</Text>
+                        </View>
 
-              <TouchableOpacity
-                style={[styles.aiMatchButton, (coverLetterJob || confirmJob) && { opacity: 0.5 }]}
-                disabled={!!coverLetterJob || !!confirmJob}
-                onPress={() => {
-                  if (!currentJob || coverLetterJob || confirmJob) return
-                  router.push(
-                    `/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any
-                  )
-                }}
-              >
-                <Ionicons name="funnel" size={26} color="white" />
-              </TouchableOpacity>
+                        <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← Swipe to Reject or Apply →</Text>
+                      </ScrollView>
+                    </CardContent>
+                  </Card>
+                )}
 
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  styles.navButton,
-                  nextDisabled && styles.navButtonDisabled,
-                ]}
-                onPress={handleGoToNext}
-                disabled={nextDisabled}
-              >
-                <Ionicons name="chevron-forward" size={28} color={nextDisabled ? '#9ca3af' : '#fff'} />
-              </TouchableOpacity>
-            </>
-          )
-        })()}
-      </View>
-
-      <Modal visible={showUndoModal} transparent={true} animationType="fade" onRequestClose={handleUndoAction}>
-        <View style={styles.undoModalOverlay}>
-          <Card style={[styles.undoCard, { backgroundColor: colors.card }]}> 
-            <CardContent style={styles.undoCardContent}>
-              <Text style={[styles.undoTitle, { color: colors.foreground }]}>
-                Job Rejected!
-              </Text>
-              <Text style={[styles.undoDescription, { color: colors.mutedForeground }]}> 
-                {undoJob?.title} at {undoJob?.company} marked as rejected
-              </Text>
-
-              <View style={styles.timerContainer}>
                 <Animated.View
                   style={[
-                    styles.timerRing,
-                    {
-                      transform: [
-                        {
-                          rotate: progressAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0deg', '360deg'],
-                          }),
-                        },
-                      ],
-                    },
+                    styles.swipeOverlay,
+                    { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+                    approveOverlayStyle,
                   ]}
+                  pointerEvents="none"
                 >
-                  <View
-                    style={[
-                      styles.timerRingInner,
-                      { borderColor: undoActionType === 'reject' ? '#ef4444' : colors.primary },
-                    ]}
-                  />
+                  <View style={[styles.swipeIcon, { backgroundColor: '#10b981', transform: [{ rotate: '12deg' }] }]}>
+                    <Ionicons name="checkmark" size={48} color="#fff" />
+                  </View>
                 </Animated.View>
-                <View style={[styles.timerCenter, { backgroundColor: colors.card }]}>
-                  <Text style={styles.timerText}>{undoTimer}s</Text>
-                </View>
-              </View>
 
-              <View style={styles.undoButtonsRow}>
-                <Button onPress={handleUndoAction} style={[styles.undoActionButton, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.undoActionText, { color: colors.mutedForeground }]}>Undo</Text>
-                </Button>
-                <Button
-                  onPress={handleConfirmAction}
+                <Animated.View
                   style={[
-                    styles.undoActionButton,
-                    { backgroundColor: undoActionType === 'reject' ? '#ef4444' : colors.primary },
+                    styles.swipeOverlay,
+                    { backgroundColor: 'rgba(239, 68, 68, 0.15)' },
+                    rejectOverlayStyle,
                   ]}
+                  pointerEvents="none"
                 >
-                  <Text style={[styles.undoActionText, { color: '#fff' }]}>
-                    {undoActionType === 'reject' ? 'Reject' : 'Confirm'}
-                  </Text>
-                </Button>
-              </View>
-            </CardContent>
-          </Card>
+                  <View style={[styles.swipeIcon, { backgroundColor: '#ef4444', transform: [{ rotate: '-12deg' }] }]}>
+                    <Ionicons name="close" size={48} color="#fff" />
+                  </View>
+                </Animated.View>
+              </Animated.View>
+            </GestureDetector>
+          </Animated.View>
         </View>
-      </Modal>
+      </View>
 
-      {/* First-time cover-letter intro popup (Feature 2c) */}
-      {coverLetterJob && showCoverLetterIntro ? (
-        <View style={[styles.introPopup, { backgroundColor: colors.primary, top: insets.top + 60 }]}>
-          <Text style={styles.introPopupText}>
-            You can edit this cover letter. Swipe right to apply, or swipe left to go back.
-          </Text>
-          <TouchableOpacity onPress={dismissCoverLetterIntro} hitSlop={8} style={styles.introPopupClose}>
-            <Ionicons name="close" size={18} color="#fff" />
-          </TouchableOpacity>
+      {/* Reject undo snackbar (non-blocking) */}
+      {undoJob ? (
+        <View style={[styles.undoSnackbarWrap, { bottom: insets.bottom + 20 }]} pointerEvents="box-none">
+          <View style={[styles.undoSnackbar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.undoSnackbarTextWrap}>
+              <Text style={[styles.undoSnackbarTitle, { color: colors.foreground }]} numberOfLines={1}>Job rejected</Text>
+              <Text style={[styles.undoSnackbarSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {undoJob.title}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={handleUndoReject} style={[styles.undoSnackbarBtn, { backgroundColor: colors.primary }]} hitSlop={8}>
+              <Ionicons name="arrow-undo" size={16} color="#fff" />
+              <Text style={styles.undoSnackbarBtnText}>Undo</Text>
+            </TouchableOpacity>
+            <Animated.View style={[styles.undoSnackbarBar, { backgroundColor: colors.primary }, undoBarStyle]} />
+          </View>
         </View>
       ) : null}
 
-      {/* Dismissable toast (e.g. quiz-in-dashboard message, Feature 1a) */}
+      {/* Dismissable toast (e.g. quiz-in-dashboard message) */}
       {toastMessage ? (
         <View style={styles.toastWrap} pointerEvents="box-none">
           <View style={[styles.toast, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1206,7 +833,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         </View>
       ) : null}
 
-    </View>
+    </GestureHandlerRootView>
   )
 }
 
@@ -1235,6 +862,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  cardStack: {
+    flex: 1,
+    width: '100%',
+  },
+  cardStackLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  behindCardInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  behindCardType: {
+    fontSize: 13,
+    marginTop: 6,
   },
   jobCard: {
     width: '100%',
@@ -1344,58 +988,14 @@ const styles = StyleSheet.create({
   sectionHintClose: {
     padding: 2,
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  headerAiBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    gap: 16,
-  },
-  actionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
     justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  navButton: {
-    backgroundColor: '#334155',
-  },
-  navButtonDisabled: {
-    backgroundColor: '#e5e7eb',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  rejectButton: {
-    backgroundColor: '#ef4444',
-  },
-  approveButton: {
-    backgroundColor: '#10b981',
-  },
-  actionButtonDisabled: {
-    backgroundColor: '#e5e7eb',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  aiMatchButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#7c3aed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    marginRight: 4,
   },
   swipeOverlay: {
     position: 'absolute',
@@ -1437,82 +1037,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  undoModalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingHorizontal: 24,
-  },
-  undoCard: {
-    width: '100%',
-    maxWidth: 320,
-  },
-  undoCardContent: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  undoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  undoDescription: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  timerContainer: {
-    width: 140,
-    height: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  timerRing: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timerRingInner: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 6,
-    borderStyle: 'solid',
-  },
-  timerCenter: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  timerText: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  undoButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-    marginBottom: 8,
-  },
-  undoActionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   undoActionText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  // ── Quiz badge (Feature 1a) ──────────────────────────────────────────
+  // ── Quiz badge ───────────────────────────────────────────────────────
   quizBadgeWrapper: { position: 'absolute', top: 12, left: 12, zIndex: 10 },
   quizBadge: {
     flexDirection: 'row',
@@ -1524,51 +1053,52 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   quizBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  // ── Cover-letter card (Feature 2b) ───────────────────────────────────
-  coverLetterCardInner: { flex: 1, paddingTop: 24, paddingHorizontal: 16, paddingBottom: 16 },
-  coverLetterCompany: { fontSize: 14, textAlign: 'center', marginBottom: 16 },
-  coverLetterLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
-  coverLetterLoadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  coverLetterLoadingText: { fontSize: 13 },
-  coverLetterInput: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlignVertical: 'top',
-    marginBottom: 12,
-  },
-  coverLetterErrorText: { color: '#ef4444', fontSize: 13, marginBottom: 8 },
-  coverLetterApplyingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  coverLetterInstructions: { fontSize: 12, textAlign: 'center', marginTop: 4 },
-  // ── Confirmation card (Change 2) ──────────────────────────────────────
+  // ── Confirmation card ─────────────────────────────────────────────────
   confirmCardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  confirmCompany: { fontSize: 14, textAlign: 'center', marginBottom: 8 },
   confirmPrompt: { fontSize: 20, fontWeight: '700', marginTop: 8 },
   confirmNote: { fontSize: 14, textAlign: 'center', paddingHorizontal: 8, lineHeight: 20 },
+  confirmQuizRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8 },
+  confirmQuizText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  confirmErrorText: { color: '#ef4444', fontSize: 13, textAlign: 'center', paddingHorizontal: 8 },
+  confirmApplyingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  confirmApplyingText: { fontSize: 14 },
   confirmButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 8 },
   confirmCardButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  // ── First-time intro popup (Feature 2c) ──────────────────────────────
-  introPopup: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
+  confirmInstructions: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  // ── Reject undo snackbar ─────────────────────────────────────────────
+  undoSnackbarWrap: { position: 'absolute', left: 16, right: 16, alignItems: 'center', zIndex: 30 },
+  undoSnackbar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    padding: 12,
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    zIndex: 30,
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 440,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
   },
-  introPopupText: { flex: 1, color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '500' },
-  introPopupClose: { padding: 2 },
-  // ── Dismissable toast (Feature 1a) ───────────────────────────────────
+  undoSnackbarTextWrap: { flex: 1 },
+  undoSnackbarTitle: { fontSize: 14, fontWeight: '700' },
+  undoSnackbarSub: { fontSize: 12, marginTop: 2 },
+  undoSnackbarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  undoSnackbarBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  undoSnackbarBar: { position: 'absolute', left: 0, bottom: 0, height: 3 },
+  // ── Dismissable toast ────────────────────────────────────────────────
   toastWrap: { position: 'absolute', left: 16, right: 16, bottom: 96, alignItems: 'center', zIndex: 30 },
   toast: {
     flexDirection: 'row',

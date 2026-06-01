@@ -42,4 +42,8 @@ export const queryKeys = {
     /** Jobseeker notification feed (`notificationsApi.getNotifications()`). */
     list: () => ['notifications', 'list'] as const,
   },
+  profile: {
+    /** The jobseeker's uploaded resumes (`profileApi.getResumes()`). */
+    resumes: () => ['profile', 'resumes'] as const,
+  },
 } as const;
