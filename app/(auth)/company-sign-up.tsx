@@ -3,13 +3,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { authApi, getRouteForUserState } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function CompanySignUpScreen() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function CompanySignUpScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
   
   // Create refs for each input field
   const companyNameRef = useRef<TextInput>(null);
@@ -56,22 +58,38 @@ export default function CompanySignUpScreen() {
   const handleSubmit = async () => {
     // Basic validation
     if (!formData.companyName || !formData.email || !formData.password || !formData.confirmPassword) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields');
+      setAlertConfig({
+        title: 'Missing Fields',
+        message: 'Please fill in all required fields',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Password Mismatch', 'Passwords do not match');
+      setAlertConfig({
+        title: 'Password Mismatch',
+        message: 'Passwords do not match',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     if (formData.password.length < 8) {
-      Alert.alert('Password Too Short', 'Password must be at least 8 characters');
+      setAlertConfig({
+        title: 'Password Too Short',
+        message: 'Password must be at least 8 characters',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     if (!agreedToTerms) {
-      Alert.alert('Terms Required', 'Please agree to the Terms of Service to continue');
+      setAlertConfig({
+        title: 'Terms Required',
+        message: 'Please agree to the Terms of Service to continue',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
@@ -97,7 +115,7 @@ export default function CompanySignUpScreen() {
         errorMessage = error.message;
       }
       
-      Alert.alert('Registration Failed', errorMessage);
+      setAlertConfig({ title: 'Registration Failed', message: errorMessage, buttons: [{ label: 'OK' }] });
     } finally {
       setLoading(false);
     }
@@ -106,7 +124,11 @@ export default function CompanySignUpScreen() {
   // TODO: Temporary bypass - Click on "Terms of Service" text to skip form filling during development
   const handleTermsClick = () => {
     // No longer available - must go through proper registration
-    Alert.alert('Notice', 'Please complete the registration form to continue');
+    setAlertConfig({
+      title: 'Notice',
+      message: 'Please complete the registration form to continue',
+      buttons: [{ label: 'OK' }],
+    });
   };
 
   return (
@@ -269,6 +291,14 @@ export default function CompanySignUpScreen() {
       </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

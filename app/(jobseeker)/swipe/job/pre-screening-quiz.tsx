@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal'
 import { Colors } from '@/constants/theme'
 import { invalidateCache } from '@/lib/query-client'
 import {
@@ -14,7 +15,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -68,6 +68,7 @@ export default function PreScreeningQuizScreen() {
   const [result, setResult] = useState<QuizSubmitResponse | null>(null)
   const [coverLetterExpanded, setCoverLetterExpanded] = useState(false)
   const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION_SECONDS)
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null)
   const submittedRef = useRef(false)
 
   const questions = quiz?.questions ?? []
@@ -95,7 +96,11 @@ export default function PreScreeningQuizScreen() {
       invalidateCache.applications()
     } catch (err: any) {
       submittedRef.current = false
-      Alert.alert('Submission Failed', err?.message ?? 'Could not submit the quiz.')
+      setAlertConfig({
+        title: 'Submission Failed',
+        message: err?.message ?? 'Could not submit the quiz.',
+        buttons: [{ label: 'OK' }],
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -375,6 +380,14 @@ export default function PreScreeningQuizScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   )
 }

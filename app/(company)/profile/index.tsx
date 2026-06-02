@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { clearCachedData } from '@/lib/query-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -14,7 +15,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -84,6 +84,7 @@ export default function CompanyProfileScreen() {
   const insets = useSafeAreaInsets();
   const meQuery = useQuery({ queryKey: queryKeys.auth.me(), queryFn: authApi.getMe });
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   // Derive the view-model from the cached user. Null until the first load
   // succeeds; the JSX below is null-safe (optional chaining + defaults), so a
@@ -104,26 +105,29 @@ export default function CompanyProfileScreen() {
   const handleSignOut = () => {
     if (isSigningOut) return;
 
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          setIsSigningOut(true);
-          try {
-            await authApi.logout();
-          } catch (error) {
-            console.log('Error during logout', error);
-            Alert.alert('Sign Out', 'Could not reach server, but local session was cleared.');
-          } finally {
-            setIsSigningOut(false);
-          }
-          clearCachedData();
-          router.replace('/(auth)/login');
+    setAlertConfig({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      buttons: [
+        { label: 'Cancel', variant: 'secondary' },
+        {
+          label: 'Sign Out',
+          variant: 'destructive',
+          onPress: async () => {
+            setIsSigningOut(true);
+            try {
+              await authApi.logout();
+            } catch (error) {
+              console.log('Error during logout', error);
+            } finally {
+              setIsSigningOut(false);
+            }
+            clearCachedData();
+            router.replace('/(auth)/login');
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   if (meQuery.isPending) {
@@ -348,6 +352,14 @@ export default function CompanyProfileScreen() {
           </CardContent>
         </Card>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

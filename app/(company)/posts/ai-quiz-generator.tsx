@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal'
 import { Colors } from '@/constants/theme'
 import { getPostJobDraft } from '@/lib/post-job-draft'
 import { setPostJobQuizDraft, type QuizQuestionDraft } from '@/lib/post-job-quiz-draft'
@@ -16,7 +17,6 @@ import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -71,6 +71,7 @@ export default function AIQuizGeneratorScreen() {
   const [quizTitle, setQuizTitle] = useState('')
   const [passingScore, setPassingScore] = useState(70)
   const [questions, setQuestions] = useState<EditableQuestion[]>([])
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null)
 
   const handleGenerate = async () => {
     const draft = getPostJobDraft()
@@ -78,10 +79,11 @@ export default function AIQuizGeneratorScreen() {
     const description = draft.formData.description.trim()
 
     if (!title || !description) {
-      Alert.alert(
-        'Job Details Required',
-        'Please fill in your job title and description before generating a quiz.'
-      )
+      setAlertConfig({
+        title: 'Job Details Required',
+        message: 'Please fill in your job title and description before generating a quiz.',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
 
@@ -101,7 +103,11 @@ export default function AIQuizGeneratorScreen() {
       setQuestions(result.questions)
       setStep('review')
     } catch (error: any) {
-      Alert.alert('Generation Failed', error?.message ?? 'Please try again.')
+      setAlertConfig({
+        title: 'Generation Failed',
+        message: error?.message ?? 'Please try again.',
+        buttons: [{ label: 'OK' }],
+      })
     } finally {
       setLoading(false)
     }
@@ -307,6 +313,14 @@ export default function AIQuizGeneratorScreen() {
             )}
           </Button>
         </ScrollView>
+
+        <ThemedModal
+          visible={!!alertConfig}
+          title={alertConfig?.title ?? ''}
+          message={alertConfig?.message ?? ''}
+          buttons={alertConfig?.buttons ?? []}
+          onRequestClose={() => setAlertConfig(null)}
+        />
       </View>
     )
   }
@@ -478,6 +492,14 @@ export default function AIQuizGeneratorScreen() {
           </View>
         </Button>
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   )
 }

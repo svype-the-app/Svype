@@ -2,12 +2,13 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { getAvailableJobs, type Job } from '@/lib/mock-data';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function JobDetailsScreen() {
@@ -19,6 +20,7 @@ export default function JobDetailsScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -40,20 +42,22 @@ export default function JobDetailsScreen() {
     if (!job) return;
     // TODO: Implement actual job application logic
     setHasApplied(true);
-    Alert.alert(
-      'Application Submitted! 🎉',
-      `Your application for ${job.title} has been sent.`
-    );
+    setAlertConfig({
+      title: 'Application Submitted! 🎉',
+      message: `Your application for ${job.title} has been sent.`,
+      buttons: [{ label: 'OK' }],
+    });
   };
 
   const handleSave = () => {
     if (!job) return;
     
     setIsSaved(!isSaved);
-    Alert.alert(
-      isSaved ? 'Job Removed' : 'Job Saved',
-      isSaved ? 'Job removed from saved' : 'Job saved for later'
-    );
+    setAlertConfig({
+      title: isSaved ? 'Job Removed' : 'Job Saved',
+      message: isSaved ? 'Job removed from saved' : 'Job saved for later',
+      buttons: [{ label: 'OK' }],
+    });
   };
 
   const handleShare = async () => {
@@ -65,7 +69,7 @@ export default function JobDetailsScreen() {
         title: job.title
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to share job');
+      setAlertConfig({ title: 'Error', message: 'Failed to share job', buttons: [{ label: 'OK' }] });
     }
   };
 
@@ -321,6 +325,14 @@ export default function JobDetailsScreen() {
           </Button>
         </View>
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

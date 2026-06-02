@@ -1,13 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { getAvailableJobs, type Job } from '@/lib/mock-data';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
     Animated,
     PanResponder,
     ScrollView,
@@ -31,6 +31,7 @@ export default function SavedJobsScreen() {
   const insets = useSafeAreaInsets();
   const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     loadSavedJobs();
@@ -49,21 +50,25 @@ export default function SavedJobsScreen() {
   };
 
   const handleRemove = async (jobId: string, jobTitle: string) => {
-    Alert.alert('Remove Job', `Remove "${jobTitle}" from saved jobs?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            savedJobsCache = savedJobsCache.filter((id) => id !== jobId);
-            loadSavedJobs();
-          } catch (error) {
-            console.error('Error removing job:', error);
-          }
+    setAlertConfig({
+      title: 'Remove Job',
+      message: `Remove "${jobTitle}" from saved jobs?`,
+      buttons: [
+        { label: 'Cancel', variant: 'secondary' },
+        {
+          label: 'Remove',
+          variant: 'destructive',
+          onPress: async () => {
+            try {
+              savedJobsCache = savedJobsCache.filter((id) => id !== jobId);
+              loadSavedJobs();
+            } catch (error) {
+              console.error('Error removing job:', error);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   const formatSalary = (min: number, max: number) => {
@@ -267,6 +272,14 @@ export default function SavedJobsScreen() {
           <EmptyState />
         )}
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

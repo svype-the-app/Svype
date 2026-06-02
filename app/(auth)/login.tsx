@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { clearCachedData, prefetchForUser } from '@/lib/query-client';
 import { authApi } from '@/services/api';
@@ -9,7 +10,7 @@ import { getRouteForUserState } from '@/services/routing';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -19,11 +20,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   const handleLogin = async () => {
     // Validate fields
     if (!email || !password) {
-      Alert.alert('Missing Fields', 'Please enter your email and password');
+      setAlertConfig({
+        title: 'Missing Fields',
+        message: 'Please enter your email and password',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
@@ -54,7 +60,7 @@ export default function LoginScreen() {
         errorMessage = error.message;
       }
       
-      Alert.alert('Login Failed', errorMessage);
+      setAlertConfig({ title: 'Login Failed', message: errorMessage, buttons: [{ label: 'OK' }] });
     } finally {
       setIsLoading(false);
     }
@@ -151,6 +157,14 @@ export default function LoginScreen() {
           </CardContent>
         </Card>
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </ScrollView>
   );
 }

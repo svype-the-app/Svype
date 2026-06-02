@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { clearCachedData } from '@/lib/query-client';
 import { authApi } from '@/services/api';
@@ -8,7 +9,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Appearance,
   Linking,
   ScrollView,
@@ -31,12 +31,17 @@ export default function SettingsScreen() {
     jobRecommendations: true,
     language: 'English',
   });
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   const handleToggle = (key: keyof typeof settings) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-    // Show a simple alert confirmation (could be replaced with a toast library)
+    // Show a simple confirmation (could be replaced with a toast library)
     setTimeout(() => {
-      Alert.alert('Setting Updated', 'Your preferences have been saved.');
+      setAlertConfig({
+        title: 'Setting Updated',
+        message: 'Your preferences have been saved.',
+        buttons: [{ label: 'OK' }],
+      });
     }, 100);
   };
 
@@ -44,38 +49,48 @@ export default function SettingsScreen() {
     const newTheme = colorScheme === 'dark' ? 'light' : 'dark';
     Appearance.setColorScheme(newTheme);
     setTimeout(() => {
-      Alert.alert('Theme Updated', `Switched to ${newTheme} mode.`);
+      setAlertConfig({
+        title: 'Theme Updated',
+        message: `Switched to ${newTheme} mode.`,
+        buttons: [{ label: 'OK' }],
+      });
     }, 100);
   };
 
   const handleClearData = () => {
-    Alert.alert(
-      'Clear Cache',
-      'Are you sure you want to clear your local cache?',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setAlertConfig({
+      title: 'Clear Cache',
+      message: 'Are you sure you want to clear your local cache?',
+      buttons: [
+        { label: 'Cancel', variant: 'secondary' },
         {
-          text: 'Clear',
-          style: 'destructive',
+          label: 'Clear',
+          variant: 'destructive',
           onPress: () => {
-            Alert.alert('Data Cleared', 'Your local cache has been cleared successfully.');
+            // Re-open after the confirm modal auto-dismisses.
+            setTimeout(() => {
+              setAlertConfig({
+                title: 'Data Cleared',
+                message: 'Your local cache has been cleared successfully.',
+                buttons: [{ label: 'OK' }],
+              });
+            }, 0);
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setAlertConfig({
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete your account? This action cannot be undone.',
+      buttons: [
+        { label: 'Cancel', variant: 'secondary' },
         {
-          text: 'Delete',
-          style: 'destructive',
+          label: 'Delete',
+          variant: 'destructive',
           onPress: async () => {
-            Alert.alert('Account Deletion', 'Your account deletion request has been submitted.');
             try {
               await authApi.logout();
             } catch (error) {
@@ -85,8 +100,8 @@ export default function SettingsScreen() {
             router.replace('/');
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const handlePrivacyPolicy = () => {
@@ -98,7 +113,11 @@ export default function SettingsScreen() {
   };
 
   const handleDataPrivacy = () => {
-    Alert.alert('Data & Privacy', 'Data and privacy settings will be available soon.');
+    setAlertConfig({
+      title: 'Data & Privacy',
+      message: 'Data and privacy settings will be available soon.',
+      buttons: [{ label: 'OK' }],
+    });
   };
 
   return (
@@ -212,7 +231,13 @@ export default function SettingsScreen() {
               </View>
               <TouchableOpacity
                 style={[styles.changeButton, { borderColor: colors.border }]}
-                onPress={() => Alert.alert('Language', 'Language selection coming soon')}
+                onPress={() =>
+                  setAlertConfig({
+                    title: 'Language',
+                    message: 'Language selection coming soon',
+                    buttons: [{ label: 'OK' }],
+                  })
+                }
               >
                 <Text style={[styles.changeButtonText, { color: colors.foreground }]}>
                   Change
@@ -312,6 +337,14 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

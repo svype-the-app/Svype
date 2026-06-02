@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Alert,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -22,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal'
 import { getPostJobQuizDraft, setPostJobQuizDraft } from '@/lib/post-job-quiz-draft'
 
 interface Question {
@@ -53,6 +53,7 @@ export default function AddQuizQuestionsScreen() {
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
   const [isQuizConfirmed, setIsQuizConfirmed] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null)
 
   const questionTypes: Array<'multiple-choice' | 'text'> = ['multiple-choice', 'text']
 
@@ -102,7 +103,7 @@ export default function AddQuizQuestionsScreen() {
     const latest = questions[questions.length - 1]
     const validationError = validateQuestion(latest)
     if (validationError) {
-      Alert.alert('Incomplete Question', validationError)
+      setAlertConfig({ title: 'Incomplete Question', message: validationError, buttons: [{ label: 'OK' }] })
       return
     }
 
@@ -113,7 +114,11 @@ export default function AddQuizQuestionsScreen() {
 
   const handleRemoveQuestion = (id: string) => {
     if (questions.length === 1) {
-      Alert.alert('Required', 'At least one question box is required.')
+      setAlertConfig({
+        title: 'Required',
+        message: 'At least one question box is required.',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
@@ -137,14 +142,22 @@ export default function AddQuizQuestionsScreen() {
 
   const handleConfirmQuiz = () => {
     if (questions.length < 5) {
-      Alert.alert('Minimum Questions', 'Please add at least 5 questions to confirm this quiz.')
+      setAlertConfig({
+        title: 'Minimum Questions',
+        message: 'Please add at least 5 questions to confirm this quiz.',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
 
     for (let i = 0; i < questions.length; i += 1) {
       const error = validateQuestion(questions[i])
       if (error) {
-        Alert.alert('Incomplete Quiz', `Question ${i + 1}: ${error}`)
+        setAlertConfig({
+          title: 'Incomplete Quiz',
+          message: `Question ${i + 1}: ${error}`,
+          buttons: [{ label: 'OK' }],
+        })
         return
       }
     }
@@ -155,12 +168,11 @@ export default function AddQuizQuestionsScreen() {
       confirmed: true,
     })
 
-    Alert.alert('Quiz Confirmed', `${questions.length} question(s) linked to this job draft.`, [
-      {
-        text: 'OK',
-        onPress: () => router.back(),
-      },
-    ])
+    setAlertConfig({
+      title: 'Quiz Confirmed',
+      message: `${questions.length} question(s) linked to this job draft.`,
+      buttons: [{ label: 'OK', onPress: () => router.back() }],
+    })
   }
 
   const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
@@ -391,6 +403,14 @@ export default function AddQuizQuestionsScreen() {
           />
         </View>
       </Modal>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   )
 }

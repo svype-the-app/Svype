@@ -82,6 +82,12 @@ export const jobsApi = {
     return apiClient.get<Job[]>('/jobs/swipe/');
   },
 
+  /** Force a fresh re-ranking + new random batch (pull-to-refresh). The backend
+   *  invalidates the cache when `refresh=true` is passed. */
+  async refreshSwipeJobs(): Promise<Job[]> {
+    return apiClient.get<Job[]>('/jobs/swipe/?refresh=true');
+  },
+
   /** Fire-and-forget: asks the backend to pre-rank jobs in the background.
    *  Returns immediately (202). Call on app-load so the cache is warm
    *  before the user navigates to the swipe screen. */

@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useChatUnread } from '@/lib/chat-unread-context';
@@ -12,7 +13,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   ScrollView,
@@ -91,6 +91,7 @@ export default function ProfilePreviewScreen() {
   const [pendingEducation, setPendingEducation] = useState<{ institution: string; field_of_study: string; start_year: string; end_year: string }[]>([]);
   const [removedExpIds, setRemovedExpIds] = useState<number[]>([]);
   const [removedEduIds, setRemovedEduIds] = useState<number[]>([]);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -122,7 +123,11 @@ export default function ProfilePreviewScreen() {
         setEducationEntries(profile?.education_entries || []);
       } catch (error) {
         console.log('Could not fetch profile preview data:', error);
-        Alert.alert('Session expired', 'Please log in again.');
+        setAlertConfig({
+          title: 'Session expired',
+          message: 'Please log in again.',
+          buttons: [{ label: 'OK' }],
+        });
         try {
           await authApi.logout();
         } catch {
@@ -281,7 +286,11 @@ export default function ProfilePreviewScreen() {
       await refreshCompletionAndResumes();
       router.replace('/(jobseeker)/profile' as any);
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Unable to save profile changes.');
+      setAlertConfig({
+        title: 'Save failed',
+        message: error?.message || 'Unable to save profile changes.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsSaving(false);
     }
@@ -304,7 +313,11 @@ export default function ProfilePreviewScreen() {
       invalidateCache.me();
       router.replace('/(jobseeker)/profile' as any);
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Unable to save profile changes.');
+      setAlertConfig({
+        title: 'Save failed',
+        message: error?.message || 'Unable to save profile changes.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsSaving(false);
     }
@@ -319,7 +332,11 @@ export default function ProfilePreviewScreen() {
       setHasResume(false);
       await refreshCompletionAndResumes();
     } catch (error: any) {
-      Alert.alert('Delete failed', error?.message || 'Unable to delete resume.');
+      setAlertConfig({
+        title: 'Delete failed',
+        message: error?.message || 'Unable to delete resume.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsUploadingResume(false);
     }
@@ -346,9 +363,17 @@ export default function ProfilePreviewScreen() {
       const file = result.assets[0];
       await profileApi.uploadResume(file.uri, file.name || 'resume.pdf', file.size || 0);
       await refreshCompletionAndResumes();
-      Alert.alert('Resume uploaded', 'Your resume was uploaded successfully.');
+      setAlertConfig({
+        title: 'Resume uploaded',
+        message: 'Your resume was uploaded successfully.',
+        buttons: [{ label: 'OK' }],
+      });
     } catch (error: any) {
-      Alert.alert('Upload failed', error?.message || 'Unable to upload resume right now.');
+      setAlertConfig({
+        title: 'Upload failed',
+        message: error?.message || 'Unable to upload resume right now.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsUploadingResume(false);
     }
@@ -372,9 +397,17 @@ export default function ProfilePreviewScreen() {
       const updatedUser = await authApi.uploadAvatar(file.uri, fileName);
       setAvatarUrl(resolveMediaUrl(updatedUser.avatar));
       await refreshCompletionAndResumes();
-      Alert.alert('Profile photo updated', 'Your profile picture has been updated.');
+      setAlertConfig({
+        title: 'Profile photo updated',
+        message: 'Your profile picture has been updated.',
+        buttons: [{ label: 'OK' }],
+      });
     } catch (error: any) {
-      Alert.alert('Upload failed', error?.message || 'Unable to upload profile picture right now.');
+      setAlertConfig({
+        title: 'Upload failed',
+        message: error?.message || 'Unable to upload profile picture right now.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -805,6 +838,14 @@ export default function ProfilePreviewScreen() {
           </Button>
         )}
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

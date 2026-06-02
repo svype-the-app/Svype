@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors } from '@/constants/theme'
-import { invalidateCache } from '@/lib/query-client'
+import { invalidateCache, queryClient } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useApplications } from '@/lib/use-applications'
 import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
@@ -193,9 +193,18 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const [coverLetterJob, setCoverLetterJob] = useState<SwipeJob | null>(null)
   const [coverLetterText, setCoverLetterText] = useState('')
   const [coverLetterLoading, setCoverLetterLoading] = useState(false)
-  const [coverLetterApplying, setCoverLetterApplying] = useState(false)
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null)
   const [showCoverLetterIntro, setShowCoverLetterIntro] = useState(false)
+  // Optimistic-submission failure (Change 3). When the background apply call
+  // fails we stash the job + edited cover letter + the deck slot it came from,
+  // and surface a themed retry/cancel popup.
+  const [failedSubmission, setFailedSubmission] = useState<{
+    job: SwipeJob
+    coverLetter: string
+    originalIndex: number
+  } | null>(null)
+  // Pull-to-refresh / header-refresh in-flight flag (Change 4).
+  const [isRefreshing, setIsRefreshing] = useState(false)
   // Dismissable toast (e.g. the "quiz lives in your dashboard" message).
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -235,12 +244,22 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   // the current versions.
   const approveRef = useRef<() => void>(() => {})
   const rejectRef = useRef<() => void>(() => {})
+  // Re-pointed to the latest handlePullToRefresh so the once-built panResponder
+  // can trigger a refresh on an intentional downward pull (Change 4).
+  const refreshRef = useRef<() => void>(() => {})
 
   // Same stale-closure problem applies to the panResponder's gate function,
   // which reads isScrolling / isCardNavigating / isApplying. Those values
   // are captured at first render (all false) and never see updates. This
   // ref holds the latest values and is re-pointed every render below.
-  const gateRef = useRef({ isScrolling: false, isCardNavigating: false, isApplying: false })
+  const gateRef = useRef({
+    isScrolling: false,
+    isCardNavigating: false,
+    isApplying: false,
+    // True only on the plain job deck (no cover-letter / confirm / undo card,
+    // not already refreshing) — when the downward pull-to-refresh is allowed.
+    canPullRefresh: false,
+  })
 
   // ── Swipe deck data (TanStack Query) ──────────────────────────────────
   // The deck is fetched once and cached + persisted to AsyncStorage, so the
@@ -354,8 +373,11 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, { dx, dy }) => {
         const flags = gateRef.current
+        if (flags.isScrolling || flags.isCardNavigating || flags.isApplying) return false
         const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
-        return isHorizontalSwipe && !flags.isScrolling && !flags.isCardNavigating && !flags.isApplying
+        // Intentional downward pull (only on the job deck) → pull-to-refresh.
+        const isDownwardPull = flags.canPullRefresh && dy > 60 && Math.abs(dy) > Math.abs(dx) * 1.5
+        return isHorizontalSwipe || isDownwardPull
       },
       onPanResponderGrant: () => {
         slideAnim.stopAnimation()
@@ -369,8 +391,20 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       onPanResponderMove: (_, { dx }) => {
         pan.x.setValue(dx)
       },
-      onPanResponderRelease: (_, { dx, vx }) => {
+      onPanResponderRelease: (_, { dx, dy, vx }) => {
         pan.flattenOffset()
+
+        // Pull-to-refresh: an intentional downward drag on the job deck.
+        const flags = gateRef.current
+        if (flags.canPullRefresh && dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+            friction: 5,
+          }).start()
+          refreshRef.current()
+          return
+        }
 
         const isQuickRightFlick = vx > FLICK_VELOCITY_THRESHOLD && dx > 35
         const isQuickLeftFlick = vx < -FLICK_VELOCITY_THRESHOLD && dx < -35
@@ -410,7 +444,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     pan.setValue({ x: 0, y: 0 })
     setCoverLetterError(null)
     setCoverLetterText('')
-    setCoverLetterApplying(false)
     setCoverLetterLoading(true)
     setCoverLetterJob(job)
     scrollViewRef.current?.scrollTo({ y: 0, animated: false })
@@ -468,7 +501,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       pan.setValue({ x: 0, y: 0 })
       setCoverLetterJob(null)
       setCoverLetterText('')
-      setCoverLetterApplying(false)
       setCoverLetterError(null)
       setShowCoverLetterIntro(false)
       setJobs((prevJobs) => {
@@ -486,45 +518,83 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     })
   }
 
-  // Right swipe on the COVER-LETTER card → submit the application with the
-  // edited text. On success advance the deck; on error stay on the card.
-  const handleCoverLetterApply = async () => {
-    if (coverLetterApplying || coverLetterLoading || !coverLetterJob) return
-    const job = coverLetterJob
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    setCoverLetterApplying(true)
-    setCoverLetterError(null)
-    // Spring the card back to centre while the request is in flight.
-    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 5 }).start()
-
-    try {
-      const result = await applicationsApi.apply(job.id, coverLetterText)
-      // Refresh the dashboard; and the quiz history if this job is quiz-gated.
-      invalidateApplications()
-      if (job.has_questions) invalidateCache.quizHistory()
-      await clearLocalDraft(job.id)
-
-      // Quiz-gated job: do NOT navigate to the quiz — point the user to the
-      // dashboard instead (Feature 1a).
-      if (result.requires_quiz) {
-        showToast('This job requires a quiz. You can access it from your Dashboard → Quizzes.')
-      }
-      advanceDeckAfterApply(job.id)
-    } catch (err: any) {
-      const msg = String(err?.message || '')
-      if (msg.toLowerCase().includes('already applied')) {
+  // Submit (or retry) an application in the background — fire-and-forget. The
+  // deck has already advanced optimistically by the time this runs; we only
+  // reconcile the cache on success, or raise the retry popup on failure
+  // (Change 3).
+  const submitApplicationInBackground = (
+    job: SwipeJob,
+    coverLetter: string,
+    originalIndex: number,
+  ) => {
+    void (async () => {
+      try {
+        const result = await applicationsApi.apply(job.id, coverLetter)
+        // Refresh the dashboard; and the quiz history if this job is quiz-gated.
+        invalidateApplications()
+        if (job.has_questions) invalidateCache.quizHistory()
         await clearLocalDraft(job.id)
-        advanceDeckAfterApply(job.id)
-        return
+        // Quiz-gated job: do NOT navigate to the quiz — point the user to the
+        // dashboard instead (Feature 1a).
+        if (result.requires_quiz) {
+          showToast('This job requires a quiz. You can access it from your Dashboard → Quizzes.')
+        }
+      } catch (err: any) {
+        const msg = String(err?.message || '')
+        // "Already applied" is effectively success — clear the draft, no popup.
+        if (msg.toLowerCase().includes('already applied')) {
+          await clearLocalDraft(job.id)
+          return
+        }
+        // Real failure — surface the themed retry/cancel popup.
+        setFailedSubmission({ job, coverLetter, originalIndex })
       }
-      setCoverLetterError(msg || 'Could not submit application. Please try again.')
-      setCoverLetterApplying(false)
-    }
+    })()
+  }
+
+  // Right swipe on the COVER-LETTER card → optimistically advance the deck and
+  // submit in the background (Change 3). The card exit animation + deck advance
+  // run immediately; the API call is fire-and-forget.
+  const handleCoverLetterApply = () => {
+    if (coverLetterLoading || !coverLetterJob) return
+    const job = coverLetterJob
+    const coverLetter = coverLetterText
+    const originalIndex = currentIndex
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    // Optimistic: fly the card off + drop the job from the deck now.
+    advanceDeckAfterApply(job.id)
+    // Fire-and-forget the actual submission.
+    submitApplicationInBackground(job, coverLetter, originalIndex)
+  }
+
+  // "Try Again" on the failure popup → re-fire the same submission in the
+  // background (it'll re-raise the popup if it fails again).
+  const handleRetryFailedSubmission = () => {
+    const fs = failedSubmission
+    setFailedSubmission(null)
+    if (!fs) return
+    submitApplicationInBackground(fs.job, fs.coverLetter, fs.originalIndex)
+  }
+
+  // "Cancel" on the failure popup → restore the job card into the deck at the
+  // slot it came from so the user can try again later.
+  const handleCancelFailedSubmission = () => {
+    const fs = failedSubmission
+    setFailedSubmission(null)
+    if (!fs) return
+    setJobs((prevJobs) => {
+      if (prevJobs.some((j) => j.id === fs.job.id)) return prevJobs
+      const idx = Math.max(0, Math.min(fs.originalIndex, prevJobs.length))
+      const nextJobs = [...prevJobs.slice(0, idx), fs.job, ...prevJobs.slice(idx)]
+      setCurrentIndex(idx)
+      return nextJobs
+    })
+    pan.setValue({ x: 0, y: 0 })
+    triggerSlideIn(false)
   }
 
   // Left swipe on the COVER-LETTER card → return to the same job card.
   const handleCoverLetterBack = () => {
-    if (coverLetterApplying) return
     Haptics.selectionAsync().catch(() => {})
     coverLetterReqRef.current++ // cancel any in-flight cover-letter fetch
     Animated.timing(pan.x, {
@@ -676,6 +746,31 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     triggerSlideIn(true)
   }
 
+  // Pull-to-refresh / header-refresh → force a fresh batch from the backend
+  // (bypasses the TanStack cache) and reset the deck to the top (Change 4).
+  const handlePullToRefresh = async () => {
+    if (isRefreshing) return
+    Haptics.selectionAsync().catch(() => {})
+    setIsRefreshing(true)
+    try {
+      const response = await jobsApi.refreshSwipeJobs()
+      if (!response || response.length === 0) {
+        showToast('All recommended jobs have been loaded. Check back later for new listings.')
+      } else {
+        setJobs(response.map(mapApiJobToSwipeJob))
+        setCurrentIndex(0)
+        pan.setValue({ x: 0, y: 0 })
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+        // Keep the persisted deck cache in sync with the fresh batch.
+        queryClient.setQueryData(queryKeys.jobs.swipe(), response)
+      }
+    } catch {
+      showToast('Failed to reload jobs. Check your connection.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   // Keep the panResponder's call-points + gate flags pointed at the latest
   // values. Runs after every render so the once-built panResponder never
   // invokes a stale closure that captured the first-render state.
@@ -690,12 +785,17 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       approveRef.current = handleShowConfirmation
       rejectRef.current = handleReject
     }
+    refreshRef.current = handlePullToRefresh
     // `isApplying` here gates the panResponder: block swipes while the cover
-    // letter is loading or an apply is in flight.
+    // letter is still loading (submission is now fire-and-forget, so it no
+    // longer blocks swipes). `canPullRefresh` enables the downward
+    // pull-to-refresh gesture only on the plain job deck.
     gateRef.current = {
       isScrolling,
       isCardNavigating,
-      isApplying: coverLetterLoading || coverLetterApplying,
+      isApplying: coverLetterLoading,
+      canPullRefresh:
+        !coverLetterJob && !confirmJob && !showUndoModal && !failedSubmission && !isRefreshing,
     }
   })
 
@@ -807,19 +907,59 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}> 
-      <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={{ marginLeft: 4, flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recommended Jobs</Text>
         </View>
+        {/* Manual refresh — hidden while a cover-letter / confirmation card is up. */}
+        {coverLetterJob === null && confirmJob === null && (
+          <TouchableOpacity
+            onPress={handlePullToRefresh}
+            disabled={isRefreshing}
+            hitSlop={8}
+            style={[styles.headerRefreshBtn, isRefreshing && { opacity: 0.4 }]}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            ) : (
+              <Ionicons name="refresh-outline" size={22} color={colors.mutedForeground} />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
-      {showSectionHint && (
-        <View style={[styles.sectionHint, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-          <Text style={[styles.sectionHintText, { color: colors.primary }]}>Swipe right to accept • left to reject • use Previous/Next buttons to browse</Text>
-          <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
-            <Ionicons name="close" size={16} color={colors.primary} />
-          </TouchableOpacity>
+      {/* Instruction banners (Change 2). The swipe hint and the first-time
+          cover-letter intro share one identical banner style and live in this
+          single inline stack below the header (NOT absolute overlays), so when
+          both are visible they sit one above the other with a 4px gap. */}
+      {(showSectionHint || (coverLetterJob && showCoverLetterIntro)) && (
+        <View style={styles.hintStack}>
+          {showSectionHint && (
+            <View style={[styles.hintBanner, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.sectionHintText, { color: colors.primary }]}>Swipe right to accept • left to reject • use Previous/Next buttons to browse</Text>
+              <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
+                <Ionicons name="close" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          {coverLetterJob && showCoverLetterIntro && (
+            <View style={[styles.hintBanner, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.sectionHintText, { color: colors.primary }]}>You can edit this cover letter before applying. Swipe right to apply, swipe left to go back.</Text>
+              <TouchableOpacity onPress={dismissCoverLetterIntro} style={styles.sectionHintClose}>
+                <Ionicons name="close" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Reloading indicator while a refresh is in flight (Change 4). */}
+      {isRefreshing && (
+        <View style={styles.refreshRow}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[styles.refreshText, { color: colors.mutedForeground }]}>Reloading jobs…</Text>
         </View>
       )}
 
@@ -903,7 +1043,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
                   <TextInput
                     value={coverLetterText}
                     onChangeText={setCoverLetterText}
-                    editable={!coverLetterApplying}
                     multiline
                     placeholder="Write your cover letter…"
                     placeholderTextColor={colors.mutedForeground}
@@ -915,12 +1054,6 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
                 )}
                 {coverLetterError ? (
                   <Text style={styles.coverLetterErrorText}>{coverLetterError}</Text>
-                ) : null}
-                {coverLetterApplying ? (
-                  <View style={styles.coverLetterApplyingRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={[styles.coverLetterLoadingText, { color: colors.mutedForeground }]}>Submitting…</Text>
-                  </View>
                 ) : null}
                 <Text style={[styles.coverLetterInstructions, { color: colors.mutedForeground }]}>
                   Swipe right to apply · Swipe left to go back
@@ -1182,17 +1315,33 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
         </View>
       </Modal>
 
-      {/* First-time cover-letter intro popup (Feature 2c) */}
-      {coverLetterJob && showCoverLetterIntro ? (
-        <View style={[styles.introPopup, { backgroundColor: colors.primary, top: insets.top + 60 }]}>
-          <Text style={styles.introPopupText}>
-            You can edit this cover letter. Swipe right to apply, or swipe left to go back.
-          </Text>
-          <TouchableOpacity onPress={dismissCoverLetterIntro} hitSlop={8} style={styles.introPopupClose}>
-            <Ionicons name="close" size={18} color="#fff" />
-          </TouchableOpacity>
+      {/* Optimistic-submission failure popup (Change 3) — themed Modal + Card,
+          same visual pattern as the undo modal (no native alerts). */}
+      <Modal
+        visible={!!failedSubmission}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelFailedSubmission}
+      >
+        <View style={styles.undoModalOverlay}>
+          <Card style={[styles.undoCard, { backgroundColor: colors.card }]}>
+            <CardContent style={styles.undoCardContent}>
+              <Text style={[styles.undoTitle, { color: colors.foreground }]}>Application Failed</Text>
+              <Text style={[styles.undoDescription, { color: colors.mutedForeground }]}>
+                We couldn&apos;t submit your application for {failedSubmission?.job.title}. Would you like to try again?
+              </Text>
+              <View style={styles.undoButtonsRow}>
+                <Button onPress={handleCancelFailedSubmission} style={[styles.undoActionButton, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.undoActionText, { color: colors.mutedForeground }]}>Cancel</Text>
+                </Button>
+                <Button onPress={handleRetryFailedSubmission} style={[styles.undoActionButton, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.undoActionText, { color: '#fff' }]}>Try Again</Text>
+                </Button>
+              </View>
+            </CardContent>
+          </Card>
         </View>
-      ) : null}
+      </Modal>
 
       {/* Dismissable toast (e.g. quiz-in-dashboard message, Feature 1a) */}
       {toastMessage ? (
@@ -1324,10 +1473,24 @@ const styles = StyleSheet.create({
   },
   cardTimestampWrapper: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
   cardTimestamp: { fontSize: 11 },
-  sectionHint: {
-    marginHorizontal: 16,
+  sectionHintText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  sectionHintClose: {
+    padding: 2,
+  },
+  // Inline stack holding the swipe hint + cover-letter intro banners (Change 2).
+  // The wrapper owns the outer margins + the 4px inter-banner gap so each
+  // `hintBanner` is purely the (margin-free) sectionHint visual.
+  hintStack: {
     marginTop: 12,
     marginBottom: 4,
+    gap: 4,
+  },
+  hintBanner: {
+    marginHorizontal: 16,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -1336,13 +1499,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  sectionHintText: {
-    flex: 1,
+  // Header manual-refresh button (Change 4).
+  headerRefreshBtn: {
+    padding: 4,
+    marginRight: 4,
+  },
+  // "Reloading jobs…" indicator row shown during a refresh (Change 4).
+  refreshRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  refreshText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  sectionHintClose: {
-    padding: 2,
   },
   actionButtonsContainer: {
     flexDirection: 'row',
@@ -1541,7 +1713,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   coverLetterErrorText: { color: '#ef4444', fontSize: 13, marginBottom: 8 },
-  coverLetterApplyingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   coverLetterInstructions: { fontSize: 12, textAlign: 'center', marginTop: 4 },
   // ── Confirmation card (Change 2) ──────────────────────────────────────
   confirmCardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
@@ -1549,25 +1720,6 @@ const styles = StyleSheet.create({
   confirmNote: { fontSize: 14, textAlign: 'center', paddingHorizontal: 8, lineHeight: 20 },
   confirmButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 8 },
   confirmCardButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  // ── First-time intro popup (Feature 2c) ──────────────────────────────
-  introPopup: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    zIndex: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  introPopupText: { flex: 1, color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '500' },
-  introPopupClose: { padding: 2 },
   // ── Dismissable toast (Feature 1a) ───────────────────────────────────
   toastWrap: { position: 'absolute', left: 16, right: 16, bottom: 96, alignItems: 'center', zIndex: 30 },
   toast: {

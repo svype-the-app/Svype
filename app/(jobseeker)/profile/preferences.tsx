@@ -2,13 +2,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { mockPreferredJobTypes, mockPreferredLocations, mockUserPreferences } from '@/lib/mock-profile';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -28,9 +28,14 @@ export default function PreferencesScreen() {
   const [preferences, setPreferences] = useState(mockUserPreferences);
   const [locations, setLocations] = useState(mockPreferredLocations);
   const [jobTypes, setJobTypes] = useState(mockPreferredJobTypes);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   const handleSave = () => {
-    Alert.alert('Preferences Saved', 'Your job preferences have been updated successfully.');
+    setAlertConfig({
+      title: 'Preferences Saved',
+      message: 'Your job preferences have been updated successfully.',
+      buttons: [{ label: 'OK' }],
+    });
   };
 
   const removeLocation = (location: string) => {
@@ -290,6 +295,14 @@ export default function PreferencesScreen() {
           <Text style={styles.saveButtonText}>Save Preferences</Text>
         </Button>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

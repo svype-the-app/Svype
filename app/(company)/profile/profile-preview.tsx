@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { invalidateCache } from '@/lib/query-client';
@@ -12,7 +13,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   ScrollView,
@@ -90,6 +90,7 @@ export default function CompanyProfilePreviewScreen() {
   const [newCultureTag, setNewCultureTag] = useState('');
   const [newBenefit, setNewBenefit] = useState('');
   const [draft, setDraft] = useState<CompanyDraft>(createEmptyDraft());
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -111,7 +112,11 @@ export default function CompanyProfilePreviewScreen() {
         setLogoUrl(resolveMediaUrl((user as any).avatar));
       } catch (error) {
         console.log('Could not fetch company data:', error);
-        Alert.alert('Error', 'Could not load company profile.');
+        setAlertConfig({
+          title: 'Error',
+          message: 'Could not load company profile.',
+          buttons: [{ label: 'OK' }],
+        });
       } finally {
         setIsLoading(false);
       }
@@ -150,10 +155,17 @@ export default function CompanyProfilePreviewScreen() {
         benefits: toNormalizedList(draft.benefits),
       });
       await refreshCompletion();
-      Alert.alert('Saved', 'Company profile updated successfully.');
-      router.back();
+      setAlertConfig({
+        title: 'Saved',
+        message: 'Company profile updated successfully.',
+        buttons: [{ label: 'OK', onPress: () => router.back() }],
+      });
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Unable to save company profile.');
+      setAlertConfig({
+        title: 'Save failed',
+        message: error?.message || 'Unable to save company profile.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsSaving(false);
     }
@@ -175,7 +187,11 @@ export default function CompanyProfilePreviewScreen() {
       invalidateCache.me();
       router.replace('/(company)/profile' as any);
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Unable to save company profile.');
+      setAlertConfig({
+        title: 'Save failed',
+        message: error?.message || 'Unable to save company profile.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsSaving(false);
     }
@@ -195,9 +211,17 @@ export default function CompanyProfilePreviewScreen() {
       const updatedUser = await authApi.uploadAvatar(file.uri, file.name || 'logo.jpg');
       setLogoUrl(resolveMediaUrl(updatedUser.avatar));
       await refreshCompletion();
-      Alert.alert('Logo updated', 'Company logo has been updated.');
+      setAlertConfig({
+        title: 'Logo updated',
+        message: 'Company logo has been updated.',
+        buttons: [{ label: 'OK' }],
+      });
     } catch (error: any) {
-      Alert.alert('Upload failed', error?.message || 'Unable to upload logo right now.');
+      setAlertConfig({
+        title: 'Upload failed',
+        message: error?.message || 'Unable to upload logo right now.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsUploadingLogo(false);
     }
@@ -472,6 +496,14 @@ export default function CompanyProfilePreviewScreen() {
           </>
         )}
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal'
 import { Colors } from '@/constants/theme'
 import { getPostJobQuizDraft, resetPostJobQuizDraft, type QuizQuestionDraft } from '@/lib/post-job-quiz-draft'
 import { getPostJobDraft, resetPostJobDraft, setPostJobDraft } from '../../../lib/post-job-draft'
@@ -15,7 +16,6 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -46,6 +46,7 @@ export default function PostJobScreen() {
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestionDraft[]>([])
   const [quizConfirmed, setQuizConfirmed] = useState(false)
   const [formData, setFormData] = useState(postJobDraft.formData)
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null)
 
   const employmentTypes: EmploymentType[] = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
 
@@ -120,7 +121,11 @@ export default function PostJobScreen() {
       !formData.salaryMax ||
       !formData.description
     ) {
-      Alert.alert('Missing Information', 'Please fill in all required fields')
+      setAlertConfig({
+        title: 'Missing Information',
+        message: 'Please fill in all required fields',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
 
@@ -128,12 +133,20 @@ export default function PostJobScreen() {
     const salaryMax = Number(formData.salaryMax)
 
     if (Number.isNaN(salaryMin) || Number.isNaN(salaryMax)) {
-      Alert.alert('Invalid Salary', 'Please enter valid salary numbers')
+      setAlertConfig({
+        title: 'Invalid Salary',
+        message: 'Please enter valid salary numbers',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
 
     if (salaryMin > salaryMax) {
-      Alert.alert('Invalid Salary Range', 'Minimum salary cannot be greater than maximum salary')
+      setAlertConfig({
+        title: 'Invalid Salary Range',
+        message: 'Minimum salary cannot be greater than maximum salary',
+        buttons: [{ label: 'OK' }],
+      })
       return
     }
 
@@ -143,10 +156,11 @@ export default function PostJobScreen() {
       const hasQuestions = enablePreScreening && quizConfirmed && quizQuestions.length >= 5
 
       if (enablePreScreening && !hasQuestions) {
-        Alert.alert(
-          'Quiz Required',
-          'Please confirm at least 5 quiz questions before posting this job.'
-        )
+        setAlertConfig({
+          title: 'Quiz Required',
+          message: 'Please confirm at least 5 quiz questions before posting this job.',
+          buttons: [{ label: 'OK' }],
+        })
         setIsSubmitting(false)
         return
       }
@@ -194,15 +208,14 @@ export default function PostJobScreen() {
       setQuizQuestions([])
       setQuizConfirmed(false)
 
-      Alert.alert('Success', 'Job posted successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.push('/(company)/dashboard' as any),
-        },
-      ])
+      setAlertConfig({
+        title: 'Success',
+        message: 'Job posted successfully!',
+        buttons: [{ label: 'OK', onPress: () => router.push('/(company)/dashboard' as any) }],
+      })
     } catch (error: any) {
       const errorMessage = error?.message || 'Could not post the job. Please try again.'
-      Alert.alert('Post Failed', errorMessage)
+      setAlertConfig({ title: 'Post Failed', message: errorMessage, buttons: [{ label: 'OK' }] })
     } finally {
       setIsSubmitting(false)
     }
@@ -561,6 +574,14 @@ export default function PostJobScreen() {
           />
         </View>
       </Modal>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   )
 }

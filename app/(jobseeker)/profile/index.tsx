@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { clearCachedData } from '@/lib/query-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -13,10 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -75,6 +75,7 @@ export default function ProfileScreen() {
   // Application count shares the same cache entry as the dashboard, so it's
   // already warm (and updates live whenever an application is added).
   const { applications } = useApplications();
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
   const applicationCount = applications.length;
 
   // Derive the view-model from the cached user. Stays null until the first
@@ -101,22 +102,26 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await authApi.logout();
-          } catch {
-            console.log('Error during logout');
-          }
-          clearCachedData();
-          router.replace('/');
+    setAlertConfig({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      buttons: [
+        { label: 'Cancel', variant: 'secondary' },
+        {
+          label: 'Sign Out',
+          variant: 'destructive',
+          onPress: async () => {
+            try {
+              await authApi.logout();
+            } catch {
+              console.log('Error during logout');
+            }
+            clearCachedData();
+            router.replace('/');
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   if (meQuery.isPending) {
@@ -406,6 +411,14 @@ export default function ProfileScreen() {
           </CardContent>
         </Card>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

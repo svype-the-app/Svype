@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal'
 import { Colors } from '@/constants/theme'
 import { invalidateCache } from '@/lib/query-client'
 import {
@@ -13,7 +14,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   ScrollView,
   StyleSheet,
@@ -55,6 +55,7 @@ export default function DashboardQuizScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [result, setResult] = useState<QuizSubmitResponse | null>(null)
   const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION_SECONDS)
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null)
   const submittedRef = useRef(false)
 
   // ── Integrity telemetry (Change 3) ────────────────────────────────────────
@@ -152,7 +153,11 @@ export default function DashboardQuizScreen() {
       invalidateCache.quizHistory()
     } catch (err: any) {
       submittedRef.current = false
-      Alert.alert('Submission Failed', err?.message ?? 'Could not submit the quiz.')
+      setAlertConfig({
+        title: 'Submission Failed',
+        message: err?.message ?? 'Could not submit the quiz.',
+        buttons: [{ label: 'OK' }],
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -171,8 +176,13 @@ export default function DashboardQuizScreen() {
         if (leftScreenRef.current >= 2) {
           cancelledRef.current = true
           applicationsApi.logQuizAttempt(applicationId, buildIntegrityPayload(true)).catch(() => {})
-          Alert.alert('Quiz cancelled', 'Quiz cancelled: you left the screen too many times.')
-          router.replace('/(jobseeker)/dashboard/quiz-history' as any)
+          setAlertConfig({
+            title: 'Quiz cancelled',
+            message: 'Quiz cancelled: you left the screen too many times.',
+            buttons: [
+              { label: 'OK', onPress: () => router.replace('/(jobseeker)/dashboard/quiz-history' as any) },
+            ],
+          })
         }
       }
     })
@@ -449,6 +459,14 @@ export default function DashboardQuizScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   )
 }

@@ -4,13 +4,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { authApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View, ActivityIndicator } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View, ActivityIndicator } from 'react-native';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function SignUpScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   // Create refs for each input field
   const fullNameRef = useRef<TextInput>(null);
@@ -52,25 +54,41 @@ export default function SignUpScreen() {
   const handleSignUp = async () => {
     // Validate all fields are filled
     if (!fullName || !email || !password || !confirmPassword) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields');
+      setAlertConfig({
+        title: 'Missing Fields',
+        message: 'Please fill in all required fields',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     // Check if passwords match
     if (password !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Passwords do not match');
+      setAlertConfig({
+        title: 'Password Mismatch',
+        message: 'Passwords do not match',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     // Check password length
     if (password.length < 8) {
-      Alert.alert('Weak Password', 'Password must be at least 8 characters');
+      setAlertConfig({
+        title: 'Weak Password',
+        message: 'Password must be at least 8 characters',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     // Check if terms are agreed
     if (!agreedToTerms) {
-      Alert.alert('Terms Required', 'Please agree to the Terms of Service to continue');
+      setAlertConfig({
+        title: 'Terms Required',
+        message: 'Please agree to the Terms of Service to continue',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
@@ -123,7 +141,7 @@ export default function SignUpScreen() {
         errorMessage = error.message;
       }
       
-      Alert.alert('Registration Failed', errorMessage);
+      setAlertConfig({ title: 'Registration Failed', message: errorMessage, buttons: [{ label: 'OK' }] });
     } finally {
       setIsLoading(false);
     }
@@ -313,6 +331,14 @@ export default function SignUpScreen() {
       </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

@@ -1,13 +1,14 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { cvTemplates } from '@/lib/mock-ai-tools';
 import { cvApi, CvSections, CvTemplate } from '@/services/cv';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function GenerateCVScreen() {
@@ -32,6 +33,7 @@ export default function GenerateCVScreen() {
   const [cvUrl, setCvUrl] = useState<string | null>(null);
   const [cvSections, setCvSections] = useState<CvSections | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   // Pre-select the template from the AI recommendation (if provided via params)
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function GenerateCVScreen() {
     } catch (error: any) {
       const msg = error?.message || 'Failed to generate CV. Please try again.';
       setGenerateError(msg);
-      Alert.alert('Generation Failed', msg);
+      setAlertConfig({ title: 'Generation Failed', message: msg, buttons: [{ label: 'OK' }] });
     } finally {
       setIsGenerating(false);
     }
@@ -64,7 +66,11 @@ export default function GenerateCVScreen() {
     try {
       await Linking.openURL(cvUrl);
     } catch {
-      Alert.alert('Error', 'Could not open the PDF. Try copying the URL manually.');
+      setAlertConfig({
+        title: 'Error',
+        message: 'Could not open the PDF. Try copying the URL manually.',
+        buttons: [{ label: 'OK' }],
+      });
     }
   };
 
@@ -73,7 +79,7 @@ export default function GenerateCVScreen() {
     try {
       await Linking.openURL(cvUrl);
     } catch {
-      Alert.alert('Error', 'Could not share the CV.');
+      setAlertConfig({ title: 'Error', message: 'Could not share the CV.', buttons: [{ label: 'OK' }] });
     }
   };
 
@@ -83,9 +89,17 @@ export default function GenerateCVScreen() {
     try {
       await cvApi.saveAsResume(cvUrl);
       setIsSaved(true);
-      Alert.alert('Saved', 'Your CV has been saved as a resume in your profile.');
+      setAlertConfig({
+        title: 'Saved',
+        message: 'Your CV has been saved as a resume in your profile.',
+        buttons: [{ label: 'OK' }],
+      });
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Could not save CV as resume. Try again.');
+      setAlertConfig({
+        title: 'Save failed',
+        message: error?.message || 'Could not save CV as resume. Try again.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setIsSaving(false);
     }
@@ -357,6 +371,14 @@ export default function GenerateCVScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

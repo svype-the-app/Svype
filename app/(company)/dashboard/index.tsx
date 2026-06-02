@@ -1,6 +1,7 @@
 ﻿import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { queryKeys } from '@/lib/query-keys';
@@ -14,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 // Stable empty reference for the no-data-yet render.
 const EMPTY_JOBS: Job[] = [];
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CompanyDashboard() {
@@ -39,6 +40,7 @@ export default function CompanyDashboard() {
   const [selectedJobForActions, setSelectedJobForActions] = useState<Job | null>(null);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   // Refresh on tab focus and tab re-press (preserves the old behaviour).
   // refetch identities are stable, so these subscribe once.
@@ -84,7 +86,11 @@ export default function CompanyDashboard() {
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs.myJobs() });
     },
     onError: (error: any) => {
-      Alert.alert('Delete Failed', error?.message || 'Could not delete this job.');
+      setAlertConfig({
+        title: 'Delete Failed',
+        message: error?.message || 'Could not delete this job.',
+        buttons: [{ label: 'OK' }],
+      });
     },
   });
   const deleting = deleteMutation.isPending;
@@ -425,6 +431,14 @@ export default function CompanyDashboard() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

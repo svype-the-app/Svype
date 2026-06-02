@@ -1,3 +1,4 @@
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { githubApi } from '@/services/github';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,7 +6,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -81,14 +81,18 @@ export default function GitHubWebViewScreen() {
 
   const [phase, setPhase] = useState<Phase>('oauth');
   const [error, setError] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
   // Re-entrancy guard so onShouldStartLoadWithRequest doesn't fire
   // exchangeCode twice if the WebView retries the redirect.
   const handlingRef = useRef(false);
 
   useEffect(() => {
     if (!authUrl) {
-      Alert.alert('GitHub Error', 'Missing authorization URL.');
-      router.back();
+      setAlertConfig({
+        title: 'GitHub Error',
+        message: 'Missing authorization URL.',
+        buttons: [{ label: 'OK', onPress: () => router.back() }],
+      });
     }
   }, [authUrl, router]);
 
@@ -219,6 +223,14 @@ export default function GitHubWebViewScreen() {
           </View>
         ) : null}
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

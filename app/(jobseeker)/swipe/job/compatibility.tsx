@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { invalidateCache } from '@/lib/query-client';
 import { applicationsApi, jobsApi, type CompatibilityScore, type Job } from '@/services/api';
@@ -9,7 +10,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -220,6 +220,7 @@ export default function CompatibilityScreen() {
   const [applying, setApplying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   const load = useCallback(async () => {
     if (!jobId) {
@@ -248,14 +249,14 @@ export default function CompatibilityScreen() {
       invalidateCache.jobseekerCompatibility();
     } catch (err: any) {
       setLoading(false);
-      Alert.alert(
-        'Error',
-        err?.message || 'Could not load compatibility score.',
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => router.back() },
-          { text: 'Retry', onPress: load },
-        ]
-      );
+      setAlertConfig({
+        title: 'Error',
+        message: err?.message || 'Could not load compatibility score.',
+        buttons: [
+          { label: 'Cancel', variant: 'secondary', onPress: () => router.back() },
+          { label: 'Retry', onPress: load },
+        ],
+      });
     }
   }, [jobId, router]);
 
@@ -287,19 +288,25 @@ export default function CompatibilityScreen() {
       const coverNote = result.cover_letter
         ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
         : '';
-      Alert.alert(
-        'Application Submitted',
-        `Your application for ${job?.title ?? 'this role'} has been sent.${coverNote}`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      setAlertConfig({
+        title: 'Application Submitted',
+        message: `Your application for ${job?.title ?? 'this role'} has been sent.${coverNote}`,
+        buttons: [{ label: 'OK', onPress: () => router.back() }],
+      });
     } catch (err: any) {
       const msg = String(err?.message || '');
       if (msg.toLowerCase().includes('already applied')) {
-        Alert.alert('Already Applied', 'You have already applied to this job.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        setAlertConfig({
+          title: 'Already Applied',
+          message: 'You have already applied to this job.',
+          buttons: [{ label: 'OK', onPress: () => router.back() }],
+        });
       } else {
-        Alert.alert('Apply Failed', msg || 'Could not submit application.');
+        setAlertConfig({
+          title: 'Apply Failed',
+          message: msg || 'Could not submit application.',
+          buttons: [{ label: 'OK' }],
+        });
       }
     } finally {
       setApplying(false);
@@ -318,16 +325,20 @@ export default function CompatibilityScreen() {
       await profileApi.uploadResume(file.uri, file.name || 'resume.pdf', file.size || 0);
       // Resume affects profile completion — refresh the profile screen.
       invalidateCache.me();
-      Alert.alert(
-        'Resume uploaded',
-        'Your resume was saved. Apply now?',
-        [
-          { text: 'Apply Now', onPress: proceedWithApply },
-          { text: 'Later', style: 'cancel' },
-        ]
-      );
+      setAlertConfig({
+        title: 'Resume uploaded',
+        message: 'Your resume was saved. Apply now?',
+        buttons: [
+          { label: 'Apply Now', onPress: proceedWithApply },
+          { label: 'Later', variant: 'secondary' },
+        ],
+      });
     } catch (e: any) {
-      Alert.alert('Upload failed', e?.message || 'Could not upload resume.');
+      setAlertConfig({
+        title: 'Upload failed',
+        message: e?.message || 'Could not upload resume.',
+        buttons: [{ label: 'OK' }],
+      });
     }
   }, [proceedWithApply]);
 
@@ -339,14 +350,14 @@ export default function CompatibilityScreen() {
       if (resumes.length === 0) {
         setApplying(false);
         const me = await authApi.getMe();
-        Alert.alert(
-          'Resume Required',
-          'You need a resume to apply for this job.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Upload Resume', onPress: handleUploadResume },
+        setAlertConfig({
+          title: 'Resume Required',
+          message: 'You need a resume to apply for this job.',
+          buttons: [
+            { label: 'Cancel', variant: 'secondary' },
+            { label: 'Upload Resume', onPress: handleUploadResume },
             {
-              text: 'Generate AI Resume',
+              label: 'Generate AI Resume',
               onPress: () => {
                 if (me.user_state === 'active') {
                   router.push('/(jobseeker)/profile/generate-cv' as any);
@@ -355,8 +366,8 @@ export default function CompatibilityScreen() {
                 }
               },
             },
-          ]
-        );
+          ],
+        });
         return;
       }
     } catch {
@@ -372,14 +383,18 @@ export default function CompatibilityScreen() {
     try {
       await jobsApi.saveJob(jobId);
       setSaved(true);
-      Alert.alert('Saved', 'Job added to your saved list.');
+      setAlertConfig({ title: 'Saved', message: 'Job added to your saved list.', buttons: [{ label: 'OK' }] });
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.toLowerCase().includes('exists') || msg.toLowerCase().includes('unique')) {
         setSaved(true);
-        Alert.alert('Already Saved', 'This job is already in your saved list.');
+        setAlertConfig({
+          title: 'Already Saved',
+          message: 'This job is already in your saved list.',
+          buttons: [{ label: 'OK' }],
+        });
       } else {
-        Alert.alert('Error', msg || 'Could not save job.');
+        setAlertConfig({ title: 'Error', message: msg || 'Could not save job.', buttons: [{ label: 'OK' }] });
       }
     } finally {
       setSaving(false);
@@ -428,6 +443,14 @@ export default function CompatibilityScreen() {
             <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
           </Button>
         </View>
+
+        <ThemedModal
+          visible={!!alertConfig}
+          title={alertConfig?.title ?? ''}
+          message={alertConfig?.message ?? ''}
+          buttons={alertConfig?.buttons ?? []}
+          onRequestClose={() => setAlertConfig(null)}
+        />
       </View>
     );
   }
@@ -603,6 +626,14 @@ export default function CompatibilityScreen() {
           )}
         </Pressable>
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

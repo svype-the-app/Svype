@@ -4,11 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { authApi, companyApi } from '@/services/api';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 function normalizeWebsiteInput(value: string): string {
   const trimmed = value.trim();
@@ -30,6 +31,7 @@ export default function CompanyOnboardingScreen() {
     description: '',
   });
   const [serverCompletion, setServerCompletion] = useState<number | null>(null);
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     const loadCompany = async () => {
@@ -95,7 +97,11 @@ export default function CompanyOnboardingScreen() {
 
       await goToProfile();
     } catch (error: any) {
-      Alert.alert('Setup Failed', error?.message || 'Could not save company profile. Please try again.');
+      setAlertConfig({
+        title: 'Setup Failed',
+        message: error?.message || 'Could not save company profile. Please try again.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setSaving(false);
     }
@@ -171,6 +177,14 @@ export default function CompanyOnboardingScreen() {
           </CardContent>
         </Card>
       </View>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }

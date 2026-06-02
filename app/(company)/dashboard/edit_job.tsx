@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { invalidateCache } from '@/lib/query-client';
@@ -9,7 +10,7 @@ import { jobsApi, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type JobStatus = 'active' | 'closed' | 'draft';
@@ -30,6 +31,7 @@ export default function EditCompanyJobScreen() {
   const [status, setStatus] = useState<JobStatus>('active');
   const [salaryMin, setSalaryMin] = useState('');
   const [salaryMax, setSalaryMax] = useState('');
+  const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -68,12 +70,20 @@ export default function EditCompanyJobScreen() {
     const parsedMax = salaryMax ? Number(salaryMax) : undefined;
 
     if ((salaryMin && Number.isNaN(parsedMin)) || (salaryMax && Number.isNaN(parsedMax))) {
-      Alert.alert('Invalid Salary', 'Please enter valid salary values.');
+      setAlertConfig({
+        title: 'Invalid Salary',
+        message: 'Please enter valid salary values.',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
     if (parsedMin && parsedMax && parsedMin > parsedMax) {
-      Alert.alert('Invalid Salary Range', 'Minimum salary cannot be greater than maximum salary.');
+      setAlertConfig({
+        title: 'Invalid Salary Range',
+        message: 'Minimum salary cannot be greater than maximum salary.',
+        buttons: [{ label: 'OK' }],
+      });
       return;
     }
 
@@ -89,14 +99,17 @@ export default function EditCompanyJobScreen() {
       // Edited posting — refresh the company dashboard's job list.
       invalidateCache.myJobs();
 
-      Alert.alert('Saved', 'Job updated successfully.', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/(company)/dashboard'),
-        },
-      ]);
+      setAlertConfig({
+        title: 'Saved',
+        message: 'Job updated successfully.',
+        buttons: [{ label: 'OK', onPress: () => router.replace('/(company)/dashboard') }],
+      });
     } catch (error: any) {
-      Alert.alert('Update Failed', error?.message || 'Could not update job.');
+      setAlertConfig({
+        title: 'Update Failed',
+        message: error?.message || 'Could not update job.',
+        buttons: [{ label: 'OK' }],
+      });
     } finally {
       setSaving(false);
     }
@@ -223,6 +236,14 @@ export default function EditCompanyJobScreen() {
           </CardContent>
         </Card>
       </ScrollView>
+
+      <ThemedModal
+        visible={!!alertConfig}
+        title={alertConfig?.title ?? ''}
+        message={alertConfig?.message ?? ''}
+        buttons={alertConfig?.buttons ?? []}
+        onRequestClose={() => setAlertConfig(null)}
+      />
     </View>
   );
 }
