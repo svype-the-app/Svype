@@ -148,7 +148,7 @@ export const applicationsApi = {
   async apply(jobId: number, coverLetter?: string): Promise<ApplyResponse> {
     const body: { job_id: number; cover_letter?: string } = { job_id: jobId };
     if (coverLetter !== undefined) body.cover_letter = coverLetter;
-    return apiClient.postAI<ApplyResponse>('/apply/', body);
+    return apiClient.post<ApplyResponse>('/apply/', body);
   },
 
   async submitQuiz(applicationId: number, answers: Answer[]): Promise<QuizSubmitResponse> {

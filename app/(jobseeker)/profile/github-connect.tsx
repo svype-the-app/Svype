@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { githubApi } from '@/services/github';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -18,10 +19,36 @@ export default function GitHubConnectScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
+  const isOnboarding = fromOnboarding === 'true';
 
   const [connecting, setConnecting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // When this screen regains focus during onboarding, check whether GitHub is
+  // now connected (the OAuth round-trip happens in the WebView/callback). If so,
+  // return the user to the onboarding chat instead of leaving them here.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isOnboarding) return;
+      let active = true;
+      (async () => {
+        try {
+          const me = await authApi.getMe();
+          const connected = Boolean((me.profile as any)?.github_url);
+          if (active && connected) {
+            router.replace('/(jobseeker)/chat' as any);
+          }
+        } catch {
+          // Network/auth error — stay on the screen, don't redirect.
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [isOnboarding, router])
+  );
 
   const handleConnectPress = async () => {
     setConnecting(true);
@@ -63,13 +90,17 @@ export default function GitHubConnectScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border ?? '#e5e7eb' }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.cancelButton}
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
+        {isOnboarding ? (
+          <View style={styles.cancelButton} />
+        ) : (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.cancelButton}
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+        )}
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Connect GitHub</Text>
         <View style={styles.cancelButton} />
       </View>
@@ -137,9 +168,14 @@ export default function GitHubConnectScreen() {
           style={styles.skipButton}
         >
           <Text style={[styles.skipText, { color: colors.mutedForeground }]}>
-            I&apos;ll enter skills manually
+            {isOnboarding ? 'Cancel' : "I'll enter skills manually"}
           </Text>
         </TouchableOpacity>
+        {isOnboarding ? (
+          <Text style={[styles.skipSubtext, { color: colors.mutedForeground }]}>
+            You can connect from Profile → Settings later
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -192,6 +228,7 @@ const styles = StyleSheet.create({
   connectButtonText: { fontSize: 16, fontWeight: '600' },
   skipButton: { paddingVertical: 12 },
   skipText: { fontSize: 14 },
+  skipSubtext: { fontSize: 12, textAlign: 'center', marginTop: -4 },
   errorText: { fontSize: 13, textAlign: 'center' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   statusText: { fontSize: 13 },

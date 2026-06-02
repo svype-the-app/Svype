@@ -7,7 +7,7 @@ import { aiChatApi, authApi, jobsApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { AppState, View } from 'react-native';
+import { AppState, BackHandler, View } from 'react-native';
 
 // How often to re-check the AI check-in cadence while the user is inside
 // the jobseeker section. 60s is short enough that an 'every_5_mins' test
@@ -232,6 +232,14 @@ function JobSeekerTabs() {
 }
 
 export default function JobSeekerLayout() {
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      BackHandler.exitApp();
+      return true;
+    });
+    return () => subscription.remove();
+  }, []);
+
   return (
     <>
       <ProfilePreviewGuard />

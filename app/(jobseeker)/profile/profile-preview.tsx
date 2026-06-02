@@ -10,7 +10,7 @@ import { aiChatApi, authApi, profileApi, ProfileCompletion, resolveMediaUrl, Res
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -92,56 +92,48 @@ export default function ProfilePreviewScreen() {
   const [removedExpIds, setRemovedExpIds] = useState<number[]>([]);
   const [removedEduIds, setRemovedEduIds] = useState<number[]>([]);
   const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchProfile = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [user, resumeItems] = await Promise.all([
+        authApi.getMe(),
+        profileApi.getResumes().catch(() => []),
+      ]);
+
+      const profile = user.profile;
+      const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
+      const builtDraft: ProfileDraft = {
+        name: fullName,
+        contactNumber: profile?.contact_number || '',
+        email: user.email,
+        headline: profile?.headline || '',
+        about: profile?.about || '',
+        location: profile?.location || '',
+        skills: profile?.skills || [],
+        completion: profile?.completion || null,
+      };
+
+      setOriginalDraft(builtDraft);
+      setDraft(builtDraft);
+      setAvatarUrl(resolveMediaUrl(user.avatar));
+      setResumes(resumeItems);
+      setHasResume(resumeItems.length > 0 || Boolean(profile?.completion?.filled?.resume));
+      setWorkExperiences(profile?.work_experiences || []);
+      setEducationEntries(profile?.education_entries || []);
+    } catch (error) {
+      console.log('Could not fetch profile preview data:', error);
+      setLoadError('Failed to load profile. Check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const [user, resumeItems] = await Promise.all([
-          authApi.getMe(),
-          profileApi.getResumes().catch(() => []),
-        ]);
-
-        const profile = user.profile;
-        const fullName = `${user.first_name} ${user.last_name}`.trim() || 'User';
-        const builtDraft: ProfileDraft = {
-          name: fullName,
-          contactNumber: profile?.contact_number || '',
-          email: user.email,
-          headline: profile?.headline || '',
-          about: profile?.about || '',
-          location: profile?.location || '',
-          skills: profile?.skills || [],
-          completion: profile?.completion || null,
-        };
-
-        setOriginalDraft(builtDraft);
-        setDraft(builtDraft);
-        setAvatarUrl(resolveMediaUrl(user.avatar));
-        setResumes(resumeItems);
-        setHasResume(resumeItems.length > 0 || Boolean(profile?.completion?.filled?.resume));
-        setWorkExperiences(profile?.work_experiences || []);
-        setEducationEntries(profile?.education_entries || []);
-      } catch (error) {
-        console.log('Could not fetch profile preview data:', error);
-        setAlertConfig({
-          title: 'Session expired',
-          message: 'Please log in again.',
-          buttons: [{ label: 'OK' }],
-        });
-        try {
-          await authApi.logout();
-        } catch {
-          // ignore
-        }
-        clearCachedData();
-        router.replace('/');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchProfile();
-  }, [router]);
+  }, [fetchProfile]);
 
   const completion = draft.completion?.percentage || 15;
 
@@ -418,6 +410,22 @@ export default function ProfilePreviewScreen() {
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Loading your profile...</Text>
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <Ionicons name="cloud-offline-outline" size={48} color={colors.mutedForeground} />
+        <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>{loadError}</Text>
+        <TouchableOpacity
+          onPress={fetchProfile}
+          style={[styles.retryButton, { backgroundColor: colors.primary }]}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.retryButtonText, { color: colors.background }]}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -861,6 +869,16 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 14,
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   header: {
     paddingTop: 12,

@@ -205,6 +205,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   } | null>(null)
   // Pull-to-refresh / header-refresh in-flight flag (Change 4).
   const [isRefreshing, setIsRefreshing] = useState(false)
+  // Jobs the user has applied to stay in the deck with an "APPLIED" overlay
+  // instead of being removed (Fix 6).
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<number>>(new Set())
   // Dismissable toast (e.g. the "quiz lives in your dashboard" message).
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -259,6 +262,9 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     // True only on the plain job deck (no cover-letter / confirm / undo card,
     // not already refreshing) — when the downward pull-to-refresh is allowed.
     canPullRefresh: false,
+    // True when the card currently in view has already been applied to (Fix 6)
+    // — swiping is blocked on it.
+    isCurrentApplied: false,
   })
 
   // ── Swipe deck data (TanStack Query) ──────────────────────────────────
@@ -374,6 +380,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       onMoveShouldSetPanResponder: (_, { dx, dy }) => {
         const flags = gateRef.current
         if (flags.isScrolling || flags.isCardNavigating || flags.isApplying) return false
+        if (flags.isCurrentApplied) return false
         const isHorizontalSwipe = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2
         // Intentional downward pull (only on the job deck) → pull-to-refresh.
         const isDownwardPull = flags.canPullRefresh && dy > 60 && Math.abs(dy) > Math.abs(dx) * 1.5
@@ -490,32 +497,23 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     AsyncStorage.setItem(COVER_LETTER_INTRO_KEY, 'true').catch(() => {})
   }
 
-  // Fly the cover-letter card off to the right, then drop the job from the deck
-  // and advance to the next card.
+  // Mark the applied job so it stays in the deck behind an "APPLIED" overlay
+  // (instead of being removed), reset the cover-letter card state, and advance
+  // to the next card (Fix 6).
   const advanceDeckAfterApply = (jobId: number) => {
-    Animated.timing(pan.x, {
-      toValue: SCREEN_WIDTH * 1.2,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      pan.setValue({ x: 0, y: 0 })
-      setCoverLetterJob(null)
-      setCoverLetterText('')
-      setCoverLetterError(null)
-      setShowCoverLetterIntro(false)
-      setJobs((prevJobs) => {
-        const idx = prevJobs.findIndex((j) => j.id === jobId)
-        if (idx === -1) return prevJobs
-        const nextJobs = prevJobs.filter((_, i) => i !== idx)
-        setCurrentIndex((prevIndex) => {
-          if (nextJobs.length === 0) return 0
-          return Math.min(prevIndex, nextJobs.length - 1)
-        })
-        return nextJobs
-      })
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-      triggerSlideIn(true)
+    setAppliedJobIds((prev) => new Set(prev).add(jobId))
+    pan.setValue({ x: 0, y: 0 })
+    setCoverLetterJob(null)
+    setCoverLetterText('')
+    setCoverLetterError(null)
+    setShowCoverLetterIntro(false)
+    setCurrentIndex((prev) => {
+      const current = jobs[prev]
+      if (!current || current.id !== jobId) return prev
+      return Math.min(prev + 1, jobs.length - 1)
     })
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    triggerSlideIn(true)
   }
 
   // Submit (or retry) an application in the background — fire-and-forget. The
@@ -530,6 +528,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     void (async () => {
       try {
         const result = await applicationsApi.apply(job.id, coverLetter)
+        // Keep the card marked applied (idempotent — also covers a successful retry).
+        setAppliedJobIds((prev) => new Set(prev).add(job.id))
         // Refresh the dashboard; and the quiz history if this job is quiz-gated.
         invalidateApplications()
         if (job.has_questions) invalidateCache.quizHistory()
@@ -540,10 +540,24 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           showToast('This job requires a quiz. You can access it from your Dashboard → Quizzes.')
         }
       } catch (err: any) {
-        const msg = String(err?.message || '')
+        console.error('[apply] error:', err)
+        const msg = String(err?.message || err?.errors?.message || err?.errors?.error || '')
+        const lower = msg.toLowerCase()
         // "Already applied" is effectively success — clear the draft, no popup.
-        if (msg.toLowerCase().includes('already applied')) {
+        if (lower.includes('already applied')) {
           await clearLocalDraft(job.id)
+          return
+        }
+        // Failure — revert the optimistic APPLIED mark so the card is usable again.
+        setAppliedJobIds((prev) => {
+          const next = new Set(prev)
+          next.delete(job.id)
+          return next
+        })
+        // No resume on file: retrying won't help, so show a helpful toast
+        // instead of the generic retry popup.
+        if (err?.errors?.error === 'no_resume' || lower.includes('no_resume')) {
+          showToast('Upload a resume from your Profile before applying.')
           return
         }
         // Real failure — surface the themed retry/cancel popup.
@@ -796,6 +810,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
       isApplying: coverLetterLoading,
       canPullRefresh:
         !coverLetterJob && !confirmJob && !showUndoModal && !failedSubmission && !isRefreshing,
+      isCurrentApplied: !!(jobs[currentIndex] && appliedJobIds.has(jobs[currentIndex].id)),
     }
   })
 
@@ -1157,6 +1172,11 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
                 <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← Swipe to Reject or Accept →</Text>
               </ScrollView>
             </CardContent>
+            {appliedJobIds.has(currentJob.id) && (
+              <View style={styles.appliedOverlay}>
+                <Text style={styles.appliedOverlayText}>APPLIED</Text>
+              </View>
+            )}
           </Card>
           )}
 
@@ -1212,6 +1232,8 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             noJobs || showUndoModal || isCardNavigating || coverLetterJob !== null || confirmJob !== null
           const prevDisabled = navDisabled || currentIndex <= 0
           const nextDisabled = navDisabled || currentIndex >= jobs.length - 1
+          // Applied cards can't be re-applied (Fix 6) — disable the match action.
+          const isCurrentCardApplied = !!(jobs[currentIndex] && appliedJobIds.has(jobs[currentIndex].id))
           return (
             <>
               <TouchableOpacity
@@ -1227,10 +1249,10 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.aiMatchButton, (coverLetterJob || confirmJob) && { opacity: 0.5 }]}
-                disabled={!!coverLetterJob || !!confirmJob}
+                style={[styles.aiMatchButton, (coverLetterJob || confirmJob || isCurrentCardApplied) && { opacity: 0.5 }]}
+                disabled={!!coverLetterJob || !!confirmJob || isCurrentCardApplied}
                 onPress={() => {
-                  if (!currentJob || coverLetterJob || confirmJob) return
+                  if (!currentJob || coverLetterJob || confirmJob || isCurrentCardApplied) return
                   router.push(
                     `/(jobseeker)/swipe/job/compatibility?jobId=${currentJob.id}` as any
                   )
@@ -1390,6 +1412,20 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  appliedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  appliedOverlayText: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
   },
   cardContent: {
     flex: 1,
