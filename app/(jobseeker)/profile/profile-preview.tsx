@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -10,7 +11,7 @@ import { aiChatApi, authApi, profileApi, ProfileCompletion, resolveMediaUrl, Res
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -45,6 +46,10 @@ const createEmptyDraft = (): ProfileDraft => ({
   skills: [],
   completion: null,
 });
+
+// AsyncStorage key prefix for auto-saved profile-preview edits (P8). Keyed by
+// the user's email so drafts never leak across accounts on a shared device.
+const PROFILE_DRAFT_PREFIX = 'jobseeker_profile_preview_draft_';
 
 const toNormalizedList = (values: string[]): string[] => {
   const unique = new Set<string>();
@@ -93,6 +98,11 @@ export default function ProfilePreviewScreen() {
   const [removedEduIds, setRemovedEduIds] = useState<number[]>([]);
   const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // P8: auto-save the in-progress edits. draftKeyRef holds the per-user key;
+  // draftHydratedRef gates the auto-save effect until the initial load + any
+  // cached-draft restore has completed.
+  const draftKeyRef = useRef<string | null>(null);
+  const draftHydratedRef = useRef(false);
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
@@ -117,12 +127,33 @@ export default function ProfilePreviewScreen() {
       };
 
       setOriginalDraft(builtDraft);
-      setDraft(builtDraft);
+
+      // Restore any auto-saved in-progress edits for this user (P8). The server
+      // values remain the "original" (so unsaved-change detection still works);
+      // completion always comes fresh from the server.
+      const key = `${PROFILE_DRAFT_PREFIX}${user.email}`;
+      draftKeyRef.current = key;
+      let restored = false;
+      try {
+        const cached = await AsyncStorage.getItem(key);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object') {
+            setDraft({ ...builtDraft, ...parsed, completion: builtDraft.completion });
+            restored = true;
+          }
+        }
+      } catch {
+        // Corrupt/absent cache — fall back to the server values.
+      }
+      if (!restored) setDraft(builtDraft);
+
       setAvatarUrl(resolveMediaUrl(user.avatar));
       setResumes(resumeItems);
       setHasResume(resumeItems.length > 0 || Boolean(profile?.completion?.filled?.resume));
       setWorkExperiences(profile?.work_experiences || []);
       setEducationEntries(profile?.education_entries || []);
+      draftHydratedRef.current = true;
     } catch (error) {
       console.log('Could not fetch profile preview data:', error);
       setLoadError('Failed to load profile. Check your connection.');
@@ -134,6 +165,14 @@ export default function ProfilePreviewScreen() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  // P8: persist in-progress edits to AsyncStorage so they survive navigation /
+  // app reloads. After a successful Save the draft already holds the saved
+  // values, so the restored boxes show the saved data next time.
+  useEffect(() => {
+    if (!draftHydratedRef.current || !draftKeyRef.current) return;
+    AsyncStorage.setItem(draftKeyRef.current, JSON.stringify(draft)).catch(() => {});
+  }, [draft]);
 
   const completion = draft.completion?.percentage || 15;
 

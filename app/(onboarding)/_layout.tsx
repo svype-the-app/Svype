@@ -27,9 +27,13 @@ export default function OnboardingLayout() {
         name="upload-cv" 
         options={{ title: 'Upload CV' }}
       />
-      <Stack.Screen 
-        name="company-onboarding" 
+      <Stack.Screen
+        name="company-onboarding"
         options={{ title: 'Company Onboarding' }}
+      />
+      <Stack.Screen
+        name="github-connect"
+        options={{ title: 'Connect GitHub' }}
       />
     </Stack>
   );

@@ -2,10 +2,8 @@ import { Button } from '@/components/ui/button';
 import { ThemedModal, type ThemedAlertConfig } from '@/components/ui/themed-modal';
 import { Colors } from '@/constants/theme';
 import { invalidateCache } from '@/lib/query-client';
-import { applicationsApi, jobsApi, type CompatibilityScore, type Job } from '@/services/api';
-import { authApi, profileApi } from '@/services/api';
+import { jobsApi, type CompatibilityScore, type Job } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -217,7 +215,6 @@ export default function CompatibilityScreen() {
   const [score, setScore] = useState<CompatibilityScore | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
@@ -264,118 +261,6 @@ export default function CompatibilityScreen() {
     load();
   }, [load]);
 
-  const proceedWithApply = useCallback(async () => {
-    if (!jobId) return;
-    setApplying(true);
-    try {
-      const result = await applicationsApi.apply(jobId);
-      // New application created — refresh the dashboard/accepted-jobs list.
-      invalidateCache.applications();
-
-      if (result.requires_quiz && result.quiz) {
-        router.replace({
-          pathname: '/(jobseeker)/swipe/job/pre-screening-quiz',
-          params: {
-            applicationId: String(result.application_id),
-            jobTitle: job?.title ?? 'Pre-Screening Quiz',
-            quizData: JSON.stringify(result.quiz),
-            skillMatch: JSON.stringify(result.skill_match),
-          },
-        } as any);
-        return;
-      }
-
-      const coverNote = result.cover_letter
-        ? "\n\nWe've prepared a cover letter for you — you can see it in your Applications."
-        : '';
-      setAlertConfig({
-        title: 'Application Submitted',
-        message: `Your application for ${job?.title ?? 'this role'} has been sent.${coverNote}`,
-        buttons: [{ label: 'OK', onPress: () => router.back() }],
-      });
-    } catch (err: any) {
-      const msg = String(err?.message || '');
-      if (msg.toLowerCase().includes('already applied')) {
-        setAlertConfig({
-          title: 'Already Applied',
-          message: 'You have already applied to this job.',
-          buttons: [{ label: 'OK', onPress: () => router.back() }],
-        });
-      } else {
-        setAlertConfig({
-          title: 'Apply Failed',
-          message: msg || 'Could not submit application.',
-          buttons: [{ label: 'OK' }],
-        });
-      }
-    } finally {
-      setApplying(false);
-    }
-  }, [jobId, job, router]);
-
-  const handleUploadResume = useCallback(async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const file = result.assets[0];
-      await profileApi.uploadResume(file.uri, file.name || 'resume.pdf', file.size || 0);
-      // Resume affects profile completion — refresh the profile screen.
-      invalidateCache.me();
-      setAlertConfig({
-        title: 'Resume uploaded',
-        message: 'Your resume was saved. Apply now?',
-        buttons: [
-          { label: 'Apply Now', onPress: proceedWithApply },
-          { label: 'Later', variant: 'secondary' },
-        ],
-      });
-    } catch (e: any) {
-      setAlertConfig({
-        title: 'Upload failed',
-        message: e?.message || 'Could not upload resume.',
-        buttons: [{ label: 'OK' }],
-      });
-    }
-  }, [proceedWithApply]);
-
-  const handleApply = async () => {
-    if (!jobId || applying) return;
-    setApplying(true);
-    try {
-      const resumes = await profileApi.getResumes();
-      if (resumes.length === 0) {
-        setApplying(false);
-        const me = await authApi.getMe();
-        setAlertConfig({
-          title: 'Resume Required',
-          message: 'You need a resume to apply for this job.',
-          buttons: [
-            { label: 'Cancel', variant: 'secondary' },
-            { label: 'Upload Resume', onPress: handleUploadResume },
-            {
-              label: 'Generate AI Resume',
-              onPress: () => {
-                if (me.user_state === 'active') {
-                  router.push('/(jobseeker)/profile/generate-cv' as any);
-                } else {
-                  router.push('/(onboarding)/job-seeker-onboarding' as any);
-                }
-              },
-            },
-          ],
-        });
-        return;
-      }
-    } catch {
-      // If preflight check fails, let the backend enforce the resume requirement
-    }
-    setApplying(false);
-    await proceedWithApply();
-  };
 
   const handleSave = async () => {
     if (!jobId || saving || saved) return;
@@ -607,24 +492,6 @@ export default function CompatibilityScreen() {
           </Text>
         </Pressable>
 
-        <Pressable
-          onPress={handleApply}
-          disabled={applying}
-          style={({ pressed }) => [
-            styles.actionBtn,
-            styles.applyBtn,
-            { opacity: pressed || applying ? 0.85 : 1 },
-          ]}
-        >
-          {applying ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark" size={18} color="#fff" />
-              <Text style={styles.applyBtnText}>Apply Now</Text>
-            </>
-          )}
-        </Pressable>
       </View>
 
       <ThemedModal
@@ -837,13 +704,5 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  applyBtn: {
-    backgroundColor: '#7c3aed',
-  },
-  applyBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
   },
 });

@@ -7,13 +7,13 @@ import { Colors } from '@/constants/theme'
 import { invalidateCache, queryClient } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useApplications } from '@/lib/use-applications'
-import { applicationsApi, Job as ApiJob, jobsApi } from '@/services/api'
+import { applicationsApi, Job as ApiJob, jobsApi, profileApi } from '@/services/api'
 import { formatRelativeTime } from '@/utils/time'
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
-import { useRouter } from 'expo-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Animated,
@@ -176,6 +176,11 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const [undoJob, setUndoJob] = useState<SwipeJob | null>(null)
   const [undoActionType, setUndoActionType] = useState<'approve' | 'reject' | null>(null)
   const [showSectionHint, setShowSectionHint] = useState(true)
+  // Resume/CV gate (P4): null = unknown (still loading), true/false once fetched.
+  // When false, right-swiping a job surfaces the CV-missing banner instead of
+  // generating a cover letter.
+  const [hasResume, setHasResume] = useState<boolean | null>(null)
+  const [showCvMissingHint, setShowCvMissingHint] = useState(false)
   const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const progressAnim = useRef(new Animated.Value(0)).current
   const [isScrolling, setIsScrolling] = useState(false)
@@ -266,6 +271,29 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
     // — swiping is blocked on it.
     isCurrentApplied: false,
   })
+
+  // Refresh the resume/CV gate whenever the swipe tab regains focus, so a CV
+  // uploaded from the profile screen is reflected here (P4). Clears a stale
+  // CV-missing banner once a resume exists.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true
+      profileApi
+        .getResumes()
+        .then((rs) => {
+          if (!active) return
+          const present = Array.isArray(rs) && rs.length > 0
+          setHasResume(present)
+          if (present) setShowCvMissingHint(false)
+        })
+        .catch(() => {
+          if (active) setHasResume(null)
+        })
+      return () => {
+        active = false
+      }
+    }, [])
+  )
 
   // ── Swipe deck data (TanStack Query) ──────────────────────────────────
   // The deck is fetched once and cached + persisted to AsyncStorage, so the
@@ -640,6 +668,13 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
   const handleShowConfirmation = () => {
     const job = jobs[currentIndex]
     if (!job || confirmJob || coverLetterJob) return
+    // CV gate (P4): without a resume on file, don't even start the cover-letter
+    // flow — surface the CV-missing instruction banner and snap the card back.
+    if (hasResume === false) {
+      setShowCvMissingHint(true)
+      Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 5 }).start()
+      return
+    }
     Haptics.selectionAsync().catch(() => {})
     pan.setValue({ x: 0, y: 0 })
     setConfirmJob(job)
@@ -947,7 +982,7 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
           cover-letter intro share one identical banner style and live in this
           single inline stack below the header (NOT absolute overlays), so when
           both are visible they sit one above the other with a 4px gap. */}
-      {(showSectionHint || (coverLetterJob && showCoverLetterIntro)) && (
+      {(showSectionHint || showCvMissingHint || (coverLetterJob && showCoverLetterIntro)) && (
         <View style={styles.hintStack}>
           {showSectionHint && (
             <View style={[styles.hintBanner, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '33' }]}>
@@ -955,6 +990,15 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
               <Text style={[styles.sectionHintText, { color: colors.primary }]}>Swipe right to accept • left to reject • use Previous/Next buttons to browse</Text>
               <TouchableOpacity onPress={() => setShowSectionHint(false)} style={styles.sectionHintClose}>
                 <Ionicons name="close" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          {showCvMissingHint && (
+            <View style={[styles.hintBanner, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '33' }]}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
+              <Text style={[styles.sectionHintText, { color: colors.destructive }]}>Upload a CV from your profile before applying to jobs.</Text>
+              <TouchableOpacity onPress={() => setShowCvMissingHint(false)} style={styles.sectionHintClose}>
+                <Ionicons name="close" size={16} color={colors.destructive} />
               </TouchableOpacity>
             </View>
           )}
@@ -1174,7 +1218,14 @@ export default function JobSeekerCompanyStyleSwipeScreen() {
             </CardContent>
             {appliedJobIds.has(currentJob.id) && (
               <View style={styles.appliedOverlay}>
-                <Text style={styles.appliedOverlayText}>APPLIED</Text>
+                {currentJob.has_questions ? (
+                  <>
+                    <Ionicons name="help-circle" size={44} color="#fff" />
+                    <Text style={styles.appliedQuizText}>Take quiz{'\n'}from dashboard</Text>
+                  </>
+                ) : (
+                  <Text style={styles.appliedOverlayText}>APPLIED</Text>
+                )}
               </View>
             )}
           </Card>
@@ -1426,6 +1477,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 4,
     textTransform: 'uppercase',
+  },
+  appliedQuizText: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 28,
   },
   cardContent: {
     flex: 1,

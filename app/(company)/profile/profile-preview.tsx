@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -10,7 +11,7 @@ import { companyApi } from '@/services/company';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -47,6 +48,10 @@ const createEmptyDraft = (): CompanyDraft => ({
   completionPercentage: 0,
   completionFilled: {},
 });
+
+// AsyncStorage key prefix for auto-saved company profile-preview edits (P8),
+// keyed by the user's email so drafts never leak across accounts.
+const COMPANY_DRAFT_PREFIX = 'company_profile_preview_draft_';
 
 const toNormalizedList = (values: string[]): string[] => {
   const unique = new Set<string>();
@@ -91,6 +96,10 @@ export default function CompanyProfilePreviewScreen() {
   const [newBenefit, setNewBenefit] = useState('');
   const [draft, setDraft] = useState<CompanyDraft>(createEmptyDraft());
   const [alertConfig, setAlertConfig] = useState<ThemedAlertConfig | null>(null);
+  // P8: auto-save in-progress edits. Key set after load; hydration ref gates
+  // the auto-save effect until the initial load + cached-draft restore is done.
+  const draftKeyRef = useRef<string | null>(null);
+  const draftHydratedRef = useRef(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,8 +117,33 @@ export default function CompanyProfilePreviewScreen() {
           completionPercentage: Number(company?.completion?.percentage || 0),
           completionFilled: company?.completion?.filled || {},
         };
-        setDraft(built);
+
+        // Restore any auto-saved in-progress edits for this user (P8); always
+        // take completion straight from the server.
+        const key = `${COMPANY_DRAFT_PREFIX}${user.email}`;
+        draftKeyRef.current = key;
+        let restored = false;
+        try {
+          const cached = await AsyncStorage.getItem(key);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === 'object') {
+              setDraft({
+                ...built,
+                ...parsed,
+                completionPercentage: built.completionPercentage,
+                completionFilled: built.completionFilled,
+              });
+              restored = true;
+            }
+          }
+        } catch {
+          // Corrupt/absent cache — use server values.
+        }
+        if (!restored) setDraft(built);
+
         setLogoUrl(resolveMediaUrl((user as any).avatar));
+        draftHydratedRef.current = true;
       } catch (error) {
         console.log('Could not fetch company data:', error);
         setAlertConfig({
@@ -123,6 +157,12 @@ export default function CompanyProfilePreviewScreen() {
     };
     fetchData();
   }, []);
+
+  // P8: persist in-progress edits so they survive navigation / app reloads.
+  useEffect(() => {
+    if (!draftHydratedRef.current || !draftKeyRef.current) return;
+    AsyncStorage.setItem(draftKeyRef.current, JSON.stringify(draft)).catch(() => {});
+  }, [draft]);
 
   const completion = draft.completionPercentage;
 

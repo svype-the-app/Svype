@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/theme';
+import { authApi } from '@/services/api';
 import { githubApi } from '@/services/github';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -13,7 +14,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function GitHubConnectScreen() {
+// Onboarding variant of the GitHub-connect screen. Lives in the (onboarding)
+// stack so it renders WITHOUT the jobseeker bottom tab bar — the user must not
+// be able to navigate the rest of the app mid-onboarding. The connect button
+// logic is identical to the post-onboarding screen; only the chrome differs
+// (no back arrow, a "Cancel" button that returns to the chat).
+export default function OnboardingGitHubConnectScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -23,6 +29,29 @@ export default function GitHubConnectScreen() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // When this screen regains focus, check whether GitHub is now connected (the
+  // OAuth round-trip happens in the WebView/callback). If so, return the user
+  // to the onboarding chat instead of leaving them on this screen.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const me = await authApi.getMe();
+          const connected = Boolean((me.profile as any)?.github_url);
+          if (active && connected) {
+            router.replace('/(jobseeker)/chat' as any);
+          }
+        } catch {
+          // Network/auth error — stay on the screen, don't redirect.
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [router])
+  );
+
   const handleConnectPress = async () => {
     setConnecting(true);
     setError(null);
@@ -30,15 +59,7 @@ export default function GitHubConnectScreen() {
 
     try {
       // The in-app WebView (see app/github-webview.tsx) handles the full
-      // OAuth flow internally:
-      //   - Renders github.com/login inside the app (fresh cookies — no
-      //     auto-login from system Safari/Chrome on either iOS or Android).
-      //   - Intercepts GitHub's redirect to our backend callback URL before
-      //     the browser navigates there, so the user never sees ngrok.
-      //   - POSTs code+state to /api/auth/github/exchange/ and routes to
-      //     /github-callback with the result on success/failure.
-      // We don't need a deep-link redirect URL anymore — the WebView is
-      // doing the round-trip in-process.
+      // OAuth flow internally and routes to /github-callback on success/failure.
       const { auth_url } = await githubApi.getAuthUrl();
       setStatusMessage(null);
       router.push({
@@ -63,13 +84,7 @@ export default function GitHubConnectScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border ?? '#e5e7eb' }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.cancelButton}
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
+        <View style={styles.cancelButton} />
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Connect GitHub</Text>
         <View style={styles.cancelButton} />
       </View>
@@ -137,9 +152,12 @@ export default function GitHubConnectScreen() {
           style={styles.skipButton}
         >
           <Text style={[styles.skipText, { color: colors.mutedForeground }]}>
-            I&apos;ll enter skills manually
+            Cancel
           </Text>
         </TouchableOpacity>
+        <Text style={[styles.skipSubtext, { color: colors.mutedForeground }]}>
+          You can connect from Profile → Settings later
+        </Text>
       </View>
     </View>
   );
@@ -157,7 +175,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: '600' },
   cancelButton: { minWidth: 60 },
-  cancelText: { fontSize: 16 },
   landing: {
     flex: 1,
     alignItems: 'center',
@@ -192,24 +209,10 @@ const styles = StyleSheet.create({
   connectButtonText: { fontSize: 16, fontWeight: '600' },
   skipButton: { paddingVertical: 12 },
   skipText: { fontSize: 14 },
+  skipSubtext: { fontSize: 12, textAlign: 'center', marginTop: -4 },
   errorText: { fontSize: 13, textAlign: 'center' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   statusText: { fontSize: 13 },
   cancelInFlight: { paddingVertical: 8 },
   cancelInFlightText: { fontSize: 13, textDecorationLine: 'underline' },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  chipText: { fontSize: 13, fontWeight: '500' },
 });
