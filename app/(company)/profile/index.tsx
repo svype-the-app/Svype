@@ -198,6 +198,12 @@ export default function CompanyProfileScreen() {
             <Ionicons name="business" size={12} color={colors.primary} />
             <Text>Employer Account</Text>
           </Badge>
+          {meQuery.data?.is_premium && (
+            <Badge style={{ backgroundColor: '#f59e0b20', marginTop: 8 }} textStyle={{ color: '#f59e0b' }}>
+              <Ionicons name="diamond" size={12} color="#f59e0b" />
+              <Text>Premium Member</Text>
+            </Badge>
+          )}
         </View>
 
         <TouchableOpacity

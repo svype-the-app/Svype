@@ -196,6 +196,12 @@ export default function ProfileScreen() {
             <Ionicons name="sparkles" size={12} color={colors.primary} />
             <Text>AI Career Matched</Text>
           </Badge>
+          {meQuery.data?.is_premium && (
+            <Badge style={{ backgroundColor: '#f59e0b20', marginTop: 8 }} textStyle={{ color: '#f59e0b' }}>
+              <Ionicons name="diamond" size={12} color="#f59e0b" />
+              <Text>Premium Member</Text>
+            </Badge>
+          )}
         </View>
 
         {/* Profile Completion Card */}
@@ -366,6 +372,12 @@ export default function ProfileScreen() {
                 icon={<Ionicons name="logo-github" size={20} color={colors.foreground} />}
                 label="Connect GitHub"
                 onPress={() => router.push('/(jobseeker)/profile/github-connect' as any)}
+                colors={colors}
+              />
+              <MenuItem
+                icon={<Ionicons name="diamond-outline" size={20} color="#f59e0b" />}
+                label="Upgrade to Premium"
+                onPress={() => router.push('/(jobseeker)/profile/upgrade' as any)}
                 colors={colors}
                 isLast
               />

@@ -15,6 +15,7 @@ export interface User {
   last_name: string;
   user_type: 'jobseeker' | 'company';
   user_state: UserState;
+  is_premium?: boolean;
   avatar?: string;
   created_at: string;
   profile?: JobSeekerProfile;
